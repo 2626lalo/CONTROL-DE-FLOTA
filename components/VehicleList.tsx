@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useApp } from '../App';
 import { Link, useNavigate } from 'react-router-dom';
@@ -182,7 +181,7 @@ export const VehicleList = () => {
           setModalConfig({
               isOpen: true,
               title: "⚠ Eliminación Definitiva",
-              message: `¿Está seguro? El registro de la unidad ${vehicle.plate} dejará de existir permanentemente y no se podrá recuperar.`,
+              message: `¿Está seguro? El registro del unidad ${vehicle.plate} dejará de existir permanentemente y no se podrá recuperar.`,
               onConfirm: () => deleteVehicle(vehicle.plate)
           });
       }
@@ -523,7 +522,11 @@ export const VehicleList = () => {
               <span>Kilometraje:</span>
               <span className="font-medium text-slate-800 flex items-center gap-1">
                   {effectiveKm.toLocaleString()} km
-                  {isKmFromChecklist && <LucideSmartphone size={12} className="text-blue-500" title="Actualizado vía Checklist"/>}
+                  {isKmFromChecklist && (
+                      <span title="Actualizado vía Checklist" className="flex items-center">
+                          <LucideSmartphone size={12} className="text-blue-500" />
+                      </span>
+                  )}
               </span>
             </div>
             
@@ -586,7 +589,14 @@ export const VehicleList = () => {
                                     <div className="flex items-center gap-2 overflow-hidden">
                                         {icon}
                                         <div className="flex flex-col truncate">
-                                            <span className="font-bold truncate">{doc.type === 'INSURANCE' ? 'Seguro' : doc.type === 'VTV_RTO' ? 'VTV/RTO' : doc.type}</span>
+                                            <span className="font-bold truncate">
+                                                {doc.type === 'INSURANCE' ? 'Seguro' : 
+                                                 doc.type === 'VTV_RTO' ? 'VTV/RTO' : 
+                                                 doc.type === 'TITLE' ? 'Cédula' :
+                                                 doc.type === 'IDENTIFICATION' ? 'Identificación' :
+                                                 doc.type === 'OTHER' ? doc.name : 
+                                                 doc.type}
+                                            </span>
                                             <span>{statusText} <span className="font-bold">({daysLabel})</span></span>
                                         </div>
                                     </div>

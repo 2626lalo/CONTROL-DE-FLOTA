@@ -27,7 +27,7 @@ export const analyzeVehicleImage = async (base64Images: string[]) => {
         parts: [
           ...imageParts,
           {
-            text: "Analyze these images. They are likely the front and back of a vehicle registration card (Cédula) or vehicle photos. Extract the Plate (Matricula/Dominio), Make (Marca), Model (Modelo), Year (Año), VIN/Chassis, Motor Number (Nro Motor), and Type (Sedan, Pickup, etc). Return JSON."
+            text: "Analyze these images (Vehicle Registration/Cédula or Car Photo). Extract: Plate, Make, Model, Year. For 'Type', strictly categorize into one of these exact values: 'Sedan', 'Pickup', 'SUV', 'Van', 'Truck', 'Other'. Also extract VIN and Motor Number. Return JSON."
           }
         ]
       },
@@ -42,7 +42,7 @@ export const analyzeVehicleImage = async (base64Images: string[]) => {
             year: { type: Type.NUMBER, description: "Year of manufacture" },
             vin: { type: Type.STRING, description: "Chassis number / VIN" },
             motorNum: { type: Type.STRING, description: "Engine/Motor Number" },
-            type: { type: Type.STRING, description: "Type of vehicle (e.g. Pickup, Sedan)" }
+            type: { type: Type.STRING, description: "One of: Sedan, Pickup, SUV, Van, Truck, Other" }
           }
         }
       }
@@ -57,8 +57,9 @@ export const analyzeVehicleImage = async (base64Images: string[]) => {
 
 /**
  * Extracts document data (Insurance, VTV, etc) specifically looking for dates and policy info.
+ * Supports Images and PDF.
  */
-export const analyzeDocumentImage = async (base64Image: string, docType: string) => {
+export const analyzeDocumentImage = async (base64Data: string, docType: string, mimeType: string = 'image/jpeg') => {
   try {
     const response = await ai.models.generateContent({
       model: MODEL_NAME,
@@ -66,12 +67,12 @@ export const analyzeDocumentImage = async (base64Image: string, docType: string)
         parts: [
           {
             inlineData: {
-              mimeType: 'image/jpeg',
-              data: base64Image
+              mimeType: mimeType,
+              data: base64Data
             }
           },
           {
-            text: `Analyze this ${docType} document. Extract the expiration date (Vencimiento), the issuing company or entity name. IMPORTANT: If it is an Insurance document, look for the Policy Number (Número de Póliza) and Client/Associate Number (Número de Cliente / Socio). Also look for Vehicle Model Year if visible. Return JSON.`
+            text: `Analyze this ${docType} document. Extract the expiration date (Vencimiento). If it is an Insurance (Seguro) document, CRITICAL: Find the 'Model Year' (Año del vehículo) listed on the policy and the Policy Number. Return JSON.`
           }
         ]
       },
@@ -129,7 +130,7 @@ export const analyzeExtinguisherLabel = async (base64Image: string) => {
       contents: {
         parts: [
           { inlineData: { mimeType: 'image/jpeg', data: base64Image } },
-          { text: "Analyze this fire extinguisher label. Look for the Expiration Date (Vencimiento) or Manufacturing Date (Fabricación) to calculate validity. Usually valid for 1 year from service/manufacture. Return the specific EXPIRATION DATE found or calculated. Return JSON." }
+          { text: "Analyze this fire extinguisher label. Look for the Expiration Date (Vencimiento) or Manufacturing Date (Fabricación) to calculate validity. Usually valid for 1 year from service/manufacture. Return the specific EXPIRATION DATE found or calculated in YYYY-MM-DD format. Return JSON." }
         ]
       },
       config: {
@@ -183,15 +184,16 @@ export const analyzeBatteryImage = async (base64Image: string) => {
 
 /**
  * Analyzes a budget/quote image to extract provider, cost, and budget number.
+ * Accepts mimeType to support PDFs.
  */
-export const analyzeBudgetImage = async (base64Image: string) => {
+export const analyzeBudgetImage = async (base64Image: string, mimeType: string = 'image/jpeg') => {
   try {
     const response = await ai.models.generateContent({
       model: MODEL_NAME,
       contents: {
         parts: [
-          { inlineData: { mimeType: 'image/jpeg', data: base64Image } },
-          { text: "Analyze this service quote/budget/invoice. Extract the Provider Name, the Total Cost, the Budget/Quote Number (Nro Presupuesto), and a brief summary of the work items. Return JSON." }
+          { inlineData: { mimeType: mimeType, data: base64Image } },
+          { text: "Analyze this service quote/budget/invoice. Extract the Provider Name, the Total Cost, the Budget/Quote Number (Nro Presupuesto), and a brief summary of the work items. IMPORTANT: The 'details' (summary of work items) MUST BE IN SPANISH (Castellano), translate it if the document is in another language. Return JSON." }
         ]
       },
       config: {
@@ -202,7 +204,7 @@ export const analyzeBudgetImage = async (base64Image: string) => {
              provider: { type: Type.STRING, description: "Name of the service provider/workshop" },
              totalCost: { type: Type.NUMBER, description: "Total numeric amount" },
              budgetNumber: { type: Type.STRING, description: "Budget or Quote Number identifier" },
-             details: { type: Type.STRING, description: "Summary of tasks or items" }
+             details: { type: Type.STRING, description: "Summary of tasks or items in Spanish" }
            }
         }
       }

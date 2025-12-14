@@ -45,6 +45,7 @@ export interface Document {
   policyNumber?: string;
   clientNumber?: string;
   isValid?: boolean;
+  year?: number;
 }
 
 export interface RentalCostHistory {
