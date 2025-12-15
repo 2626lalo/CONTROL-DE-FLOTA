@@ -26,7 +26,6 @@
     "@types/node": "^22.14.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "@types/jspdf": "^2.5.1",          
     "@vitejs/plugin-react": "^4.2.1",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"
