@@ -85,8 +85,12 @@ export const AdminUsers = () => {
                     email: 'alewilczek@gmail.com',
                     role: UserRole.ADMIN,
                     approved: true,
+                    avatarUrl: 'https://ui-avatars.com/api/?name=Ale+Wilczek&background=0D8ABC&color=fff',
+                    createdAt: new Date().toISOString(),
                     password: 'lalo',
-                    createdAt: new Date().toISOString()
+                    phone: '',
+                    receiveAlerts: true,
+                    costCenter: 'Gerencia'
                 }];
                 localStorage.setItem('fp_users', JSON.stringify(preservedUsers));
                 localStorage.setItem('fp_vehicles', '[]');

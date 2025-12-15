@@ -9,7 +9,7 @@ import { Checklist as ChecklistComp } from './components/Checklist';
 import { ServiceManager } from './components/ServiceManager';
 import { AdminUsers } from './components/AdminUsers';
 import { User, UserRole, Vehicle, ServiceRequest, Checklist } from './types';
-import { INITIAL_VEHICLES, MOCK_USERS, MOCK_CHECKLISTS, MOCK_REQUESTS } from './constants';
+import { MOCK_USERS } from './constants';
 import { LucideLayoutDashboard, LucideCar, LucideClipboardCheck, LucideWrench, LucideLogOut, LucideMail, LucideLock, LucideCheckCircle, LucideLoader, LucideUser, LucideArrowRight } from 'lucide-react';
 
 // --- Context ---
@@ -43,10 +43,26 @@ interface AppContextType {
   // Data Refresh
   refreshData: () => Promise<void>;
   isDataLoading: boolean;
+
+  // Global Error Notification
+  notifyError: (msg: string) => void;
+  globalError: string | null;
+  clearGlobalError: () => void;
 }
 
 const AppContext = createContext<AppContextType>({} as AppContextType);
 export const useApp = () => useContext(AppContext);
+
+// --- SAFE PARSE HELPER (Prevents crashes on corrupted LocalStorage) ---
+const safeJSONParse = <T,>(key: string, fallback: T): T => {
+    try {
+        const item = localStorage.getItem(key);
+        return item ? JSON.parse(item) : fallback;
+    } catch (e) {
+        console.error(`Error parsing localStorage key "${key}":`, e);
+        return fallback;
+    }
+};
 
 // --- Login Component ---
 const LoginScreen = () => {
@@ -238,7 +254,7 @@ const LoginScreen = () => {
         
         <div className="mt-6 text-center">
             <button onClick={handleQuickAccess} className="text-xs text-slate-400 hover:text-blue-400 transition">
-                (Acceso Rápido Admin Demo - Usar Credenciales)
+                (Acceso Admin Principal - Usar Credenciales)
             </button>
         </div>
       </div>
@@ -280,6 +296,16 @@ export default function App() {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isDataLoading, setIsDataLoading] = useState(false);
+  const [globalError, setGlobalError] = useState<string | null>(null);
+
+  const notifyError = (msg: string) => {
+      console.error(msg);
+      setGlobalError(msg);
+      // Auto-dismiss after 5 seconds
+      setTimeout(() => setGlobalError(null), 5000);
+  };
+
+  const clearGlobalError = () => setGlobalError(null);
 
   // Network Listeners
   useEffect(() => {
@@ -336,42 +362,47 @@ export default function App() {
   const refreshData = async (silent = false) => {
       if (!silent) setIsDataLoading(true);
       
-      // Simulate network latency for a "database fetch" only on hard refresh
-      if (!silent) await new Promise(resolve => setTimeout(resolve, 800));
+      try {
+          // Simulate network latency for a "database fetch" only on hard refresh
+          if (!silent) await new Promise(resolve => setTimeout(resolve, 800));
 
-      // 1. Users
-      const savedUsers = localStorage.getItem('fp_users');
-      if (savedUsers) {
-          setRegisteredUsers(JSON.parse(savedUsers));
-      } else {
-          setRegisteredUsers(MOCK_USERS);
-      }
-      
-      // 2. Vehicles
-      const savedV = localStorage.getItem('fp_vehicles');
-      if (savedV) {
-          setVehicles(JSON.parse(savedV));
-      } else {
-          setVehicles(INITIAL_VEHICLES.map(v => ({...v, syncStatus: 'SYNCED'})));
-      }
-      
-      // 3. Requests
-      const savedR = localStorage.getItem('fp_requests');
-      if (savedR) {
-          setServiceRequests(JSON.parse(savedR));
-      } else {
-          setServiceRequests(MOCK_REQUESTS.map(r => ({...r, syncStatus: 'SYNCED'})));
-      }
+          // 1. Users - Use safeJSONParse to avoid crashes if data is corrupted
+          const savedUsers = safeJSONParse<User[]>('fp_users', []);
+          if (savedUsers.length > 0) {
+              setRegisteredUsers(savedUsers);
+          } else {
+              setRegisteredUsers(MOCK_USERS); // Only the admin remains in MOCK_USERS
+          }
+          
+          // 2. Vehicles
+          const savedV = safeJSONParse<Vehicle[]>('fp_vehicles', []);
+          if (savedV.length > 0) {
+              setVehicles(savedV);
+          } else {
+              setVehicles([]); // Clean start
+          }
+          
+          // 3. Requests
+          const savedR = safeJSONParse<ServiceRequest[]>('fp_requests', []);
+          if (savedR.length > 0) {
+              setServiceRequests(savedR);
+          } else {
+              setServiceRequests([]); // Clean start
+          }
 
-      // 4. Checklists
-      const savedC = localStorage.getItem('fp_checklists');
-      if (savedC) {
-          setChecklists(JSON.parse(savedC));
-      } else {
-          setChecklists(MOCK_CHECKLISTS.map(c => ({...c, syncStatus: 'SYNCED'})));
+          // 4. Checklists
+          const savedC = safeJSONParse<Checklist[]>('fp_checklists', []);
+          if (savedC.length > 0) {
+              setChecklists(savedC);
+          } else {
+              setChecklists([]); // Clean start
+          }
+      } catch (err) {
+          console.error("Error refreshing data:", err);
+          notifyError("Error al cargar datos. Se han usado valores por defecto.");
+      } finally {
+          if (!silent) setIsDataLoading(false);
       }
-
-      if (!silent) setIsDataLoading(false);
   };
 
   // Initial Load on Mount
@@ -381,63 +412,77 @@ export default function App() {
 
   // Save persistence when state changes (This acts as the "Save to DB")
   useEffect(() => { if(registeredUsers.length > 0) localStorage.setItem('fp_users', JSON.stringify(registeredUsers)); }, [registeredUsers]);
-  useEffect(() => { if(vehicles.length > 0) localStorage.setItem('fp_vehicles', JSON.stringify(vehicles)); }, [vehicles]);
-  useEffect(() => { if(serviceRequests.length > 0) localStorage.setItem('fp_requests', JSON.stringify(serviceRequests)); }, [serviceRequests]);
-  useEffect(() => { if(checklists.length > 0) localStorage.setItem('fp_checklists', JSON.stringify(checklists)); }, [checklists]);
+  useEffect(() => { localStorage.setItem('fp_vehicles', JSON.stringify(vehicles)); }, [vehicles]);
+  useEffect(() => { localStorage.setItem('fp_requests', JSON.stringify(serviceRequests)); }, [serviceRequests]);
+  useEffect(() => { localStorage.setItem('fp_checklists', JSON.stringify(checklists)); }, [checklists]);
 
   const login = async (email: string, pass: string): Promise<{success: boolean, message?: string}> => {
-    const existingUser = registeredUsers.find(u => u.email.toLowerCase() === email.trim().toLowerCase());
-    
-    if (existingUser) {
-        // Validate password strictly
-        if (existingUser.password !== pass.trim()) {
-             return { success: false, message: "Contraseña incorrecta." };
-        }
-        setCurrentUser(existingUser);
-        refreshData(); // Ensure fresh data on login
-        return { success: true };
-    } 
-    return { success: false, message: "Usuario no encontrado." };
+    try {
+        const existingUser = registeredUsers.find(u => u.email.toLowerCase() === email.trim().toLowerCase());
+        
+        if (existingUser) {
+            // Validate password strictly
+            if (existingUser.password !== pass.trim()) {
+                 return { success: false, message: "Contraseña incorrecta." };
+            }
+            setCurrentUser(existingUser);
+            refreshData(); // Ensure fresh data on login
+            return { success: true };
+        } 
+        return { success: false, message: "Usuario no encontrado." };
+    } catch (err) {
+        notifyError("Error en proceso de login.");
+        return { success: false, message: "Error inesperado." };
+    }
   };
 
   const register = async (email: string, pass: string, name: string): Promise<boolean> => {
-      const existingUser = registeredUsers.find(u => u.email.toLowerCase() === email.toLowerCase());
-      if (existingUser) return false;
+      try {
+          const existingUser = registeredUsers.find(u => u.email.toLowerCase() === email.toLowerCase());
+          if (existingUser) return false;
 
-      const isSuperAdmin = email.toLowerCase() === 'alewilczek@gmail.com';
-      const newUser: User = {
-          id: Date.now().toString(),
-          email,
-          name,
-          role: isSuperAdmin ? UserRole.ADMIN : UserRole.GUEST,
-          approved: isSuperAdmin,
-          password: pass,
-          createdAt: new Date().toISOString()
-      };
-      setRegisteredUsers(prev => [...prev, newUser]);
-      setCurrentUser(newUser);
-      return true;
-  };
-
-  const googleLogin = async (email: string) => {
-      const existingUser = registeredUsers.find(u => u.email.toLowerCase() === email.toLowerCase());
-      if (existingUser) {
-          setCurrentUser(existingUser);
-          refreshData();
-      } else {
-          // Auto-Register via Google
           const isSuperAdmin = email.toLowerCase() === 'alewilczek@gmail.com';
           const newUser: User = {
               id: Date.now().toString(),
               email,
-              name: email.split('@')[0], // Simulate name from email
+              name,
               role: isSuperAdmin ? UserRole.ADMIN : UserRole.GUEST,
               approved: isSuperAdmin,
-              avatarUrl: `https://ui-avatars.com/api/?name=${email}&background=random`,
+              password: pass,
               createdAt: new Date().toISOString()
           };
           setRegisteredUsers(prev => [...prev, newUser]);
           setCurrentUser(newUser);
+          return true;
+      } catch (e) {
+          notifyError("Error al registrar usuario.");
+          return false;
+      }
+  };
+
+  const googleLogin = async (email: string) => {
+      try {
+          const existingUser = registeredUsers.find(u => u.email.toLowerCase() === email.toLowerCase());
+          if (existingUser) {
+              setCurrentUser(existingUser);
+              refreshData();
+          } else {
+              // Auto-Register via Google
+              const isSuperAdmin = email.toLowerCase() === 'alewilczek@gmail.com';
+              const newUser: User = {
+                  id: Date.now().toString(),
+                  email,
+                  name: email.split('@')[0], // Simulate name from email
+                  role: isSuperAdmin ? UserRole.ADMIN : UserRole.GUEST,
+                  approved: isSuperAdmin,
+                  avatarUrl: `https://ui-avatars.com/api/?name=${email}&background=random`,
+                  createdAt: new Date().toISOString()
+              };
+              setRegisteredUsers(prev => [...prev, newUser]);
+              setCurrentUser(newUser);
+          }
+      } catch (e) {
+          notifyError("Error en login con Google.");
       }
   };
 
@@ -480,7 +525,8 @@ export default function App() {
       serviceRequests, addServiceRequest, updateServiceRequest, deleteServiceRequest,
       checklists, addChecklist,
       isOnline, isSyncing,
-      refreshData, isDataLoading
+      refreshData, isDataLoading,
+      notifyError, globalError, clearGlobalError
     }}>
       <HashRouter>
         <Routes>

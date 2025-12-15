@@ -1,12 +1,12 @@
 
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { LucideLayoutDashboard, LucideCar, LucideClipboardCheck, LucideWrench, LucideLogOut, LucideMenu, LucideX, LucideUsers, LucideWifiOff, LucideRefreshCw } from 'lucide-react';
+import { LucideLayoutDashboard, LucideCar, LucideClipboardCheck, LucideWrench, LucideLogOut, LucideMenu, LucideX, LucideUsers, LucideWifiOff, LucideRefreshCw, LucideAlertCircle } from 'lucide-react';
 import { useApp } from '../App';
 import { UserRole } from '../types';
 
 export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, logout, isOnline, isSyncing } = useApp();
+  const { user, logout, isOnline, isSyncing, globalError, clearGlobalError } = useApp();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
   const location = useLocation();
 
@@ -116,6 +116,18 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
             <div className="mb-4 bg-green-600 text-white px-4 py-3 rounded-lg shadow-md flex items-center justify-center gap-2 animate-pulse">
                 <LucideRefreshCw className="animate-spin" size={20} />
                 <span className="font-bold">Conexión restaurada. Sincronizando registros pendientes...</span>
+            </div>
+        )}
+
+        {/* Global Error Toast */}
+        {globalError && (
+            <div className="fixed bottom-6 right-6 z-[100] bg-red-600 text-white px-6 py-4 rounded-lg shadow-2xl flex items-center gap-4 animate-bounce-in max-w-md">
+                <LucideAlertCircle size={24} className="shrink-0"/>
+                <div className="flex-1">
+                    <h4 className="font-bold text-sm uppercase">Atención</h4>
+                    <p className="text-sm">{globalError}</p>
+                </div>
+                <button onClick={clearGlobalError} className="hover:bg-red-700 p-1 rounded"><LucideX size={18}/></button>
             </div>
         )}
 
