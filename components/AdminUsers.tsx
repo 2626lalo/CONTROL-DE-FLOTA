@@ -1,15 +1,15 @@
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useApp } from '../App';
 import { UserRole } from '../types';
-import { LucideTrash, LucideCheckCircle, LucideShieldAlert, LucideUser, LucideXCircle, LucideBuilding2, LucideChevronDown, LucideAlertTriangle, LucideRefreshCcw, LucideTrash2, LucideAlertCircle, LucideDownload, LucideFileText, LucideFileSpreadsheet, LucideMail, LucidePhone, LucideBell } from 'lucide-react';
+import { LucideTrash, LucideCheckCircle, LucideShieldAlert, LucideUser, LucideXCircle, LucideBuilding2, LucideChevronDown, LucideAlertTriangle, LucideRefreshCcw, LucideTrash2, LucideAlertCircle, LucideDownload, LucideFileText, LucideFileSpreadsheet, LucideMail, LucidePhone, LucideBell, LucideDatabase, LucideUpload, LucideHardDrive, LucideSave } from 'lucide-react';
 import { ConfirmationModal } from './ConfirmationModal';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 export const AdminUsers = () => {
-    // Agregamos 'vehicles' al destructuring para obtener los CC existentes
-    const { registeredUsers, updateUser, deleteUser, vehicles, user } = useApp();
+    // Agregamos 'vehicles', 'checklists', 'serviceRequests' al destructuring para el backup
+    const { registeredUsers, updateUser, deleteUser, vehicles, checklists, serviceRequests, user } = useApp();
     
     const MAIN_ADMIN_EMAIL = 'alewilczek@gmail.com';
 
@@ -17,6 +17,9 @@ export const AdminUsers = () => {
     const [modalConfig, setModalConfig] = useState<{isOpen: boolean, title: string, message: string, onConfirm: () => void}>({
         isOpen: false, title: '', message: '', onConfirm: () => {}
     });
+
+    // File Input Ref for Restore
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Export Menu State
     const [showExportMenu, setShowExportMenu] = useState(false);
@@ -70,6 +73,87 @@ export const AdminUsers = () => {
         }
     };
 
+    const handleDeleteUser = (userId: string) => {
+        setModalConfig({
+            isOpen: true,
+            title: "Eliminar Usuario",
+            message: "¿Está seguro? El registro del usuario dejará de existir y perderá el acceso inmediatamente.",
+            onConfirm: () => deleteUser(userId)
+        });
+    };
+
+    // --- DATABASE MANAGEMENT FUNCTIONS ---
+
+    const calculateDBSize = () => {
+        const data = {
+            users: registeredUsers,
+            vehicles,
+            requests: serviceRequests,
+            checklists
+        };
+        const jsonString = JSON.stringify(data);
+        const bytes = new Blob([jsonString]).size;
+        return (bytes / 1024).toFixed(2) + ' KB';
+    };
+
+    const handleBackupDatabase = () => {
+        const dbData = {
+            metadata: {
+                version: '1.0',
+                exportedAt: new Date().toISOString(),
+                exportedBy: user?.email,
+                appName: 'CONTROL DE FLOTA'
+            },
+            data: {
+                fp_users: registeredUsers,
+                fp_vehicles: vehicles,
+                fp_requests: serviceRequests,
+                fp_checklists: checklists
+            }
+        };
+
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(dbData, null, 2));
+        const downloadAnchorNode = document.createElement('a');
+        downloadAnchorNode.setAttribute("href", dataStr);
+        downloadAnchorNode.setAttribute("download", `FLOTA_DB_BACKUP_${new Date().toISOString().slice(0, 10)}.json`);
+        document.body.appendChild(downloadAnchorNode);
+        downloadAnchorNode.click();
+        downloadAnchorNode.remove();
+    };
+
+    const handleRestoreDatabase = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            try {
+                const json = JSON.parse(event.target?.result as string);
+                
+                // Basic Validation
+                if (!json.data || !json.data.fp_users || !json.data.fp_vehicles) {
+                    throw new Error("Formato de archivo inválido. No se reconocen las tablas de datos.");
+                }
+
+                // Confirm Restore
+                if (confirm(`⚠️ ADVERTENCIA DE SEGURIDAD\n\nEstá a punto de RESTAURAR una base de datos del ${new Date(json.metadata.exportedAt || Date.now()).toLocaleDateString()}.\n\nESTO SOBREESCRIBIRÁ TODOS LOS DATOS ACTUALES.\n\n¿Desea continuar?`)) {
+                    localStorage.setItem('fp_users', JSON.stringify(json.data.fp_users));
+                    localStorage.setItem('fp_vehicles', JSON.stringify(json.data.fp_vehicles));
+                    localStorage.setItem('fp_requests', JSON.stringify(json.data.fp_requests));
+                    localStorage.setItem('fp_checklists', JSON.stringify(json.data.fp_checklists));
+                    
+                    alert("Base de datos restaurada con éxito. La aplicación se reiniciará.");
+                    window.location.reload();
+                }
+            } catch (error) {
+                alert("Error al leer el archivo de respaldo: " + error);
+            }
+        };
+        reader.readAsText(file);
+        // Reset input
+        e.target.value = ''; 
+    };
+
     const handleFactoryReset = () => {
         setModalConfig({
             isOpen: true,
@@ -102,16 +186,7 @@ export const AdminUsers = () => {
         });
     };
 
-    const handleDeleteUser = (userId: string) => {
-        setModalConfig({
-            isOpen: true,
-            title: "Eliminar Usuario",
-            message: "¿Está seguro? El registro del usuario dejará de existir y perderá el acceso inmediatamente.",
-            onConfirm: () => deleteUser(userId)
-        });
-    };
-
-    // --- EXPORT FUNCTIONS ---
+    // --- EXPORT FUNCTIONS (Users) ---
     
     // PDF Export
     const handleExportPDF = () => {
@@ -209,7 +284,7 @@ export const AdminUsers = () => {
 
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div className="flex items-center gap-2">
-                    <h1 className="text-2xl font-bold text-slate-800">Administración de Usuarios</h1>
+                    <h1 className="text-2xl font-bold text-slate-800">Administración</h1>
                     {!isMainAdmin ? (
                         <span className="bg-yellow-100 text-yellow-800 px-3 py-1 rounded text-xs font-bold border border-yellow-200">
                             MODO GESTIÓN (Restringido)
@@ -228,7 +303,7 @@ export const AdminUsers = () => {
                         className="bg-white text-slate-700 px-4 py-2 rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-slate-50 transition shadow-sm border border-slate-200"
                         title="Opciones de Exportación"
                     >
-                        <LucideDownload size={18}/> <span className="hidden sm:inline">Exportar</span>
+                        <LucideDownload size={18}/> <span className="hidden sm:inline">Exportar Usuarios</span>
                     </button>
                     {showExportMenu && (
                         <div className="absolute top-full right-0 mt-2 w-48 bg-white rounded-lg shadow-xl border border-slate-200 z-50 py-1">
@@ -247,16 +322,19 @@ export const AdminUsers = () => {
             </div>
             
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                <div className="overflow-x-auto min-h-[400px]">
+                <div className="p-4 border-b bg-slate-50 font-bold text-slate-700 flex items-center gap-2">
+                    <LucideUser size={18} /> Gestión de Usuarios y Roles
+                </div>
+                <div className="overflow-x-auto min-h-[300px]">
                     <table className="w-full text-sm text-left text-slate-500">
                         <thead className="text-xs text-slate-700 uppercase bg-slate-50">
                             <tr>
                                 <th className="px-6 py-3">Usuario</th>
                                 <th className="px-6 py-3">Email</th>
                                 <th className="px-6 py-3">Teléfono (WhatsApp)</th>
-                                <th className="px-6 py-3">Notificaciones WA</th>
-                                <th className="px-6 py-3">Centro de Costo (Asignación)</th>
-                                <th className="px-6 py-3">Nivel / Rol</th>
+                                <th className="px-6 py-3">Notificaciones</th>
+                                <th className="px-6 py-3">Centro de Costo</th>
+                                <th className="px-6 py-3">Rol</th>
                                 <th className="px-6 py-3">Estado</th>
                                 <th className="px-6 py-3 text-right">Acciones</th>
                             </tr>
@@ -361,15 +439,92 @@ export const AdminUsers = () => {
                     </table>
                 </div>
             </div>
+
+            {/* --- DATABASE MANAGEMENT SECTION --- */}
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <div className="p-4 border-b bg-slate-800 text-white font-bold flex items-center gap-2">
+                    <LucideDatabase size={18} /> Centro de Datos y Copias de Seguridad (Base de Datos)
+                </div>
+                <div className="p-6">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        
+                        {/* Stats Card */}
+                        <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl flex flex-col justify-between">
+                            <div>
+                                <h3 className="text-sm font-bold text-slate-500 uppercase mb-3 flex items-center gap-2">
+                                    <LucideHardDrive size={16}/> Estado de la Base de Datos
+                                </h3>
+                                <div className="space-y-2 text-sm text-slate-700">
+                                    <div className="flex justify-between"><span>Usuarios:</span> <b>{registeredUsers.length}</b></div>
+                                    <div className="flex justify-between"><span>Vehículos:</span> <b>{vehicles.length}</b></div>
+                                    <div className="flex justify-between"><span>Checklists:</span> <b>{checklists.length}</b></div>
+                                    <div className="flex justify-between"><span>Servicios:</span> <b>{serviceRequests.length}</b></div>
+                                </div>
+                            </div>
+                            <div className="mt-4 pt-4 border-t border-slate-200">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-xs font-bold text-slate-400">TAMAÑO APROXIMADO</span>
+                                    <span className="text-lg font-mono font-bold text-blue-600">{calculateDBSize()}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Export Card */}
+                        <div className="bg-blue-50 border border-blue-100 p-4 rounded-xl flex flex-col justify-between">
+                            <div>
+                                <h3 className="text-sm font-bold text-blue-800 uppercase mb-2 flex items-center gap-2">
+                                    <LucideDownload size={16}/> Copia de Seguridad
+                                </h3>
+                                <p className="text-xs text-blue-600 mb-4">
+                                    Descargue una copia completa de toda la información (vehículos, usuarios, historiales, fotos). Guarde este archivo en un lugar seguro.
+                                </p>
+                            </div>
+                            <button 
+                                onClick={handleBackupDatabase}
+                                className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition shadow-sm"
+                            >
+                                <LucideSave size={18}/> Descargar Base de Datos (JSON)
+                            </button>
+                        </div>
+
+                        {/* Restore Card */}
+                        <div className="bg-orange-50 border border-orange-100 p-4 rounded-xl flex flex-col justify-between">
+                            <div>
+                                <h3 className="text-sm font-bold text-orange-800 uppercase mb-2 flex items-center gap-2">
+                                    <LucideUpload size={16}/> Restaurar Base de Datos
+                                </h3>
+                                <p className="text-xs text-orange-700 mb-4">
+                                    Importe un archivo de respaldo (.json) para restaurar el sistema. 
+                                    <br/><strong>ADVERTENCIA:</strong> Esto reemplazará todos los datos actuales.
+                                </p>
+                            </div>
+                            <div className="relative">
+                                <button 
+                                    className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition shadow-sm"
+                                    onClick={() => fileInputRef.current?.click()}
+                                >
+                                    <LucideRefreshCcw size={18}/> Subir y Restaurar
+                                </button>
+                                <input 
+                                    type="file" 
+                                    accept=".json" 
+                                    ref={fileInputRef}
+                                    className="hidden" 
+                                    onChange={handleRestoreDatabase}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
             
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
                 <div className="bg-blue-50 border border-blue-100 p-6 rounded-xl text-sm text-blue-800">
                     <h3 className="font-bold flex items-center gap-2 mb-2 text-blue-900"><LucideBell size={18}/> Sistema de Alertas Automáticas (WhatsApp)</h3>
                     <ul className="list-disc list-inside ml-2 space-y-1 text-blue-700">
                         <li>Active el interruptor <strong>"Notificaciones WA"</strong> para que el usuario reciba reportes.</li>
                         <li>Debe ingresar un número de teléfono válido con código de país (ej: 54911...).</li>
                         <li>Las alertas se envían desde el Dashboard y se filtran automáticamente según el <strong>Centro de Costo</strong> asignado.</li>
-                        <li><strong>Tipos de Alerta:</strong> Documentos Vencidos, Service Requerido (Vencido) y Service Próximo (menos de 1000km).</li>
                     </ul>
                 </div>
 
@@ -381,7 +536,7 @@ export const AdminUsers = () => {
                                 <LucideAlertTriangle /> Zona de Peligro
                             </h3>
                             <p className="text-red-600 text-sm mt-2">
-                                <strong>REINICIAR BASE DE DATOS:</strong> Esta acción borrará todos los Vehículos, Checklists y Servicios.
+                                <strong>REINICIAR A ESTADO DE FÁBRICA:</strong> Esta acción borrará todos los Vehículos, Checklists y Servicios.
                                 <br/><br/>
                                 <span className="font-bold text-red-800">ATENCIÓN:</span> Se eliminarán todos los usuarios adicionales, pero <u>SU CUENTA DE ADMINISTRADOR PRINCIPAL SE CONSERVARÁ</u>.
                             </p>
