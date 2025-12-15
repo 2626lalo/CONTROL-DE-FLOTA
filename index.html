@@ -1,10 +1,17 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>CONTROL DE FLOTA</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Meta tags importantes -->
+    <meta name="description" content="Sistema de Control de Flota Vehicular">
+    
+    <!-- ELIMINA COMPLETAMENTE ESTO: -->
+    <!-- <script src="https://cdn.tailwindcss.com"></script> -->
+    
     <style>
         /* Custom Scrollbar for better aesthetics */
         ::-webkit-scrollbar {
@@ -21,24 +28,36 @@
         ::-webkit-scrollbar-thumb:hover {
             background: #94a3b8; 
         }
+        
+        /* Estado de carga inicial */
+        #root {
+            min-height: 100vh;
+        }
+        
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-size: 1.5rem;
+            color: #475569;
+        }
     </style>
-<script type="importmap">
-{
-  "imports": {
-    "react": "https://aistudiocdn.com/react@^19.2.1",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.1/",
-    "react/": "https://aistudiocdn.com/react@^19.2.1/",
-    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.31.0",
-    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.556.0",
-    "recharts": "https://aistudiocdn.com/recharts@^3.5.1",
-    "react-router-dom": "https://aistudiocdn.com/react-router-dom@^7.10.1",
-    "jspdf": "https://esm.sh/jspdf@2.5.1",
-    "jspdf-autotable": "https://aistudiocdn.com/jspdf-autotable@^5.0.2"
-  }
-}
-</script>
+    
+    <!-- ELIMINA COMPLETAMENTE ESTO: -->
+    <!-- <script type="importmap"> ... </script> -->
 </head>
 <body class="bg-slate-50 text-slate-900 antialiased">
-    <div id="root"></div>
+    <div id="root">
+        <!-- Estado de carga mientras React se monta -->
+        <div class="loading">
+            <div class="animate-pulse">
+                Cargando Control de Flota...
+            </div>
+        </div>
+    </div>
+    
+    <!-- Vite inyectará automáticamente los scripts -->
+    <!-- NO agregues scripts manualmente -->
 </body>
 </html>
