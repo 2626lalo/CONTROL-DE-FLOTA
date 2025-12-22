@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useApp } from '../App';
@@ -312,7 +311,8 @@ export const VehicleForm = () => {
     };
 
     const handleCedulaUpload = async (e: React.ChangeEvent<HTMLInputElement>, side: 'front' | 'rear') => {
-        const file = e.target.files?.[0]; if (!file) return;
+        const file = e.target.files && e.target.files[0]; 
+        if (!file) return;
         const reader = new FileReader();
         reader.onloadend = async () => {
             const base64 = reader.result as string;
@@ -381,7 +381,8 @@ export const VehicleForm = () => {
     };
 
     const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, field: string) => {
-        const file = e.target.files?.[0]; if (!file) return;
+        const file = e.target.files && e.target.files[0]; 
+        if (!file) return;
         const reader = new FileReader();
         reader.onloadend = () => {
             const base64 = reader.result as string;
@@ -394,26 +395,44 @@ export const VehicleForm = () => {
     };
 
     const handleOtherImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const files = e.target.files; if (!files || files.length === 0) return;
+        const files = e.target.files; 
+        if (!files || files.length === 0) return;
         const newImages: string[] = [];
         const promises = Array.from(files).map((file: File) => {
             return new Promise<void>((resolve) => {
                 const reader = new FileReader();
-                reader.onloadend = () => { if (reader.result) newImages.push(reader.result as string); resolve(); };
+                reader.onloadend = () => { 
+                    if (reader.result) {
+                        newImages.push(reader.result as string); 
+                    }
+                    resolve(); 
+                };
                 reader.readAsDataURL(file);
             });
         });
         await Promise.all(promises);
-        setFormData(prev => ({ ...prev, images: { ...prev.images, others: [...(prev.images.others || []), ...newImages] } }));
+        setFormData(prev => ({ 
+            ...prev, 
+            images: { 
+                ...prev.images, 
+                others: [...(prev.images.others || []), ...newImages] 
+            } 
+        }));
         e.target.value = '';
     };
 
     const removeOtherImage = (index: number) => {
-        setFormData(prev => ({ ...prev, images: { ...prev.images, others: (prev.images.others || []).filter((_, i) => i !== index) } }));
+        setFormData(prev => ({ 
+            ...prev, 
+            images: { 
+                ...prev.images, 
+                others: (prev.images.others || []).filter((_, i) => i !== index) 
+            } 
+        }));
     };
 
     const handleHistoryAttachment = async (e: React.ChangeEvent<HTMLInputElement>, historyId: string) => {
-        const file = e.target.files?.[0]; 
+        const file = e.target.files && e.target.files[0]; 
         if (!file) return;
         const reader = new FileReader();
         reader.onloadend = () => {
@@ -422,7 +441,8 @@ export const VehicleForm = () => {
                 ...prev,
                 history: prev.history.map(h => {
                     if (h.id === historyId) {
-                        return { ...h, attachments: [...(h.attachments || []), base64] };
+                        const attachments = h.attachments || [];
+                        return { ...h, attachments: [...attachments, base64] };
                     }
                     return h;
                 })
@@ -438,7 +458,8 @@ export const VehicleForm = () => {
             ...prev,
             history: prev.history.map(h => {
                 if (h.id === historyId) {
-                    return { ...h, attachments: h.attachments.filter((_, i) => i !== attachmentIndex) };
+                    const attachments = h.attachments || [];
+                    return { ...h, attachments: attachments.filter((_, i) => i !== attachmentIndex) };
                 }
                 return h;
             })
@@ -446,7 +467,8 @@ export const VehicleForm = () => {
     };
 
     const handleDocUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const files = e.target.files; if (!files || files.length === 0) return;
+        const files = e.target.files; 
+        if (!files || files.length === 0) return;
         
         let finalName = '';
         let finalType = newDocType;
@@ -485,7 +507,12 @@ export const VehicleForm = () => {
         const promises = Array.from(files).map((file: File) => {
              return new Promise<void>((resolve) => {
                 const reader = new FileReader();
-                reader.onloadend = () => { if(reader.result) newImages.push(reader.result as string); resolve(); };
+                reader.onloadend = () => { 
+                    if(reader.result) {
+                        newImages.push(reader.result as string); 
+                    }
+                    resolve(); 
+                };
                 reader.readAsDataURL(file);
              });
         });
@@ -497,7 +524,7 @@ export const VehicleForm = () => {
             analysis = await analyzeDocumentImage(newImages[0].split(',')[1], finalType, mimeType);
         }
         
-        if (finalType === 'INSURANCE' && analysis?.year) {
+        if (finalType === 'INSURANCE' && analysis && analysis.year) {
             const currentYear = formData.year;
             const insuranceYear = analysis.year;
             if (currentYear && insuranceYear !== currentYear) {
@@ -519,11 +546,11 @@ export const VehicleForm = () => {
             name: finalName, 
             images: newImages, 
             uploadedAt: new Date().toISOString(),
-            expirationDate: analysis?.expirationDate, 
-            issuer: analysis?.issuer, 
-            policyNumber: analysis?.policyNumber, 
-            clientNumber: analysis?.clientNumber,
-            year: analysis?.year
+            expirationDate: analysis && analysis.expirationDate, 
+            issuer: analysis && analysis.issuer, 
+            policyNumber: analysis && analysis.policyNumber, 
+            clientNumber: analysis && analysis.clientNumber,
+            year: analysis && analysis.year
         };
         
         setFormData(prev => ({ ...prev, documents: [...prev.documents, newDoc] }));
@@ -554,7 +581,12 @@ export const VehicleForm = () => {
         const promises = Array.from(files).map((file: File) => {
              return new Promise<void>((resolve) => {
                 const reader = new FileReader();
-                reader.onloadend = () => { if(reader.result) newImages.push(reader.result as string); resolve(); };
+                reader.onloadend = () => { 
+                    if(reader.result) {
+                        newImages.push(reader.result as string); 
+                    }
+                    resolve(); 
+                };
                 reader.readAsDataURL(file);
              });
         });
@@ -612,7 +644,7 @@ export const VehicleForm = () => {
     const selectValue = isCustomOwnership ? '__OTHER__' : formData.ownership;
 
     const renderPhotoInput = (label: string, position: 'front' | 'rear' | 'left' | 'right') => {
-        const imageSrc = formData.images?.[position];
+        const imageSrc = formData.images && formData.images[position];
         if (imageSrc) {
             return (
                 <div className="aspect-square relative group bg-slate-100 rounded-lg border border-slate-300 overflow-hidden cursor-pointer" onClick={() => setSimplePreviewImage(imageSrc)}>
@@ -684,7 +716,7 @@ export const VehicleForm = () => {
                                  </p>
                                  {cedulaFront ? (
                                     <div className="relative">
-                                        <img src={cedulaFront} className="h-24 w-auto mx-auto object-contain rounded mb-2 border cursor-pointer" onClick={() => setSimplePreviewImage(cedulaFront!)}/>
+                                        <img src={cedulaFront} className="h-24 w-auto mx-auto object-contain rounded mb-2 border cursor-pointer" onClick={() => setSimplePreviewImage(cedulaFront)}/>
                                         <button type="button" onClick={() => setCedulaFront(null)} className="absolute top-0 right-0 bg-red-500 text-white rounded-full p-1"><LucideX size={12}/></button>
                                     </div>
                                  ) : 
@@ -700,7 +732,7 @@ export const VehicleForm = () => {
                                  </p>
                                  {cedulaRear ? (
                                     <div className="relative">
-                                        <img src={cedulaRear} className="h-24 w-auto mx-auto object-contain rounded mb-2 border cursor-pointer" onClick={() => setSimplePreviewImage(cedulaRear!)}/>
+                                        <img src={cedulaRear} className="h-24 w-auto mx-auto object-contain rounded mb-2 border cursor-pointer" onClick={() => setSimplePreviewImage(cedulaRear)}/>
                                         <button type="button" onClick={() => setCedulaRear(null)} className="absolute top-0 right-0 bg-red-500 text-white rounded-full p-1"><LucideX size={12}/></button>
                                     </div>
                                  ) : 
@@ -788,7 +820,7 @@ export const VehicleForm = () => {
                                     </div>
                                 </div>
                             </div>
-                            {formData.images?.others && formData.images.others.map((img, idx) => (
+                            {formData.images && formData.images.others && formData.images.others.map((img, idx) => (
                                 <div key={idx} className="aspect-square relative group cursor-pointer" onClick={() => setSimplePreviewImage(img)}>
                                     <img src={img} className="w-full h-full object-cover rounded-lg border border-slate-300" />
                                     <button type="button" onClick={(e) => { e.stopPropagation(); removeOtherImage(idx); }} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-md hover:bg-red-600 transition-colors z-10"><LucideX size={12}/></button>
