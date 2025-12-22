@@ -35,11 +35,11 @@ export const VehicleList = () => {
 
   // ROLE CHECK & COST CENTER SEGMENTATION
   // Admin L2 is considered a manager for "canManageFleet" purposes (edit, create) but NOT delete
-  const canManageFleet = user?.role === UserRole.ADMIN || user?.role === UserRole.MANAGER || user?.role === UserRole.ADMIN_L2;
-  const isMainAdmin = user?.role === UserRole.ADMIN;
+  const canManageFleet = user && (user.role === UserRole.ADMIN || user.role === UserRole.MANAGER || user.role === UserRole.ADMIN_L2);
+  const isMainAdmin = user && user.role === UserRole.ADMIN;
   
   // Identify user's mandatory cost center (if any)
-  const userCostCenter = (!isMainAdmin && user?.role !== UserRole.ADMIN_L2 && user?.costCenter) ? user.costCenter : null;
+  const userCostCenter = (!isMainAdmin && user && user.role !== UserRole.ADMIN_L2 && user.costCenter) ? user.costCenter : null;
 
   // Filter vehicles available to this user FIRST
   const availableVehicles = vehicles.filter(v => {
@@ -52,10 +52,10 @@ export const VehicleList = () => {
   });
 
   // Get unique Cost Centers (from available vehicles)
-  const uniqueCostCenters = Array.from(new Set(availableVehicles.map(v => v.costCenter).filter(Boolean))).sort();
+  const uniqueCostCenters = Array.from(new Set(availableVehicles.map(v => v.costCenter).filter(cc => cc))).sort();
   
   // Get unique Rental Providers
-  const uniqueProviders = Array.from(new Set(availableVehicles.map(v => v.rentalProvider).filter(Boolean))).sort();
+  const uniqueProviders = Array.from(new Set(availableVehicles.map(v => v.rentalProvider).filter(p => p))).sort();
 
   // Get unique Ownerships that are NOT the standard ones
   const standardOwnerships = [OwnershipType.OWNED, OwnershipType.RENTED, OwnershipType.LEASING];
@@ -401,7 +401,7 @@ export const VehicleList = () => {
     const docStatusList = v.documents
         .filter(d => d.expirationDate) // Only care about docs with expiration
         .map(d => {
-            const exp = new Date(d.expirationDate!);
+            const exp = new Date(d.expirationDate);
             // Handle timezone/date string parsing properly by normalizing 'today'
             const diffTime = exp.getTime() - today.getTime();
             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
