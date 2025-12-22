@@ -17,9 +17,9 @@
     },
     "allowImportingTsExtensions": true,
     "noEmit": true,
-    "allowSyntheticDefaultImports": true,  // ← ESTA LÍNEA ES CRÍTICA
+    "allowSyntheticDefaultImports": true,  // ← ¡¡¡ESTA LÍNEA FALTA Y ES ESENCIAL!!!
     "resolveJsonModule": true,
-    "strict": false  // ← Temporalmente para evitar errores
+    "strict": false
   },
   "include": ["src"]
 }
