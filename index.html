@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -24,6 +25,25 @@
 </head>
 <body class="bg-slate-50 text-slate-900 antialiased">
     <div id="root"></div>
-    <!-- Vite automáticamente inyecta los scripts aquí -->
+    
+    <!-- Script MANUAL para producción -->
+    <script type="module">
+        // Detectar si estamos en producción (Render) o desarrollo
+        const isProduction = !window.location.hostname.includes('localhost');
+        
+        if (isProduction) {
+            // En producción, cargar el bundle que Vite genera
+            const script = document.createElement('script');
+            script.type = 'module';
+            script.src = '/assets/index.js';  // El nombre base que Vite usa
+            document.body.appendChild(script);
+        } else {
+            // En desarrollo, cargar index.tsx directamente
+            const script = document.createElement('script');
+            script.type = 'module';
+            script.src = '/index.tsx';
+            document.body.appendChild(script);
+        }
+    </script>
 </body>
 </html>
