@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../App';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -340,7 +341,7 @@ const SignaturePad = ({ onEnd }: { onEnd: (base64: string) => void }) => {
     useEffect(() => {
         const canvas = canvasRef.current;
         if (canvas) {
-            canvas.width = canvas.parentElement?.clientWidth || 300;
+            canvas.width = canvas.parentElement ? canvas.parentElement.clientWidth : 300;
             canvas.height = 150;
             const ctx = canvas.getContext('2d');
             if (ctx) {
@@ -392,7 +393,9 @@ const SignaturePad = ({ onEnd }: { onEnd: (base64: string) => void }) => {
         const canvas = canvasRef.current;
         if (canvas) {
             const ctx = canvas.getContext('2d');
-            ctx?.clearRect(0, 0, canvas.width, canvas.height);
+            if (ctx) {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+            }
             onEnd('');
         }
     };
@@ -483,7 +486,7 @@ export const Checklist = () => {
                 setKm(suggestedKm);
 
                 // 2. Insurance Logic
-                const insuranceDoc = vehicle.documents.find(d => d.type === 'INSURANCE');
+                const insuranceDoc = vehicle.documents && vehicle.documents.find(d => d.type === 'INSURANCE');
                 if (insuranceDoc && insuranceDoc.expirationDate) {
                     const today = new Date();
                     today.setHours(0,0,0,0);
@@ -566,7 +569,8 @@ export const Checklist = () => {
 
     // --- PHOTO UPLOAD LOGIC ---
     const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>, section: string, index: number) => {
-        const file = e.target.files?.[0]; if (!file) return;
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
         const reader = new FileReader();
         
         reader.onloadend = async () => {
@@ -577,7 +581,11 @@ export const Checklist = () => {
                 const currentItem = newItems[index];
                 
                 // Add image
-                currentItem.images = [base64]; // Replaces previous for single slot logic, or push for multiple
+                if (currentItem.images) {
+                    currentItem.images = [base64];
+                } else {
+                    currentItem.images = [base64];
+                }
 
                 // AI ANALYSIS FOR BATTERY
                 if (currentItem.name === 'Batería') {
@@ -607,7 +615,8 @@ export const Checklist = () => {
 
     // --- ACCESSORY PHOTO UPLOAD (EXTINGUISHERS) ---
     const handleAccessoryPhoto = async (e: React.ChangeEvent<HTMLInputElement>, index: number) => {
-        const file = e.target.files?.[0]; if (!file) return;
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
         const reader = new FileReader();
 
         reader.onloadend = async () => {
@@ -648,7 +657,7 @@ export const Checklist = () => {
         
         // Modified Validation: Check against previous checklist KM instead of base vehicle KM to avoid logic errors if manual update failed
         const vehicleHistory = checklists.filter(c => c.vehiclePlate === selectedPlate);
-        const lastChecklistKm = vehicleHistory.length > 0 ? Math.max(...vehicleHistory.map(c => c.km)) : (vehicle?.currentKm || 0);
+        const lastChecklistKm = vehicleHistory.length > 0 ? Math.max(...vehicleHistory.map(c => c.km)) : (vehicle ? vehicle.currentKm : 0);
         
         if(km < lastChecklistKm) errors.push(`El kilometraje no puede ser menor al último registrado (${lastChecklistKm}).`);
 
@@ -688,13 +697,13 @@ export const Checklist = () => {
         const newChecklist: ChecklistType = {
             id: `CHK-${Date.now()}`,
             vehiclePlate: selectedPlate,
-            userId: user?.id || 'unknown',
-            userName: user?.name || 'Usuario',
+            userId: user && user.id ? user.id : 'unknown',
+            userName: user && user.name ? user.name : 'Usuario',
             date: new Date().toISOString(),
             type,
             km,
-            insuranceCompany: insuranceInfo?.company || 'N/A', // Auto-populate from discovered doc
-            insuranceExpiration: insuranceInfo?.date || 'N/A',
+            insuranceCompany: insuranceInfo && insuranceInfo.company ? insuranceInfo.company : 'N/A', // Auto-populate from discovered doc
+            insuranceExpiration: insuranceInfo && insuranceInfo.date ? insuranceInfo.date : 'N/A',
             motor: motorItems,
             lights: lightItems,
             general: generalItems,
@@ -733,7 +742,7 @@ export const Checklist = () => {
         const isBad = item.status === 'BAD';
         const requiresPhoto = isBad || isBattery;
         const hasPhoto = item.images && item.images.length > 0;
-        const isAnalyzing = analyzingItemIndex?.section === section && analyzingItemIndex?.index === index;
+        const isAnalyzing = analyzingItemIndex && analyzingItemIndex.section === section && analyzingItemIndex.index === index;
 
         return (
             <div key={index} className={`p-4 mb-3 rounded-xl border transition-all shadow-sm ${getStatusColor()}`}>
@@ -806,10 +815,10 @@ export const Checklist = () => {
                                     <div className="w-full flex items-center justify-between">
                                         <div 
                                             className="flex items-center gap-2 cursor-zoom-in"
-                                            onClick={() => setPreviewImage(item.images?.[0] || '')}
+                                            onClick={() => setPreviewImage(item.images && item.images[0] ? item.images[0] : '')}
                                         >
                                             <div className="h-10 w-10 bg-slate-200 rounded overflow-hidden relative group border border-slate-300">
-                                                <img src={item.images?.[0]} className="w-full h-full object-cover" alt="Checklist Item" />
+                                                <img src={item.images && item.images[0] ? item.images[0] : ''} className="w-full h-full object-cover" alt="Checklist Item" />
                                                 <div className="absolute inset-0 bg-black/20 group-hover:bg-black/0 transition-colors"></div>
                                             </div>
                                             <span className="text-xs font-bold text-green-700 flex items-center gap-1"><LucideCheckCircle size={12}/> Foto Cargada (Clic para Zoom)</span>
@@ -836,11 +845,11 @@ export const Checklist = () => {
                                     <div className="grid grid-cols-2 gap-2 w-full mt-1">
                                         <div className="relative">
                                             <label className="text-[9px] font-bold text-slate-400 uppercase">Marca (IA)</label>
-                                            <input type="text" className="w-full text-xs p-1 border rounded bg-slate-100" placeholder="Pendiente..." value={item.customData?.brand || ''} readOnly />
+                                            <input type="text" className="w-full text-xs p-1 border rounded bg-slate-100" placeholder="Pendiente..." value={item.customData && item.customData.brand ? item.customData.brand : ''} readOnly />
                                         </div>
                                         <div className="relative">
                                             <label className="text-[9px] font-bold text-slate-400 uppercase">Serie / Lote (IA)</label>
-                                            <input type="text" className="w-full text-xs p-1 border rounded bg-slate-100" placeholder="Pendiente..." value={item.customData?.serialNumber || ''} readOnly />
+                                            <input type="text" className="w-full text-xs p-1 border rounded bg-slate-100" placeholder="Pendiente..." value={item.customData && item.customData.serialNumber ? item.customData.serialNumber : ''} readOnly />
                                         </div>
                                     </div>
                                 )}
@@ -1066,7 +1075,7 @@ export const Checklist = () => {
                             <div className="p-4 space-y-2 bg-slate-50/50">
                                 {accessoryItems.map((item, index) => {
                                     const isExtinguisher = item.name.includes('Matafuego');
-                                    const isAnalyzing = analyzingItemIndex?.section === 'accessories' && analyzingItemIndex?.index === index;
+                                    const isAnalyzing = analyzingItemIndex && analyzingItemIndex.section === 'accessories' && analyzingItemIndex.index === index;
                                     
                                     return (
                                         <div key={index} className={`flex flex-col py-3 border-b border-slate-200 last:border-0 ${item.quantity === 0 ? 'opacity-90' : ''}`}>
@@ -1226,7 +1235,7 @@ export const Checklist = () => {
                         </label>
                         <input 
                             type="text" 
-                            placeholder={type === 'REPLACEMENT' ? "Ej: Juan Pérez" : user?.name || "Nombre completo"} 
+                            placeholder={type === 'REPLACEMENT' ? "Ej: Juan Pérez" : user && user.name ? user.name : "Nombre completo"} 
                             className={`w-full border p-2 rounded ${validationErrors.some(e => e.includes('nombre')) ? 'border-red-500' : ''}`}
                             value={receiverName}
                             onChange={(e) => setReceiverName(e.target.value)}
