@@ -4,11 +4,9 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   build: {
-    target: 'es2022',
-    minify: false, // Desactiva minificación temporalmente para debugging
-    sourcemap: true
-  },
-  esbuild: {
-    target: 'es2022'
+    target: 'es2020',
+    rollupOptions: {
+      external: ['@google/genai']
+    }
   }
 })
