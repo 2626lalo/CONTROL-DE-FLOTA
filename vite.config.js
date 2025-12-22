@@ -1,6 +1,5 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import { resolve } from 'path'
 
 export default defineConfig({
   plugins: [react()],
@@ -8,11 +7,10 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
+    target: 'es2020',  // Mejor compatibilidad
     rollupOptions: {
-      input: {
-        main: resolve(__dirname, 'index.html')
-      }
+      external: ['@google/genai']  // ¡ESTO ES CRÍTICO!
     }
   },
-  publicDir: 'public' // ¡ESTO ES CRÍTICO!
+  publicDir: 'public'
 })
