@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../App';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -783,7 +782,9 @@ export const Checklist = () => {
                                 onChange={(e) => {
                                      // Helper to update observations (kept from previous code structure)
                                      const updateObs = (items: any[], setItems: any) => {
-                                         const newItems = [...items]; newItems[index].observation = e.target.value; setItems(newItems);
+                                         const newItems = [...items]; 
+                                         newItems[index].observation = e.target.value; 
+                                         setItems(newItems);
                                      };
                                      if(section === 'motor') updateObs(motorItems, setMotorItems);
                                      else if(section === 'lights') updateObs(lightItems, setLightItems);
@@ -1140,7 +1141,9 @@ export const Checklist = () => {
                                                             className="border rounded text-xs p-1"
                                                             value={item.expirationDate || ''}
                                                             onChange={(e) => {
-                                                                const ni=[...accessoryItems]; ni[index].expirationDate = e.target.value; setAccessoryItems(ni);
+                                                                const ni=[...accessoryItems]; 
+                                                                ni[index].expirationDate = e.target.value; 
+                                                                setAccessoryItems(ni);
                                                             }}
                                                          />
                                                      </div>
