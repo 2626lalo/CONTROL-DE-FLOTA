@@ -552,6 +552,7 @@ export default function App() {
   );
 }
 
+// --- Protected Routes Component ---
 const ProtectedRoutes = () => {
   const { user } = useApp();
   
