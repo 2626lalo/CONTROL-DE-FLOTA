@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../App';
 import { 
@@ -289,8 +288,8 @@ export const ServiceManager = () => {
     const [isAnalyzingInvoice, setIsAnalyzingInvoice] = useState(false);
 
     // --- PERMISSIONS ---
-    const isAdmin = user?.role === UserRole.ADMIN || user?.role === UserRole.ADMIN_L2;
-    const isManager = isAdmin || user?.role === UserRole.MANAGER;
+    const isAdmin = user && (user.role === UserRole.ADMIN || user.role === UserRole.ADMIN_L2);
+    const isManager = isAdmin || (user && user.role === UserRole.MANAGER);
 
     // --- HELPERS ---
     const handleCreateNew = () => {
@@ -298,7 +297,7 @@ export const ServiceManager = () => {
             category: ServiceCategory.MAINTENANCE,
             subCategory: ServiceSubCategory.PREVENTIVE,
             preferredDates: [],
-            requesterPhone: user?.phone || '' 
+            requesterPhone: user && user.phone || '' 
         });
         setPlateSearch('');
         setView('FORM');
@@ -317,9 +316,9 @@ export const ServiceManager = () => {
         const newRequest: ServiceRequest = {
             id: selectedRequest ? selectedRequest.id : `REQ-${Date.now()}`,
             vehiclePlate: formData.vehiclePlate,
-            userId: user?.id || 'unknown',
-            requesterName: user?.name || 'Usuario',
-            requesterEmail: user?.email || '',
+            userId: user && user.id || 'unknown',
+            requesterName: user && user.name || 'Usuario',
+            requesterEmail: user && user.email || '',
             requesterPhone: formData.requesterPhone || '',
             category: formData.category as ServiceCategory,
             subCategory: formData.subCategory || '',
@@ -335,7 +334,7 @@ export const ServiceManager = () => {
             logs: selectedRequest ? selectedRequest.logs : [{
                 stage: ServiceStage.REQUESTED,
                 date: new Date().toISOString(),
-                user: user?.name || 'System',
+                user: user && user.name || 'System',
                 note: 'Solicitud creada'
             }],
             syncStatus: 'PENDING'
@@ -358,7 +357,7 @@ export const ServiceManager = () => {
             logs: [...req.logs, {
                 stage: newStage,
                 date: new Date().toISOString(),
-                user: user?.name || 'System',
+                user: user && user.name || 'System',
                 note: note || `Cambio de estado a ${newStage}`
             }]
         };
@@ -367,7 +366,7 @@ export const ServiceManager = () => {
         if (newStage === ServiceStage.IN_WORKSHOP) {
             updated.workshopEntry = {
                 date: new Date().toISOString(),
-                confirmedBy: user?.name || 'System'
+                confirmedBy: user && user.name || 'System'
             };
         }
 
@@ -395,7 +394,7 @@ export const ServiceManager = () => {
             logs: [...selectedRequest.logs, {
                 stage: ServiceStage.SCHEDULED,
                 date: new Date().toISOString(),
-                user: user?.name || 'System',
+                user: user && user.name || 'System',
                 note: `Turno asignado en ${apptData.provider} para ${apptData.date}`
             }]
         };
@@ -422,7 +421,7 @@ export const ServiceManager = () => {
             logs: [...selectedRequest.logs, {
                 stage: ServiceStage.SCHEDULED,
                 date: new Date().toISOString(),
-                user: user?.name || 'System',
+                user: user && user.name || 'System',
                 note: `Usuario solicitó cambio de turno`
             }]
         };
@@ -432,7 +431,7 @@ export const ServiceManager = () => {
     };
 
     const handleAcceptProposal = () => {
-        if (!selectedRequest || !selectedRequest.appointment?.userProposal) return;
+        if (!selectedRequest || !selectedRequest.appointment || !selectedRequest.appointment.userProposal) return;
         
         const proposal = selectedRequest.appointment.userProposal;
         
@@ -449,7 +448,7 @@ export const ServiceManager = () => {
             logs: [...selectedRequest.logs, {
                 stage: ServiceStage.SCHEDULED,
                 date: new Date().toISOString(),
-                user: user?.name || 'System',
+                user: user && user.name || 'System',
                 note: `Admin aceptó cambio de turno a ${proposal.date}`
             }]
         };
@@ -482,7 +481,7 @@ export const ServiceManager = () => {
         const finishLog = {
             stage: ServiceStage.DELIVERY,
             date: new Date().toISOString(),
-            user: user?.name || 'System',
+            user: user && user.name || 'System',
             note: `Finalizado Directamente: ${finalizationNote}`
         };
 
@@ -530,7 +529,7 @@ export const ServiceManager = () => {
         const msg: ChatMessage = {
             id: Date.now().toString(),
             sender: isAdmin ? 'ADMIN' : 'USER',
-            senderName: user?.name || 'Usuario',
+            senderName: user && user.name || 'Usuario',
             text: newMessage,
             timestamp: new Date().toISOString()
         };
@@ -547,7 +546,7 @@ export const ServiceManager = () => {
 
     // --- BUDGET LOGIC ---
     const handleBudgetUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (!selectedRequest || !e.target.files?.[0]) return;
+        if (!selectedRequest || !e.target.files || !e.target.files[0]) return;
         setIsUploadingBudget(true);
         const file = e.target.files[0];
         const mimeType = file.type; 
@@ -562,10 +561,10 @@ export const ServiceManager = () => {
                 id: Date.now().toString(),
                 type: selectedRequest.budgets.length === 0 ? 'ORIGINAL' : 'ADDITIONAL',
                 file: base64,
-                provider: analysis?.provider || 'Proveedor Desconocido',
-                totalCost: analysis?.totalCost || 0,
-                budgetNumber: analysis?.budgetNumber || '',
-                details: analysis?.details || 'Presupuesto adjunto',
+                provider: analysis && analysis.provider || 'Proveedor Desconocido',
+                totalCost: analysis && analysis.totalCost || 0,
+                budgetNumber: analysis && analysis.budgetNumber || '',
+                details: analysis && analysis.details || 'Presupuesto adjunto',
                 date: new Date().toISOString(),
                 status: 'PENDING'
             };
@@ -613,7 +612,7 @@ export const ServiceManager = () => {
         const newStage = action === 'APPROVED' ? ServiceStage.APPROVAL : selectedRequest.stage;
 
         const updatedBudgets = selectedRequest.budgets.map(b => 
-            b.id === budgetId ? { ...b, status: finalStatus, approvedBy: action === 'APPROVED' ? user?.name : undefined } : b
+            b.id === budgetId ? { ...b, status: finalStatus, approvedBy: action === 'APPROVED' ? user && user.name : undefined } : b
         );
         
         const updated: ServiceRequest = {
@@ -624,7 +623,7 @@ export const ServiceManager = () => {
             logs: [...selectedRequest.logs, {
                  stage: newStage,
                  date: new Date().toISOString(),
-                 user: user?.name || 'System',
+                 user: user && user.name || 'System',
                  note: logNote
             }]
         };
@@ -635,7 +634,7 @@ export const ServiceManager = () => {
 
     // --- INVOICE LOGIC ---
     const handleInvoiceUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (!e.target.files?.[0]) return;
+        if (!e.target.files || !e.target.files[0]) return;
         const file = e.target.files[0];
         setIsAnalyzingInvoice(true);
         const reader = new FileReader();
@@ -644,8 +643,8 @@ export const ServiceManager = () => {
             setInvoiceFile(base64);
             const analysis = await analyzeInvoiceImage(base64.split(',')[1]);
             setInvoiceData({
-                invoiceNumber: analysis?.invoiceNumber || '',
-                amount: analysis?.amount || 0
+                invoiceNumber: analysis && analysis.invoiceNumber || '',
+                amount: analysis && analysis.amount || 0
             });
             setIsAnalyzingInvoice(false);
         };
@@ -663,14 +662,14 @@ export const ServiceManager = () => {
             invoiceNumber: invoiceData.invoiceNumber,
             amount: invoiceData.amount
         };
-        const currentInvoices = selectedRequest.delivery?.invoices || [];
+        const currentInvoices = selectedRequest.delivery && selectedRequest.delivery.invoices || [];
         const updated = {
             ...selectedRequest,
             delivery: {
                 ...selectedRequest.delivery,
-                date: selectedRequest.delivery?.date || new Date().toISOString(), // Temporary date until final exit
+                date: (selectedRequest.delivery && selectedRequest.delivery.date) || new Date().toISOString(), // Temporary date until final exit
                 invoices: [...currentInvoices, newInvoice],
-                finalCost: (selectedRequest.delivery?.finalCost || 0) + newInvoice.amount
+                finalCost: ((selectedRequest.delivery && selectedRequest.delivery.finalCost) || 0) + newInvoice.amount
             }
         };
         updateServiceRequest(updated);
@@ -683,21 +682,21 @@ export const ServiceManager = () => {
         if (!selectedRequest) return;
         
         // Removed Blocking Invoice Validation
-        const totalInvoiced = selectedRequest.delivery?.finalCost || 0;
+        const totalInvoiced = selectedRequest.delivery && selectedRequest.delivery.finalCost || 0;
 
         if (confirm(`¿Confirmar el egreso del taller con fecha ${exitDate}?\n\nLa unidad pasará a estado FINALIZADO/ENTREGADO y se actualizará su estado operativo a ACTIVO.`)) {
             // Update Vehicle Status
             const vehicle = vehicles.find(v => v.plate === selectedRequest.vehiclePlate);
             if(vehicle) {
                 // Add to history
-                const daysInWorkshop = calculateDaysInWorkshop(selectedRequest.workshopEntry?.date, exitDate);
+                const daysInWorkshop = calculateDaysInWorkshop(selectedRequest.workshopEntry && selectedRequest.workshopEntry.date, exitDate);
                 const historyEntry: ServiceHistory = {
                     id: `HIST-${Date.now()}`,
                     date: exitDate,
                     type: 'SERVICE',
                     description: `Servicio Finalizado. Estadia en taller: ${daysInWorkshop} días. Detalle: ${selectedRequest.description}`,
                     cost: totalInvoiced,
-                    attachments: selectedRequest.delivery?.invoices.map(i => i.file) || []
+                    attachments: (selectedRequest.delivery && selectedRequest.delivery.invoices && selectedRequest.delivery.invoices.map(i => i.file)) || []
                 };
 
                 updateVehicle({
@@ -713,13 +712,13 @@ export const ServiceManager = () => {
                 stage: ServiceStage.DELIVERY,
                 updatedAt: new Date().toISOString(),
                 delivery: {
-                    ...selectedRequest.delivery!,
+                    ...selectedRequest.delivery,
                     date: exitDate
                 },
                 logs: [...selectedRequest.logs, {
                     stage: ServiceStage.DELIVERY,
                     date: new Date().toISOString(),
-                    user: user?.name || 'System',
+                    user: user && user.name || 'System',
                     note: `Egreso de Taller confirmado. Fecha: ${exitDate}`
                 }]
             };
@@ -745,7 +744,7 @@ export const ServiceManager = () => {
             const isFinished = req.stage === ServiceStage.DELIVERY || req.stage === ServiceStage.CANCELLED;
             if (!showHistory && isFinished) return false;
             if (showHistory && !isFinished) return false;
-            if (!isManager && req.userId !== user?.id) return false;
+            if (!isManager && req.userId !== (user && user.id)) return false;
             return true;
         }).sort((a,b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
 
@@ -1127,8 +1126,8 @@ export const ServiceManager = () => {
                                             <div className="bg-orange-50 border border-orange-100 p-3 rounded mb-4 text-sm">
                                                 <p className="font-bold text-orange-800 mb-1 flex items-center gap-2"><LucideAlertCircle size={14}/> El usuario solicita reprogramar:</p>
                                                 <ul className="list-disc list-inside text-orange-700">
-                                                    <li>Fecha: <b>{selectedRequest.appointment.userProposal?.date} {selectedRequest.appointment.userProposal?.time}</b></li>
-                                                    <li>Nota: {selectedRequest.appointment.userProposal?.note}</li>
+                                                    <li>Fecha: <b>{selectedRequest.appointment.userProposal && selectedRequest.appointment.userProposal.date} {selectedRequest.appointment.userProposal && selectedRequest.appointment.userProposal.time}</b></li>
+                                                    <li>Nota: {selectedRequest.appointment.userProposal && selectedRequest.appointment.userProposal.note}</li>
                                                 </ul>
                                                 <div className="flex gap-2 mt-3">
                                                     <button onClick={handleAcceptProposal} className="bg-green-600 text-white px-3 py-1.5 rounded text-xs font-bold hover:bg-green-700">Aceptar Propuesta</button>
@@ -1298,9 +1297,9 @@ export const ServiceManager = () => {
                             {selectedRequest.stage === ServiceStage.IN_WORKSHOP && (
                                 <div className="mb-6 bg-slate-50 p-4 rounded-xl border border-blue-200">
                                     <div className="flex justify-between items-center mb-3">
-                                        <span className="text-sm font-bold text-blue-800 flex items-center gap-2"><LucideClock/> Ingreso: {new Date(selectedRequest.workshopEntry?.date || selectedRequest.updatedAt).toLocaleDateString()}</span>
+                                        <span className="text-sm font-bold text-blue-800 flex items-center gap-2"><LucideClock/> Ingreso: {new Date(selectedRequest.workshopEntry && selectedRequest.workshopEntry.date || selectedRequest.updatedAt).toLocaleDateString()}</span>
                                         <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded font-bold">
-                                            {calculateDaysInWorkshop(selectedRequest.workshopEntry?.date)} días en taller
+                                            {calculateDaysInWorkshop(selectedRequest.workshopEntry && selectedRequest.workshopEntry.date)} días en taller
                                         </span>
                                     </div>
 
@@ -1325,7 +1324,7 @@ export const ServiceManager = () => {
                                                         onChange={(e) => setExitDate(e.target.value)}
                                                     />
                                                     <div className="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-2 rounded">
-                                                        Estadía Total: {calculateDaysInWorkshop(selectedRequest.workshopEntry?.date, exitDate)} días
+                                                        Estadía Total: {calculateDaysInWorkshop(selectedRequest.workshopEntry && selectedRequest.workshopEntry.date, exitDate)} días
                                                     </div>
                                                 </div>
                                             </div>
@@ -1361,15 +1360,15 @@ export const ServiceManager = () => {
                                                 )}
                                                 
                                                 {/* List of Loaded Invoices */}
-                                                {(selectedRequest.delivery?.invoices || []).length > 0 && (
+                                                {selectedRequest.delivery && selectedRequest.delivery.invoices && selectedRequest.delivery.invoices.length > 0 && (
                                                     <div className="mt-2 space-y-1">
-                                                        {selectedRequest.delivery?.invoices.map((inv, idx) => (
+                                                        {selectedRequest.delivery.invoices.map((inv, idx) => (
                                                             <div key={idx} className="flex justify-between text-xs bg-green-50 p-2 rounded border border-green-100">
                                                                 <span className="font-bold text-green-800">{inv.invoiceNumber}</span>
                                                                 <span className="font-bold text-slate-700">${inv.amount.toLocaleString()}</span>
                                                             </div>
                                                         ))}
-                                                        <div className="text-right font-bold text-sm pt-1">Total: ${(selectedRequest.delivery?.finalCost || 0).toLocaleString()}</div>
+                                                        <div className="text-right font-bold text-sm pt-1">Total: ${(selectedRequest.delivery && selectedRequest.delivery.finalCost || 0).toLocaleString()}</div>
                                                     </div>
                                                 )}
                                             </div>
@@ -1391,9 +1390,9 @@ export const ServiceManager = () => {
                             {/* List of Invoices (Read Only for History + Add More Option) */}
                             {selectedRequest.stage === ServiceStage.DELIVERY && (
                                 <div>
-                                    {(selectedRequest.delivery?.invoices || []).length > 0 ? (
+                                    {selectedRequest.delivery && selectedRequest.delivery.invoices && selectedRequest.delivery.invoices.length > 0 ? (
                                         <div className="space-y-2 mb-4">
-                                            {selectedRequest.delivery?.invoices.map((inv, idx) => (
+                                            {selectedRequest.delivery.invoices.map((inv, idx) => (
                                                 <div key={idx} className="flex justify-between items-center p-2 bg-green-50 border border-green-100 rounded text-sm">
                                                     <span className="font-bold text-green-800">Factura {inv.invoiceNumber}</span>
                                                     <span className="font-bold text-slate-700">${inv.amount.toLocaleString()}</span>
@@ -1401,9 +1400,9 @@ export const ServiceManager = () => {
                                             ))}
                                             <div className="border-t pt-2 flex justify-between items-center font-bold text-slate-900">
                                                 <span>Total Final:</span>
-                                                <span>${selectedRequest.delivery?.finalCost.toLocaleString()}</span>
+                                                <span>${selectedRequest.delivery && selectedRequest.delivery.finalCost && selectedRequest.delivery.finalCost.toLocaleString()}</span>
                                             </div>
-                                            {selectedRequest.delivery?.date && (
+                                            {selectedRequest.delivery && selectedRequest.delivery.date && (
                                                 <div className="text-xs text-slate-500 text-right mt-1">
                                                     Fecha Egreso: {new Date(selectedRequest.delivery.date).toLocaleDateString()}
                                                 </div>
@@ -1472,7 +1471,7 @@ export const ServiceManager = () => {
                         )}
 
                         <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50/50">
-                            {selectedRequest.messages?.map((msg) => (
+                            {selectedRequest.messages && selectedRequest.messages.map((msg) => (
                                 <div key={msg.id} className={`flex flex-col ${msg.sender === (isAdmin ? 'ADMIN' : 'USER') ? 'items-end' : 'items-start'}`}>
                                     <div className={`max-w-[85%] p-3 rounded-lg text-sm ${msg.sender === (isAdmin ? 'ADMIN' : 'USER') ? 'bg-blue-600 text-white rounded-tr-none' : 'bg-white border border-slate-200 rounded-tl-none shadow-sm text-slate-700'}`}>
                                         <p className="font-bold text-[10px] opacity-70 mb-1">{msg.senderName}</p>
@@ -1483,7 +1482,7 @@ export const ServiceManager = () => {
                                     </span>
                                 </div>
                             ))}
-                            {!selectedRequest.messages?.length && (
+                            {(!selectedRequest.messages || selectedRequest.messages.length === 0) && (
                                 <p className="text-center text-slate-400 text-sm mt-10">No hay mensajes aún.</p>
                             )}
                         </div>
