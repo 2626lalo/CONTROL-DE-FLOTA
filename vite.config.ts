@@ -1,16 +1,11 @@
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
 
-const { defineConfig } = require('vite')
-const react = require('@vitejs/plugin-react')
-
-module.exports = defineConfig({
+export default defineConfig({
   plugins: [react()],
   build: {
-    target: 'es2015',
-    commonjsOptions: {
-      transformMixedEsModules: true
-    }
-  },
-  esbuild: {
-    target: 'es2015'
+    target: 'es2020',  // O 'es2019' para mayor compatibilidad
+    outDir: 'dist',
+    assetsDir: 'assets'
   }
 })
