@@ -5,29 +5,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CONTROL DE FLOTA</title>
     
-    <!-- Polyfill CRÍTICO para toSorted() - Soluciona el error en Vercel/Render -->
+    <!-- Polyfill para métodos ES2023 (toSorted, etc.) -->
     <script>
-        // POLYFILL para métodos ES2023 - Compatibilidad con navegadores antiguos
-        // Esto arregla: "TypeError: i.map(...).toSorted is not a function"
-        
+        // Solo define los métodos si no existen
         if (!Array.prototype.toSorted) {
             Array.prototype.toSorted = function(compareFn) {
-                // Crea una copia del array y la ordena
-                var arr = this.slice();
-                return arr.sort(compareFn);
+                return this.slice().sort(compareFn);
             };
         }
-        
-        // Polyfills adicionales para otros métodos nuevos (opcional pero recomendado)
         if (!Array.prototype.toReversed) {
             Array.prototype.toReversed = function() {
                 return this.slice().reverse();
             };
         }
-        
         if (!Array.prototype.toSpliced) {
             Array.prototype.toSpliced = function(start, deleteCount, ...items) {
-                var arr = this.slice();
+                const arr = this.slice();
                 if (arguments.length > 1) {
                     arr.splice(start, deleteCount, ...items);
                 } else {
@@ -36,19 +29,20 @@
                 return arr;
             };
         }
-        
         if (!Array.prototype.with) {
             Array.prototype.with = function(index, value) {
-                var arr = this.slice();
+                const arr = this.slice();
                 arr[index] = value;
                 return arr;
             };
         }
-        
-        console.log('Polyfills ES2023 cargados correctamente');
+        console.log('Polyfills ES2023 cargados');
     </script>
     
+    <!-- Tailwind CSS desde CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Estilos personalizados para scrollbar -->
     <style>
         ::-webkit-scrollbar {
             width: 8px;
@@ -68,6 +62,6 @@
 </head>
 <body class="bg-slate-50 text-slate-900 antialiased">
     <div id="root"></div>
-    <!-- Vite inyectará aquí el script correcto automáticamente -->
+    <!-- Vite inyectará automáticamente el script correcto aquí -->
 </body>
 </html>
