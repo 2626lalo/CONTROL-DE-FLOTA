@@ -5,22 +5,29 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CONTROL DE FLOTA</title>
     
-    <!-- Polyfill para métodos ES2023 (toSorted, etc.) -->
+    <!-- Polyfill CRÍTICO para toSorted() - Soluciona el error en Vercel/Render -->
     <script>
-        // Solo define los métodos si no existen
+        // POLYFILL para métodos ES2023 - Compatibilidad con navegadores antiguos
+        // Esto arregla: "TypeError: i.map(...).toSorted is not a function"
+        
         if (!Array.prototype.toSorted) {
             Array.prototype.toSorted = function(compareFn) {
-                return this.slice().sort(compareFn);
+                // Crea una copia del array y la ordena
+                var arr = this.slice();
+                return arr.sort(compareFn);
             };
         }
+        
+        // Polyfills adicionales para otros métodos nuevos (opcional pero recomendado)
         if (!Array.prototype.toReversed) {
             Array.prototype.toReversed = function() {
                 return this.slice().reverse();
             };
         }
+        
         if (!Array.prototype.toSpliced) {
             Array.prototype.toSpliced = function(start, deleteCount, ...items) {
-                const arr = this.slice();
+                var arr = this.slice();
                 if (arguments.length > 1) {
                     arr.splice(start, deleteCount, ...items);
                 } else {
@@ -29,20 +36,19 @@
                 return arr;
             };
         }
+        
         if (!Array.prototype.with) {
             Array.prototype.with = function(index, value) {
-                const arr = this.slice();
+                var arr = this.slice();
                 arr[index] = value;
                 return arr;
             };
         }
-        console.log('Polyfills ES2023 cargados');
+        
+        console.log('Polyfills ES2023 cargados correctamente');
     </script>
     
-    <!-- Tailwind CSS desde CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- Estilos personalizados para scrollbar -->
     <style>
         ::-webkit-scrollbar {
             width: 8px;
