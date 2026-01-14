@@ -3,7 +3,7 @@ FROM node:18-alpine AS build
 WORKDIR /app
 # Copia los archivos de dependencias y las instala
 COPY package*.json ./
-RUN npm ci --only=production
+RUN npm install --omit=dev
 # Copia el código fuente y construye la aplicación
 COPY . .
 RUN npm run build
