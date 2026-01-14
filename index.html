@@ -5,20 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CONTROL DE FLOTA</title>
     
-    <!-- Polyfill CRÍTICO para toSorted() - Soluciona el error en Vercel/Render -->
+    <!-- Polyfill CRÍTICO para toSorted() -->
     <script>
-        // POLYFILL para métodos ES2023 - Compatibilidad con navegadores antiguos
-        // Esto arregla: "TypeError: i.map(...).toSorted is not a function"
-        
         if (!Array.prototype.toSorted) {
             Array.prototype.toSorted = function(compareFn) {
-                // Crea una copia del array y la ordena
                 var arr = this.slice();
                 return arr.sort(compareFn);
             };
         }
         
-        // Polyfills adicionales para otros métodos nuevos (opcional pero recomendado)
         if (!Array.prototype.toReversed) {
             Array.prototype.toReversed = function() {
                 return this.slice().reverse();
