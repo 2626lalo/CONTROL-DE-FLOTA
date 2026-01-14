@@ -7,10 +7,8 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
-    target: 'es2020',  // Mejor compatibilidad
-    rollupOptions: {
-      external: ['@google/genai']  // ¡ESTO ES CRÍTICO!
-    }
+    target: 'es2020'  // Mejor compatibilidad
+    // ¡ELIMINA el bloque 'rollupOptions' completo!
   },
   publicDir: 'public'
 })
