@@ -11,10 +11,9 @@
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-jsx",
-    "jsxImportSource": "react",
     "strict": true,
-    "noUnusedLocals": false,  // ← Desactivar temporalmente
-    "noUnusedParameters": false,  // ← Desactivar temporalmente
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
     "noFallthroughCasesInSwitch": true
   },
   "include": ["src"],
