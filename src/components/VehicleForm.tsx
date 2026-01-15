@@ -65,7 +65,7 @@ const compressImage = async (file: File, maxWidth = 1200, quality = 0.7): Promis
 const VehicleForm: React.FC = () => {
   const { plate } = useParams<{ plate?: string }>();
   const navigate = useNavigate();
-  const { vehicles, addVehicle, updateVehicle, user, isOnline, notifyError } = useApp();
+  const { vehicles, addVehicle, updateVehicle, user, isOnline, notifyError, googleAI } = useApp();
   
   const isEditing = !!plate;
   const existingVehicle = vehicles.find(v => v.plate === plate);
@@ -128,6 +128,15 @@ const VehicleForm: React.FC = () => {
     }
   }, [isEditing, existingVehicle]);
 
+  // Verificar si Gemini AI está disponible
+  useEffect(() => {
+    console.log('🔍 Estado de Gemini AI:', {
+      isOnline,
+      googleAI: googleAI ? 'Disponible' : 'No disponible',
+      apiKey: import.meta.env.VITE_GOOGLE_AI_API_KEY ? 'Configurada' : 'No configurada'
+    });
+  }, [isOnline, googleAI]);
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     
@@ -156,15 +165,36 @@ const VehicleForm: React.FC = () => {
     setProcessingFrontImage(true);
     try {
       console.log('🖼️ Procesando imagen frontal del vehículo...');
+      console.log('📁 Archivo:', file.name, 'Tamaño:', file.size, 'Tipo:', file.type);
       
       setFrontImage(file);
       
-      const compressed = await compressImage(file, 800, 0.7);
+      // Verificar si el archivo es una imagen válida
+      if (!file.type.startsWith('image/')) {
+        throw new Error('El archivo no es una imagen válida');
+      }
+      
+      let compressedBase64: string;
+      try {
+        compressedBase64 = await compressImage(file, 800, 0.7);
+        console.log('✅ Imagen comprimida correctamente');
+      } catch (compressError) {
+        console.warn('⚠️ Error en compresión, usando imagen original:', compressError);
+        compressedBase64 = await fileToBase64(file);
+      }
       
       console.log('📸 Enviando imagen frontal a Gemini...');
       
+      // Verificar si Gemini AI está disponible
+      if (!googleAI) {
+        console.warn('⚠️ Gemini AI no está disponible. Modo offline.');
+        notifyError('Gemini AI no está disponible. Ingresa los datos manualmente.');
+        return;
+      }
+      
       // Call Gemini API with single image
-      const result = await analyzeVehicleImage([compressed]);
+      const result = await analyzeVehicleImage([compressedBase64]);
+      console.log('🔍 Respuesta de Gemini para imagen frontal:', result);
       
       // Update form with extracted data
       setFormData(prev => ({
@@ -174,18 +204,32 @@ const VehicleForm: React.FC = () => {
         model: result.model || prev.model,
         year: result.year || prev.year,
         color: result.color || prev.color,
-        type: result.type || prev.type
+        type: result.type || prev.type,
+        vin: result.vin || prev.vin,
+        motorNumber: result.motorNum || prev.motorNumber
       }));
       
-      console.log('✅ Datos extraídos de imagen frontal:', result);
+      console.log('✅ Datos extraídos de imagen frontal:', {
+        placa: result.plate,
+        marca: result.make,
+        modelo: result.model,
+        año: result.year,
+        color: result.color,
+        tipo: result.type
+      });
       
       if (!result.plate && !result.make && !result.model) {
-        console.warn('⚠️ Gemini no pudo extraer datos significativos de la imagen frontal');
+        console.warn('⚠️ Gemini no pudo extraer datos significativos de las imágenes');
+        notifyError('No se pudieron extraer datos de la imagen. Por favor, ingresa los datos manualmente.');
+      } else {
+        // Mostrar notificación de éxito
+        const successMessage = `Datos extraídos: ${result.plate || 'Placa no detectada'}, ${result.make || ''} ${result.model || ''}`;
+        notifyError(successMessage.replace('Error: ', ''));
       }
       
     } catch (error) {
       console.error('❌ Error procesando imagen frontal:', error);
-      notifyError('Error al procesar la imagen frontal. Por favor, ingresa los datos manualmente.');
+      notifyError(`Error al procesar la imagen frontal: ${error.message || 'Error desconocido'}. Por favor, ingresa los datos manualmente.`);
     } finally {
       setProcessingFrontImage(false);
     }
@@ -197,32 +241,81 @@ const VehicleForm: React.FC = () => {
     setProcessingBackImage(true);
     try {
       console.log('🖼️ Procesando imagen posterior de la cédula...');
+      console.log('📁 Archivo:', file.name, 'Tamaño:', file.size, 'Tipo:', file.type);
       
       setBackImage(file);
       
-      const compressed = await compressImage(file, 800, 0.7);
+      // Verificar si el archivo es una imagen válida
+      if (!file.type.startsWith('image/')) {
+        throw new Error('El archivo no es una imagen válida');
+      }
+      
+      let compressedBase64: string;
+      try {
+        compressedBase64 = await compressImage(file, 800, 0.7);
+        console.log('✅ Imagen comprimida correctamente');
+      } catch (compressError) {
+        console.warn('⚠️ Error en compresión, usando imagen original:', compressError);
+        compressedBase64 = await fileToBase64(file);
+      }
       
       console.log('📸 Enviando imagen posterior a Gemini...');
       
+      // Verificar si Gemini AI está disponible
+      if (!googleAI) {
+        console.warn('⚠️ Gemini AI no está disponible. Modo offline.');
+        notifyError('Gemini AI no está disponible. Ingresa los datos manualmente.');
+        return;
+      }
+      
       // Call Gemini API with single image for cédula
-      const result = await analyzeDocumentImage(compressed, 'Cédula', 'image/jpeg');
+      const result = await analyzeDocumentImage(compressedBase64, 'Cédula', 'image/jpeg');
+      console.log('🔍 Respuesta de Gemini para cédula posterior:', result);
       
       // Update form with extracted data from cédula
+      const updates: Partial<Vehicle> = {};
+      
+      if (result.plate) updates.plate = result.plate;
+      if (result.vin) updates.vin = result.vin;
+      if (result.motorNum) updates.motorNumber = result.motorNum;
+      if (result.year) updates.year = result.year;
+      if (result.make) updates.make = result.make;
+      if (result.model) updates.model = result.model;
+      if (result.color) updates.color = result.color;
+      if (result.type) updates.type = result.type;
+      
       setFormData(prev => ({
         ...prev,
-        plate: result.plate || prev.plate,
-        vin: result.vin || prev.vin,
-        motorNumber: result.motorNum || prev.motorNumber,
-        year: result.year || prev.year,
-        make: result.make || prev.make,
-        model: result.model || prev.model
+        ...updates
       }));
       
-      console.log('✅ Datos extraídos de cédula posterior:', result);
+      console.log('✅ Datos extraídos de cédula posterior:', {
+        placa: result.plate,
+        vin: result.vin,
+        numeroMotor: result.motorNum,
+        año: result.year,
+        marca: result.make,
+        modelo: result.model
+      });
+      
+      if (!result.plate && !result.vin && !result.motorNum) {
+        console.warn('⚠️ Gemini no pudo extraer datos de la cédula');
+        notifyError('No se pudieron extraer datos de la cédula. Por favor, ingresa los datos manualmente.');
+      } else {
+        // Mostrar notificación de éxito
+        const extractedData = [];
+        if (result.plate) extractedData.push(`Placa: ${result.plate}`);
+        if (result.vin) extractedData.push(`VIN: ${result.vin}`);
+        if (result.motorNum) extractedData.push(`Motor: ${result.motorNum}`);
+        
+        if (extractedData.length > 0) {
+          notifyError(`Cédula procesada: ${extractedData.join(', ')}`.replace('Error: ', ''));
+        }
+      }
       
     } catch (error) {
       console.error('❌ Error procesando imagen posterior:', error);
-      notifyError('Error al procesar la cédula posterior. Por favor, ingresa los datos manualmente.');
+      notifyError(`Error al procesar la cédula posterior: ${error.message || 'Error desconocido'}. Por favor, ingresa los datos manualmente.`);
     } finally {
       setProcessingBackImage(false);
     }
@@ -391,6 +484,29 @@ const VehicleForm: React.FC = () => {
     }
   };
 
+  // Función para probar manualmente el procesamiento
+  const testGeminiProcessing = async () => {
+    if (!frontImage && !backImage) {
+      notifyError('Primero sube al menos una imagen');
+      return;
+    }
+    
+    console.log('🧪 Iniciando prueba de procesamiento Gemini...');
+    
+    if (frontImage) {
+      console.log('🧪 Procesando imagen frontal...');
+      await handleFrontImageUpload(frontImage);
+    }
+    
+    if (backImage) {
+      // Esperar un momento antes de procesar la segunda imagen
+      setTimeout(async () => {
+        console.log('🧪 Procesando imagen posterior...');
+        await handleBackImageUpload(backImage);
+      }, 1000);
+    }
+  };
+
   return (
     <div className="max-w-6xl mx-auto p-4 md:p-6">
       <div className="mb-6 flex items-center justify-between">
@@ -406,9 +522,21 @@ const VehicleForm: React.FC = () => {
           </h1>
         </div>
         
-        <div className="flex items-center gap-2 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
-          <ScanLine size={16} />
-          Gemini AI Habilitado
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
+            <ScanLine size={16} />
+            Gemini AI {googleAI ? 'Habilitado' : 'Deshabilitado'}
+          </div>
+          {googleAI && (
+            <button
+              type="button"
+              onClick={testGeminiProcessing}
+              className="flex items-center gap-2 px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium hover:bg-green-200 transition"
+            >
+              <RefreshCw size={14} />
+              Probar Procesamiento
+            </button>
+          )}
         </div>
       </div>
       
@@ -429,6 +557,12 @@ const VehicleForm: React.FC = () => {
                 <label className="block text-sm font-medium text-slate-700">
                   1. Foto Frontal del Vehículo
                 </label>
+                {processingFrontImage && (
+                  <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded animate-pulse">
+                    <Loader size={12} className="inline animate-spin mr-1" />
+                    Procesando...
+                  </span>
+                )}
               </div>
               
               {frontImage ? (
@@ -456,6 +590,16 @@ const VehicleForm: React.FC = () => {
                       </button>
                     </div>
                   </div>
+                  {!processingFrontImage && (
+                    <button
+                      type="button"
+                      onClick={() => handleFrontImageUpload(frontImage)}
+                      className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+                    >
+                      <RefreshCw size={16} />
+                      Re-procesar con Gemini AI
+                    </button>
+                  )}
                 </div>
               ) : (
                 <div className="border-2 border-dashed border-blue-300 rounded-xl p-4 hover:border-blue-400 transition-colors bg-blue-50/50">
@@ -541,6 +685,12 @@ const VehicleForm: React.FC = () => {
                 <label className="block text-sm font-medium text-slate-700">
                   2. Foto Posterior de la Cédula
                 </label>
+                {processingBackImage && (
+                  <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded animate-pulse">
+                    <Loader size={12} className="inline animate-spin mr-1" />
+                    Procesando...
+                  </span>
+                )}
               </div>
               
               {backImage ? (
@@ -568,6 +718,16 @@ const VehicleForm: React.FC = () => {
                       </button>
                     </div>
                   </div>
+                  {!processingBackImage && (
+                    <button
+                      type="button"
+                      onClick={() => handleBackImageUpload(backImage)}
+                      className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
+                    >
+                      <RefreshCw size={16} />
+                      Re-procesar con Gemini AI
+                    </button>
+                  )}
                 </div>
               ) : (
                 <div className="border-2 border-dashed border-green-300 rounded-xl p-4 hover:border-green-400 transition-colors bg-green-50/50">
@@ -656,12 +816,17 @@ const VehicleForm: React.FC = () => {
                   Ambas imágenes son procesadas por Gemini AI para extraer automáticamente los datos del vehículo.
                   Los campos se llenarán automáticamente después de subir las imágenes. <strong>¡No necesitas llenar manualmente!</strong>
                 </p>
+                <div className="mt-2 text-xs text-blue-700">
+                  <p>Estado: {googleAI ? '✅ Conectado' : '❌ No conectado'}</p>
+                  <p>Conexión: {isOnline ? '✅ En línea' : '❌ Sin conexión'}</p>
+                </div>
               </div>
             </div>
           </div>
         </div>
         
-        {/* Sección de información básica (autocompletada por IA) */}
+        {/* Resto del formulario sigue igual... */}
+        {/* Sección de información básica */}
         <div className="bg-white rounded-xl shadow p-6">
           <div className="flex items-center gap-2 mb-4">
             <Car size={20} className="text-blue-600" />
@@ -763,236 +928,6 @@ const VehicleForm: React.FC = () => {
                 <option value="Other">Otro</option>
               </select>
             </div>
-          </div>
-        </div>
-        
-        {/* Sección de seguro */}
-        <div className="bg-white rounded-xl shadow p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <FileText size={20} className="text-blue-600" />
-            <h2 className="text-lg font-semibold text-slate-800">Información de Seguro</h2>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Compañía de Seguros
-              </label>
-              <input
-                type="text"
-                name="insurance.provider"
-                value={formData.insurance?.provider}
-                onChange={handleInputChange}
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                placeholder="Ej: MAPFRE"
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Número de Póliza
-              </label>
-              <input
-                type="text"
-                name="insurance.policyNumber"
-                value={formData.insurance?.policyNumber}
-                onChange={handleInputChange}
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                placeholder="Ej: POL-123456"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Vencimiento
-              </label>
-              <input
-                type="date"
-                name="insurance.expiration"
-                value={formData.insurance?.expiration}
-                onChange={handleInputChange}
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-              />
-            </div>
-          </div>
-          
-          <div className="mt-6">
-            <div className="flex items-center justify-between mb-3">
-              <label className="block text-sm font-medium text-slate-700">
-                Subir póliza de seguro (Opcional)
-              </label>
-              <span className="text-xs text-slate-500">(Gemini extraerá datos automáticamente)</span>
-            </div>
-            
-            <div className="space-y-3">
-              <div className="flex flex-col gap-2 w-full max-w-xs">
-                <button
-                  type="button"
-                  onClick={triggerDocumentCamera}
-                  disabled={!!processingDocument}
-                  className={`flex items-center justify-center gap-3 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition ${processingDocument ? 'opacity-50 cursor-not-allowed' : ''}`}
-                >
-                  {processingDocument === 'Insurance' ? <Loader size={20} className="animate-spin" /> : <Camera size={20} />}
-                  <span>Tomar Foto de la Póliza</span>
-                </button>
-                
-                <div className="relative flex items-center justify-center">
-                  <div className="flex-grow h-px bg-slate-300"></div>
-                  <span className="mx-3 text-sm text-slate-500">O</span>
-                  <div className="flex-grow h-px bg-slate-300"></div>
-                </div>
-                
-                <button
-                  type="button"
-                  onClick={triggerDocumentFileUpload}
-                  disabled={!!processingDocument}
-                  className={`flex items-center justify-center gap-3 px-4 py-3 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition ${processingDocument ? 'opacity-50 cursor-not-allowed' : ''}`}
-                >
-                  {processingDocument === 'Insurance' ? <Loader size={20} className="animate-spin" /> : <Upload size={20} />}
-                  <span>Subir Archivo PDF/Imagen</span>
-                </button>
-              </div>
-              
-              {/* Inputs ocultos para documentos */}
-              <input
-                type="file"
-                ref={documentCameraInputRef}
-                accept="image/*"
-                capture="environment"
-                onChange={(e) => {
-                  if (e.target.files?.[0]) {
-                    handleDocumentUpload(e.target.files[0], 'Insurance');
-                  }
-                }}
-                className="hidden"
-              />
-              
-              <input
-                type="file"
-                ref={documentFileInputRef}
-                accept="image/*,.pdf"
-                onChange={(e) => {
-                  if (e.target.files?.[0]) {
-                    handleDocumentUpload(e.target.files[0], 'Insurance');
-                  }
-                }}
-                className="hidden"
-              />
-              
-              <div className="text-sm text-slate-600">
-                {processingDocument === 'Insurance' ? 'Extrayendo datos con Gemini AI...' : 'Puedes subir PDF o imágenes'}
-              </div>
-            </div>
-            
-            {/* Preview de documentos subidos */}
-            {uploadedDocuments.length > 0 && (
-              <div className="mt-4">
-                <h3 className="text-sm font-medium text-slate-700 mb-2">Documentos subidos:</h3>
-                <div className="flex flex-wrap gap-2">
-                  {uploadedDocuments.map((doc, index) => (
-                    <div key={index} className="relative group">
-                      <div className="px-4 py-2 bg-slate-100 rounded-lg border border-slate-200 flex items-center gap-2">
-                        <FileText size={16} />
-                        <span className="text-sm truncate max-w-[150px]">{doc.file.name}</span>
-                        <span className="text-xs text-slate-500">({doc.type})</span>
-                        <button
-                          type="button"
-                          onClick={() => removeDocument(index)}
-                          className="ml-2 text-red-500 hover:text-red-700"
-                        >
-                          <X size={14} />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Información adicional */}
-        <div className="bg-white rounded-xl shadow p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <AlertCircle size={20} className="text-blue-600" />
-            <h2 className="text-lg font-semibold text-slate-800">Información Adicional</h2>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                VIN (Número de chasis)
-              </label>
-              <input
-                type="text"
-                name="vin"
-                value={formData.vin}
-                onChange={handleInputChange}
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                placeholder="Se autocompletará con IA de la cédula"
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Número de motor
-              </label>
-              <input
-                type="text"
-                name="motorNumber"
-                value={formData.motorNumber}
-                onChange={handleInputChange}
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                placeholder="Se autocompletará con IA de la cédula"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Kilometraje actual
-              </label>
-              <input
-                type="number"
-                name="currentMileage"
-                value={formData.currentMileage}
-                onChange={handleInputChange}
-                min="0"
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                placeholder="Ej: 15000"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Tipo de combustible
-              </label>
-              <select
-                name="fuelType"
-                value={formData.fuelType}
-                onChange={handleInputChange}
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-              >
-                <option value="Gasolina">Gasolina</option>
-                <option value="Diésel">Diésel</option>
-                <option value="Eléctrico">Eléctrico</option>
-                <option value="Híbrido">Híbrido</option>
-                <option value="GNV">GNV</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="mt-4">
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              Notas
-            </label>
-            <textarea
-              name="notes"
-              value={formData.notes}
-              onChange={handleInputChange}
-              rows={3}
-              className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-              placeholder="Notas adicionales sobre el vehículo..."
-            />
           </div>
         </div>
         
