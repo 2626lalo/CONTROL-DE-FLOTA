@@ -83,7 +83,8 @@ const VehicleForm: React.FC = () => {
   const frontFileInputRef = useRef<HTMLInputElement>(null);
   const backCameraInputRef = useRef<HTMLInputElement>(null);
   const backFileInputRef = useRef<HTMLInputElement>(null);
-  const documentInputRef = useRef<HTMLInputElement>(null);
+  const documentCameraInputRef = useRef<HTMLInputElement>(null);
+  const documentFileInputRef = useRef<HTMLInputElement>(null);
 
   // Form state
   const [formData, setFormData] = useState<Partial<Vehicle>>({
@@ -299,6 +300,7 @@ const VehicleForm: React.FC = () => {
     }));
   };
 
+  // Funciones para activar los inputs
   const triggerFrontCamera = () => {
     frontCameraInputRef.current?.click();
   };
@@ -315,8 +317,12 @@ const VehicleForm: React.FC = () => {
     backFileInputRef.current?.click();
   };
 
-  const triggerDocumentInput = () => {
-    documentInputRef.current?.click();
+  const triggerDocumentCamera = () => {
+    documentCameraInputRef.current?.click();
+  };
+
+  const triggerDocumentFileUpload = () => {
+    documentFileInputRef.current?.click();
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -417,16 +423,16 @@ const VehicleForm: React.FC = () => {
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Imagen Frontal */}
-            <div className="space-y-3">
+            <div className="space-y-4">
               <div className="flex items-center gap-2">
                 <Camera size={18} className="text-blue-600" />
                 <label className="block text-sm font-medium text-slate-700">
-                  Foto Frontal del Vehículo
+                  1. Foto Frontal del Vehículo
                 </label>
               </div>
               
-              <div className="border-2 border-dashed border-blue-300 rounded-xl p-4 hover:border-blue-400 transition-colors bg-blue-50/50">
-                {frontImage ? (
+              {frontImage ? (
+                <div className="border-2 border-blue-300 rounded-xl p-4 bg-blue-50/50">
                   <div className="relative">
                     <div className="w-full h-48 bg-slate-100 rounded-lg overflow-hidden border border-slate-200">
                       <img 
@@ -437,7 +443,10 @@ const VehicleForm: React.FC = () => {
                       />
                     </div>
                     <div className="mt-2 flex justify-between items-center">
-                      <span className="text-xs text-slate-600 truncate">{frontImage.name}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-slate-600 truncate max-w-[200px]">{frontImage.name}</span>
+                        <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">✓ Subida</span>
+                      </div>
                       <button
                         type="button"
                         onClick={removeFrontImage}
@@ -447,8 +456,10 @@ const VehicleForm: React.FC = () => {
                       </button>
                     </div>
                   </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center h-48">
+                </div>
+              ) : (
+                <div className="border-2 border-dashed border-blue-300 rounded-xl p-4 hover:border-blue-400 transition-colors bg-blue-50/50">
+                  <div className="flex flex-col items-center justify-center py-8">
                     <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-3">
                       {processingFrontImage ? (
                         <Loader size={24} className="animate-spin text-blue-600" />
@@ -456,64 +467,67 @@ const VehicleForm: React.FC = () => {
                         <Camera size={24} className="text-blue-600" />
                       )}
                     </div>
-                    <p className="text-sm text-slate-600 text-center mb-2">
-                      {processingFrontImage ? 'Procesando con Gemini AI...' : 'Selecciona una opción'}
+                    <p className="text-sm text-slate-600 text-center mb-4">
+                      {processingFrontImage ? 'Procesando con Gemini AI...' : 'Selecciona cómo subir la imagen'}
                     </p>
-                    <div className="flex flex-col gap-2 w-full max-w-xs">
+                    
+                    <div className="flex flex-col gap-3 w-full max-w-xs">
                       <button
                         type="button"
                         onClick={triggerFrontCamera}
                         disabled={processingFrontImage}
-                        className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
+                        className="flex items-center justify-center gap-3 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
                       >
-                        <Camera size={18} />
-                        Tomar Foto
+                        <Camera size={20} />
+                        <span>Tomar Foto con Cámara</span>
                       </button>
+                      
                       <div className="relative flex items-center justify-center">
                         <div className="flex-grow h-px bg-slate-300"></div>
-                        <span className="mx-2 text-xs text-slate-500">o</span>
+                        <span className="mx-3 text-sm text-slate-500">O</span>
                         <div className="flex-grow h-px bg-slate-300"></div>
                       </div>
+                      
                       <button
                         type="button"
                         onClick={triggerFrontFileUpload}
                         disabled={processingFrontImage}
-                        className="flex items-center justify-center gap-2 px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition disabled:opacity-50"
+                        className="flex items-center justify-center gap-3 px-4 py-3 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition disabled:opacity-50"
                       >
-                        <Upload size={18} />
-                        Subir Archivo
+                        <Upload size={20} />
+                        <span>Subir Archivo desde PC</span>
                       </button>
                     </div>
                   </div>
-                )}
-                
-                {/* Input para tomar foto con cámara */}
-                <input
-                  type="file"
-                  ref={frontCameraInputRef}
-                  accept="image/*"
-                  capture="environment"
-                  onChange={(e) => {
-                    if (e.target.files?.[0]) {
-                      handleFrontImageUpload(e.target.files[0]);
-                    }
-                  }}
-                  className="hidden"
-                />
-                
-                {/* Input para subir archivo */}
-                <input
-                  type="file"
-                  ref={frontFileInputRef}
-                  accept="image/*"
-                  onChange={(e) => {
-                    if (e.target.files?.[0]) {
-                      handleFrontImageUpload(e.target.files[0]);
-                    }
-                  }}
-                  className="hidden"
-                />
-              </div>
+                  
+                  {/* Input para tomar foto con cámara */}
+                  <input
+                    type="file"
+                    ref={frontCameraInputRef}
+                    accept="image/*"
+                    capture="environment"
+                    onChange={(e) => {
+                      if (e.target.files?.[0]) {
+                        handleFrontImageUpload(e.target.files[0]);
+                      }
+                    }}
+                    className="hidden"
+                  />
+                  
+                  {/* Input para subir archivo */}
+                  <input
+                    type="file"
+                    ref={frontFileInputRef}
+                    accept="image/*"
+                    onChange={(e) => {
+                      if (e.target.files?.[0]) {
+                        handleFrontImageUpload(e.target.files[0]);
+                      }
+                    }}
+                    className="hidden"
+                  />
+                </div>
+              )}
               
               <p className="text-xs text-slate-500">
                 Toma una foto de la parte frontal del vehículo para extraer datos automáticamente
@@ -521,16 +535,16 @@ const VehicleForm: React.FC = () => {
             </div>
 
             {/* Imagen Posterior (Cédula) */}
-            <div className="space-y-3">
+            <div className="space-y-4">
               <div className="flex items-center gap-2">
                 <FileText size={18} className="text-blue-600" />
                 <label className="block text-sm font-medium text-slate-700">
-                  Foto Posterior de la Cédula
+                  2. Foto Posterior de la Cédula
                 </label>
               </div>
               
-              <div className="border-2 border-dashed border-green-300 rounded-xl p-4 hover:border-green-400 transition-colors bg-green-50/50">
-                {backImage ? (
+              {backImage ? (
+                <div className="border-2 border-green-300 rounded-xl p-4 bg-green-50/50">
                   <div className="relative">
                     <div className="w-full h-48 bg-slate-100 rounded-lg overflow-hidden border border-slate-200">
                       <img 
@@ -541,7 +555,10 @@ const VehicleForm: React.FC = () => {
                       />
                     </div>
                     <div className="mt-2 flex justify-between items-center">
-                      <span className="text-xs text-slate-600 truncate">{backImage.name}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-slate-600 truncate max-w-[200px]">{backImage.name}</span>
+                        <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">✓ Subida</span>
+                      </div>
                       <button
                         type="button"
                         onClick={removeBackImage}
@@ -551,8 +568,10 @@ const VehicleForm: React.FC = () => {
                       </button>
                     </div>
                   </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center h-48">
+                </div>
+              ) : (
+                <div className="border-2 border-dashed border-green-300 rounded-xl p-4 hover:border-green-400 transition-colors bg-green-50/50">
+                  <div className="flex flex-col items-center justify-center py-8">
                     <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-3">
                       {processingBackImage ? (
                         <Loader size={24} className="animate-spin text-green-600" />
@@ -560,64 +579,67 @@ const VehicleForm: React.FC = () => {
                         <FileText size={24} className="text-green-600" />
                       )}
                     </div>
-                    <p className="text-sm text-slate-600 text-center mb-2">
-                      {processingBackImage ? 'Procesando con Gemini AI...' : 'Selecciona una opción'}
+                    <p className="text-sm text-slate-600 text-center mb-4">
+                      {processingBackImage ? 'Procesando con Gemini AI...' : 'Selecciona cómo subir la imagen'}
                     </p>
-                    <div className="flex flex-col gap-2 w-full max-w-xs">
+                    
+                    <div className="flex flex-col gap-3 w-full max-w-xs">
                       <button
                         type="button"
                         onClick={triggerBackCamera}
                         disabled={processingBackImage}
-                        className="flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition disabled:opacity-50"
+                        className="flex items-center justify-center gap-3 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition disabled:opacity-50"
                       >
-                        <Camera size={18} />
-                        Tomar Foto
+                        <Camera size={20} />
+                        <span>Tomar Foto con Cámara</span>
                       </button>
+                      
                       <div className="relative flex items-center justify-center">
                         <div className="flex-grow h-px bg-slate-300"></div>
-                        <span className="mx-2 text-xs text-slate-500">o</span>
+                        <span className="mx-3 text-sm text-slate-500">O</span>
                         <div className="flex-grow h-px bg-slate-300"></div>
                       </div>
+                      
                       <button
                         type="button"
                         onClick={triggerBackFileUpload}
                         disabled={processingBackImage}
-                        className="flex items-center justify-center gap-2 px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition disabled:opacity-50"
+                        className="flex items-center justify-center gap-3 px-4 py-3 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition disabled:opacity-50"
                       >
-                        <Upload size={18} />
-                        Subir Archivo
+                        <Upload size={20} />
+                        <span>Subir Archivo desde PC</span>
                       </button>
                     </div>
                   </div>
-                )}
-                
-                {/* Input para tomar foto con cámara */}
-                <input
-                  type="file"
-                  ref={backCameraInputRef}
-                  accept="image/*"
-                  capture="environment"
-                  onChange={(e) => {
-                    if (e.target.files?.[0]) {
-                      handleBackImageUpload(e.target.files[0]);
-                    }
-                  }}
-                  className="hidden"
-                />
-                
-                {/* Input para subir archivo */}
-                <input
-                  type="file"
-                  ref={backFileInputRef}
-                  accept="image/*"
-                  onChange={(e) => {
-                    if (e.target.files?.[0]) {
-                      handleBackImageUpload(e.target.files[0]);
-                    }
-                  }}
-                  className="hidden"
-                />
-              </div>
+                  
+                  {/* Input para tomar foto con cámara */}
+                  <input
+                    type="file"
+                    ref={backCameraInputRef}
+                    accept="image/*"
+                    capture="environment"
+                    onChange={(e) => {
+                      if (e.target.files?.[0]) {
+                        handleBackImageUpload(e.target.files[0]);
+                      }
+                    }}
+                    className="hidden"
+                  />
+                  
+                  {/* Input para subir archivo */}
+                  <input
+                    type="file"
+                    ref={backFileInputRef}
+                    accept="image/*"
+                    onChange={(e) => {
+                      if (e.target.files?.[0]) {
+                        handleBackImageUpload(e.target.files[0]);
+                      }
+                    }}
+                    className="hidden"
+                  />
+                </div>
+              )}
               
               <p className="text-xs text-slate-500">
                 Toma una foto de la parte posterior de la cédula para extraer VIN y otros datos
@@ -625,26 +647,26 @@ const VehicleForm: React.FC = () => {
             </div>
           </div>
 
-          <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
-            <div className="flex items-start gap-2">
-              <ScanLine size={16} className="text-blue-600 mt-0.5" />
+          <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+            <div className="flex items-start gap-3">
+              <ScanLine size={18} className="text-blue-600 mt-0.5" />
               <div>
-                <p className="text-sm font-medium text-blue-800">Gemini AI en acción</p>
+                <p className="text-sm font-medium text-blue-800 mb-1">Gemini AI en acción</p>
                 <p className="text-xs text-blue-600">
                   Ambas imágenes son procesadas por Gemini AI para extraer automáticamente los datos del vehículo.
-                  Los campos se llenarán automáticamente después de subir las imágenes.
+                  Los campos se llenarán automáticamente después de subir las imágenes. <strong>¡No necesitas llenar manualmente!</strong>
                 </p>
               </div>
             </div>
           </div>
         </div>
         
-        {/* Sección de información básica (autocompletada) */}
+        {/* Sección de información básica (autocompletada por IA) */}
         <div className="bg-white rounded-xl shadow p-6">
           <div className="flex items-center gap-2 mb-4">
             <Car size={20} className="text-blue-600" />
-            <h2 className="text-lg font-semibold text-slate-800">Información Básica</h2>
-            <span className="text-xs text-blue-600">(Autocompletado por IA)</span>
+            <h2 className="text-lg font-semibold text-slate-800">Información Básica del Vehículo</h2>
+            <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">Autocompletado por IA</span>
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -659,7 +681,7 @@ const VehicleForm: React.FC = () => {
                 onChange={handleInputChange}
                 className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
                 required
-                placeholder="Ej: ABC123"
+                placeholder="Se autocompletará con IA"
               />
             </div>
             
@@ -674,7 +696,7 @@ const VehicleForm: React.FC = () => {
                 onChange={handleInputChange}
                 className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
                 required
-                placeholder="Ej: Toyota"
+                placeholder="Se autocompletará con IA"
               />
             </div>
             
@@ -689,7 +711,7 @@ const VehicleForm: React.FC = () => {
                 onChange={handleInputChange}
                 className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
                 required
-                placeholder="Ej: Tacoma"
+                placeholder="Se autocompletará con IA"
               />
             </div>
 
@@ -705,7 +727,7 @@ const VehicleForm: React.FC = () => {
                 min="1900"
                 max={new Date().getFullYear() + 1}
                 className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                placeholder="Ej: 2023"
+                placeholder="Se autocompletará con IA"
               />
             </div>
 
@@ -719,13 +741,13 @@ const VehicleForm: React.FC = () => {
                 value={formData.color}
                 onChange={handleInputChange}
                 className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                placeholder="Ej: Blanco"
+                placeholder="Se autocompletará con IA"
               />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
-                Tipo
+                Tipo de Vehículo
               </label>
               <select
                 name="type"
@@ -802,31 +824,52 @@ const VehicleForm: React.FC = () => {
               <span className="text-xs text-slate-500">(Gemini extraerá datos automáticamente)</span>
             </div>
             
-            <div className="flex flex-col gap-2 w-full max-w-xs">
-              <div className="flex gap-2">
+            <div className="space-y-3">
+              <div className="flex flex-col gap-2 w-full max-w-xs">
                 <button
                   type="button"
-                  onClick={triggerDocumentInput}
+                  onClick={triggerDocumentCamera}
                   disabled={!!processingDocument}
-                  className={`flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition ${processingDocument ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  className={`flex items-center justify-center gap-3 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition ${processingDocument ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
-                  {processingDocument === 'Insurance' ? <Loader size={18} className="animate-spin" /> : <Camera size={18} />}
-                  {processingDocument === 'Insurance' ? 'Procesando...' : 'Tomar Foto'}
+                  {processingDocument === 'Insurance' ? <Loader size={20} className="animate-spin" /> : <Camera size={20} />}
+                  <span>Tomar Foto de la Póliza</span>
                 </button>
+                
+                <div className="relative flex items-center justify-center">
+                  <div className="flex-grow h-px bg-slate-300"></div>
+                  <span className="mx-3 text-sm text-slate-500">O</span>
+                  <div className="flex-grow h-px bg-slate-300"></div>
+                </div>
+                
                 <button
                   type="button"
-                  onClick={triggerDocumentInput}
+                  onClick={triggerDocumentFileUpload}
                   disabled={!!processingDocument}
-                  className={`flex items-center gap-2 px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition ${processingDocument ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  className={`flex items-center justify-center gap-3 px-4 py-3 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition ${processingDocument ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
-                  {processingDocument === 'Insurance' ? <Loader size={18} className="animate-spin" /> : <FileUp size={18} />}
-                  {processingDocument === 'Insurance' ? 'Procesando...' : 'Subir Archivo'}
+                  {processingDocument === 'Insurance' ? <Loader size={20} className="animate-spin" /> : <Upload size={20} />}
+                  <span>Subir Archivo PDF/Imagen</span>
                 </button>
               </div>
               
+              {/* Inputs ocultos para documentos */}
               <input
                 type="file"
-                ref={documentInputRef}
+                ref={documentCameraInputRef}
+                accept="image/*"
+                capture="environment"
+                onChange={(e) => {
+                  if (e.target.files?.[0]) {
+                    handleDocumentUpload(e.target.files[0], 'Insurance');
+                  }
+                }}
+                className="hidden"
+              />
+              
+              <input
+                type="file"
+                ref={documentFileInputRef}
                 accept="image/*,.pdf"
                 onChange={(e) => {
                   if (e.target.files?.[0]) {
@@ -837,7 +880,7 @@ const VehicleForm: React.FC = () => {
               />
               
               <div className="text-sm text-slate-600">
-                {processingDocument === 'Insurance' ? 'Extrayendo datos...' : 'PDF o imágenes'}
+                {processingDocument === 'Insurance' ? 'Extrayendo datos con Gemini AI...' : 'Puedes subir PDF o imágenes'}
               </div>
             </div>
             
@@ -886,7 +929,7 @@ const VehicleForm: React.FC = () => {
                 value={formData.vin}
                 onChange={handleInputChange}
                 className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                placeholder="Ej: 1HGCM82633A123456"
+                placeholder="Se autocompletará con IA de la cédula"
               />
             </div>
             
@@ -900,7 +943,7 @@ const VehicleForm: React.FC = () => {
                 value={formData.motorNumber}
                 onChange={handleInputChange}
                 className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                placeholder="Ej: MTR-789012"
+                placeholder="Se autocompletará con IA de la cédula"
               />
             </div>
 
