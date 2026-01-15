@@ -1,18 +1,51 @@
 
-import { GoogleGenAI, Type } from "@google/genai";
+iimport { GoogleGenAI, Type } from "@google/genai";
 
-// Initialize Gemini
-// NOTE: Ideally, process.env.API_KEY should be set. 
-// For this environment, we rely on the system injecting it.
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Initialize Gemini with environment variable
+let ai: GoogleGenAI | null = null;
+
+try {
+  // Use Vite environment variable
+  const apiKey = import.meta.env.VITE_GOOGLE_AI_API_KEY;
+  
+  if (apiKey && apiKey.trim() !== '') {
+    ai = new GoogleGenAI({ apiKey });
+    console.log('✅ Google AI inicializado correctamente');
+  } else {
+    console.warn('⚠️ Google AI API key no configurada. Las funciones de IA estarán deshabilitadas.');
+  }
+} catch (error) {
+  console.error('❌ Error inicializando Google AI:', error);
+}
 
 const MODEL_NAME = 'gemini-2.5-flash';
+
+// Helper function to check if AI is available
+const isAIAvailable = () => {
+  if (!ai) {
+    console.warn('Google AI no está disponible. Configure VITE_GOOGLE_AI_API_KEY en .env');
+    return false;
+  }
+  return true;
+};
 
 /**
  * Extracts vehicle data from images (Registration Card Front/Back or Vehicle Photo).
  * Accepts an array of base64 strings.
  */
 export const analyzeVehicleImage = async (base64Images: string[]) => {
+  if (!isAIAvailable()) {
+    return {
+      plate: '',
+      make: '',
+      model: '',
+      year: null,
+      vin: '',
+      motorNum: '',
+      type: 'Other'
+    };
+  }
+  
   try {
     const imageParts = base64Images.map(b64 => ({
       inlineData: {
@@ -21,7 +54,7 @@ export const analyzeVehicleImage = async (base64Images: string[]) => {
       }
     }));
 
-    const response = await ai.models.generateContent({
+    const response = await ai!.models.generateContent({
       model: MODEL_NAME,
       contents: {
         parts: [
@@ -51,7 +84,15 @@ export const analyzeVehicleImage = async (base64Images: string[]) => {
     return JSON.parse(response.text || '{}');
   } catch (error) {
     console.error("Gemini Vehicle Analysis Error:", error);
-    return null;
+    return {
+      plate: '',
+      make: '',
+      model: '',
+      year: null,
+      vin: '',
+      motorNum: '',
+      type: 'Other'
+    };
   }
 };
 
@@ -60,8 +101,20 @@ export const analyzeVehicleImage = async (base64Images: string[]) => {
  * Supports Images and PDF.
  */
 export const analyzeDocumentImage = async (base64Data: string, docType: string, mimeType: string = 'image/jpeg') => {
+  if (!isAIAvailable()) {
+    return {
+      expirationDate: '',
+      issuer: '',
+      identifier: '',
+      policyNumber: '',
+      clientNumber: '',
+      year: null,
+      isValid: false
+    };
+  }
+  
   try {
-    const response = await ai.models.generateContent({
+    const response = await ai!.models.generateContent({
       model: MODEL_NAME,
       contents: {
         parts: [
@@ -96,7 +149,15 @@ export const analyzeDocumentImage = async (base64Data: string, docType: string, 
     return JSON.parse(response.text || '{}');
   } catch (error) {
     console.error("Gemini Doc Analysis Error:", error);
-    return null;
+    return {
+      expirationDate: '',
+      issuer: '',
+      identifier: '',
+      policyNumber: '',
+      clientNumber: '',
+      year: null,
+      isValid: false
+    };
   }
 };
 
@@ -104,8 +165,12 @@ export const analyzeDocumentImage = async (base64Data: string, docType: string, 
  * Analyzes a damage photo for the checklist/service request.
  */
 export const analyzeDamage = async (base64Image: string) => {
+  if (!isAIAvailable()) {
+    return "La función de análisis de daños no está disponible. Configure la clave de API de Google AI.";
+  }
+  
   try {
-     const response = await ai.models.generateContent({
+     const response = await ai!.models.generateContent({
       model: MODEL_NAME,
       contents: {
         parts: [
@@ -116,7 +181,7 @@ export const analyzeDamage = async (base64Image: string) => {
     });
     return response.text;
   } catch (error) {
-    return "Could not analyze image.";
+    return "No se pudo analizar la imagen.";
   }
 }
 
@@ -124,8 +189,15 @@ export const analyzeDamage = async (base64Image: string) => {
  * Analyzes a fire extinguisher label to extract expiration date.
  */
 export const analyzeExtinguisherLabel = async (base64Image: string) => {
+  if (!isAIAvailable()) {
+    return {
+      expirationDate: '',
+      isValid: false
+    };
+  }
+  
   try {
-    const response = await ai.models.generateContent({
+    const response = await ai!.models.generateContent({
       model: MODEL_NAME,
       contents: {
         parts: [
@@ -147,7 +219,10 @@ export const analyzeExtinguisherLabel = async (base64Image: string) => {
     return JSON.parse(response.text || '{}');
   } catch (error) {
     console.error("Gemini Extinguisher Analysis Error:", error);
-    return null;
+    return {
+      expirationDate: '',
+      isValid: false
+    };
   }
 }
 
@@ -155,8 +230,15 @@ export const analyzeExtinguisherLabel = async (base64Image: string) => {
  * Analyzes a battery label to extract Brand and Serial Number.
  */
 export const analyzeBatteryImage = async (base64Image: string) => {
+  if (!isAIAvailable()) {
+    return {
+      brand: '',
+      serialNumber: ''
+    };
+  }
+  
   try {
-    const response = await ai.models.generateContent({
+    const response = await ai!.models.generateContent({
       model: MODEL_NAME,
       contents: {
         parts: [
@@ -178,7 +260,10 @@ export const analyzeBatteryImage = async (base64Image: string) => {
     return JSON.parse(response.text || '{}');
   } catch (error) {
     console.error("Gemini Battery Analysis Error:", error);
-    return null;
+    return {
+      brand: '',
+      serialNumber: ''
+    };
   }
 }
 
@@ -187,8 +272,17 @@ export const analyzeBatteryImage = async (base64Image: string) => {
  * Accepts mimeType to support PDFs.
  */
 export const analyzeBudgetImage = async (base64Image: string, mimeType: string = 'image/jpeg') => {
+  if (!isAIAvailable()) {
+    return {
+      provider: '',
+      totalCost: 0,
+      budgetNumber: '',
+      details: 'Análisis no disponible. Configure la clave de API de Google AI.'
+    };
+  }
+  
   try {
-    const response = await ai.models.generateContent({
+    const response = await ai!.models.generateContent({
       model: MODEL_NAME,
       contents: {
         parts: [
@@ -212,7 +306,12 @@ export const analyzeBudgetImage = async (base64Image: string, mimeType: string =
     return JSON.parse(response.text || '{}');
   } catch (error) {
     console.error("Gemini Budget Analysis Error:", error);
-    return null;
+    return {
+      provider: '',
+      totalCost: 0,
+      budgetNumber: '',
+      details: 'Error al analizar el documento.'
+    };
   }
 }
 
@@ -220,8 +319,15 @@ export const analyzeBudgetImage = async (base64Image: string, mimeType: string =
  * Analyzes an invoice image to extract Invoice Number and Total Amount.
  */
 export const analyzeInvoiceImage = async (base64Image: string) => {
+  if (!isAIAvailable()) {
+    return {
+      invoiceNumber: '',
+      amount: 0
+    };
+  }
+  
   try {
-    const response = await ai.models.generateContent({
+    const response = await ai!.models.generateContent({
       model: MODEL_NAME,
       contents: {
         parts: [
@@ -243,6 +349,14 @@ export const analyzeInvoiceImage = async (base64Image: string) => {
     return JSON.parse(response.text || '{}');
   } catch (error) {
     console.error("Gemini Invoice Analysis Error:", error);
-    return null;
+    return {
+      invoiceNumber: '',
+      amount: 0
+    };
   }
 }
+
+// Export a function to check if AI is available
+export const isGeminiAvailable = () => {
+  return isAIAvailable();
+};
