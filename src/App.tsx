@@ -3,8 +3,7 @@ import { HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-d
 import { Layout } from './components/Layout';
 import { Dashboard } from './components/Dashboard';
 import { VehicleList } from './components/VehicleList';
-// Importación corregida para VehicleForm
-import VehicleFormComponent from './components/VehicleForm';
+import VehicleForm from './components/VehicleForm';  // Importación por defecto
 import { Checklist as ChecklistComp } from './components/Checklist';
 import { ServiceManager } from './components/ServiceManager';
 import { AdminUsers } from './components/AdminUsers';
@@ -762,8 +761,8 @@ const ProtectedRoutes = () => {
     <Routes>
       <Route path="/" element={<Dashboard />} />
       <Route path="/vehicles" element={<VehicleList />} />
-      <Route path="/vehicles/new" element={isManager ? <VehicleFormComponent /> : <Navigate to="/vehicles" />} />
-      <Route path="/vehicles/:plate" element={<VehicleFormComponent />} />
+      <Route path="/vehicles/new" element={isManager ? <VehicleForm /> : <Navigate to="/vehicles" />} />
+      <Route path="/vehicles/:plate" element={<VehicleForm />} />
       <Route path="/checklist" element={<ChecklistComp />} />
       <Route path="/service" element={<ServiceManager />} />
       
