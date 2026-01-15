@@ -1,4 +1,3 @@
-dockerfile
 # Etapa de construcción
 FROM node:18-alpine AS build
 WORKDIR /app
@@ -10,28 +9,38 @@ COPY . .
 
 # Verificar estructura
 RUN echo "=== VERIFICANDO ESTRUCTURA ===" && \
-    echo "1. index.html:" && test -f index.html && echo "✅" || echo "❌" && \
-    echo "2. src/main.tsx:" && test -f src/main.tsx && echo "✅" || echo "❌" && \
-    echo "3. src/App.tsx:" && test -f src/App.tsx && echo "✅" || echo "❌"
+    test -f index.html && echo "✅ index.html" || echo "❌ index.html" && \
+    test -f src/main.tsx && echo "✅ main.tsx" || echo "❌ main.tsx" && \
+    test -f src/App.tsx && echo "✅ App.tsx" || echo "❌ App.tsx"
 
 # Build
 RUN npm run build
 
-# INYECTAR SCRIPT MANUALMENTE SI ES NECESARIO
-RUN echo "=== INYECTANDO SCRIPTS MANUALMENTE ===" && \
+# === INYECTAR SCRIPTS MANUALMENTE (SOLUCIÓN DEFINITIVA) ===
+RUN echo "=== BUSCANDO ARCHIVOS GENERADOS ===" && \
     JS_FILE=$(find /app/dist/assets -name "index.*.js" ! -name "*.map" | head -1) && \
     CSS_FILE=$(find /app/dist/assets -name "index.*.css" ! -name "*.map" | head -1) && \
-    echo "JS: $JS_FILE" && \
-    echo "CSS: $CSS_FILE" && \
+    echo "Archivo JS: $JS_FILE" && \
+    echo "Archivo CSS: $CSS_FILE" && \
     JS_BASENAME=$(basename "$JS_FILE") && \
     CSS_BASENAME=$(basename "$CSS_FILE") && \
-    cat > /app/dist/index.html << 'EOF'
+    echo "JS basename: $JS_BASENAME" && \
+    echo "CSS basename: $CSS_BASENAME"
+
+# Crear nuevo index.html con todo inyectado
+RUN JS_FILE=$(find /app/dist/assets -name "index.*.js" ! -name "*.map" | head -1) && \
+    CSS_FILE=$(find /app/dist/assets -name "index.*.css" ! -name "*.map" | head -1) && \
+    JS_BASENAME=$(basename "$JS_FILE") && \
+    CSS_BASENAME=$(basename "$CSS_FILE") && \
+    cat > /app/dist/index.html << EOF
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CONTROL DE FLOTA</title>
+    
+    <!-- Polyfill CRÍTICO para toSorted() -->
     <script>
         if (!Array.prototype.toSorted) {
             Array.prototype.toSorted = function(compareFn) {
@@ -39,11 +48,13 @@ RUN echo "=== INYECTANDO SCRIPTS MANUALMENTE ===" && \
                 return arr.sort(compareFn);
             };
         }
+        
         if (!Array.prototype.toReversed) {
             Array.prototype.toReversed = function() {
                 return this.slice().reverse();
             };
         }
+        
         if (!Array.prototype.toSpliced) {
             Array.prototype.toSpliced = function(start, deleteCount, ...items) {
                 var arr = this.slice();
@@ -55,6 +66,7 @@ RUN echo "=== INYECTANDO SCRIPTS MANUALMENTE ===" && \
                 return arr;
             };
         }
+        
         if (!Array.prototype.with) {
             Array.prototype.with = function(index, value) {
                 var arr = this.slice();
@@ -62,10 +74,12 @@ RUN echo "=== INYECTANDO SCRIPTS MANUALMENTE ===" && \
                 return arr;
             };
         }
+        
         console.log('Polyfills ES2023 cargados correctamente');
     </script>
+    
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="/assets/'"${CSS_BASENAME}"'">
+    <link rel="stylesheet" href="/assets/${CSS_BASENAME}">
     <style>
         ::-webkit-scrollbar {
             width: 8px;
@@ -85,22 +99,27 @@ RUN echo "=== INYECTANDO SCRIPTS MANUALMENTE ===" && \
 </head>
 <body class="bg-slate-50 text-slate-900 antialiased">
     <div id="root"></div>
-    <script type="module" crossorigin src="/assets/'"${JS_BASENAME}"'"></script>
+    <script type="module" crossorigin src="/assets/${JS_BASENAME}"></script>
 </body>
 </html>
 EOF
 
-# Verificar el resultado
-RUN echo "=== RESULTADO FINAL ===" && \
-    echo "=== SCRIPTS EN index.html ===" && \
+# Verificar resultado
+RUN echo "=== VERIFICANDO RESULTADO ===" && \
+    echo "=== CONTENIDO DE index.html (scripts) ===" && \
     grep -o '<script.*>' /app/dist/index.html && \
-    echo "=== ARCHIVOS EN dist/ ===" && \
-    ls -la /app/dist/assets/
+    echo "=== ¿TIENE LINK CSS? ===" && \
+    grep -o '<link.*\.css.*>' /app/dist/index.html && \
+    echo "=== TAMAÑO DEL ARCHIVO ===" && \
+    wc -l /app/dist/index.html
 
 # Etapa de producción
 FROM nginx:alpine
 
+# Configuración simple de nginx para SPA
 COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+# Copiar archivos construidos
 COPY --from=build /app/dist /usr/share/nginx/html
 
 EXPOSE 80
