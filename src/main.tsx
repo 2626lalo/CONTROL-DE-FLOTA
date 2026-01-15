@@ -1,26 +1,25 @@
-// main.tsx
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import './index.css';
 
-// Capturar errores globales
+// Manejo de errores globales para Google AI
 window.addEventListener('error', (event) => {
-  console.error('Error global capturado:', event.error);
-  // Si es el error de Google AI, prevenimos que la app se caiga
+  console.error('Error global:', event.error);
+  
+  // Si es el error de Google AI API Key, prevenimos que la app se caiga
   if (event.error?.message?.includes('API Key')) {
-    console.warn('Google AI API Key no configurada. La aplicación continuará sin esta funcionalidad.');
-    event.preventDefault(); // Esto previene que el error se propague y rompa la app
+    console.warn('Google AI no está configurado. Continuando sin esta funcionalidad.');
+    event.preventDefault();
   }
 });
 
-// También capturar promesas rechazadas no manejadas
 window.addEventListener('unhandledrejection', (event) => {
   console.error('Promesa rechazada no manejada:', event.reason);
-  // Si es un error de Google AI, lo manejamos
+  
   if (event.reason?.message?.includes('API Key')) {
-    console.warn('Google AI API Key no configurada (en promesa).');
-    event.preventDefault(); // Previene que el error se propague
+    console.warn('Google AI no está configurado (en promesa).');
+    event.preventDefault();
   }
 });
 
