@@ -6,14 +6,15 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "build:win8": "vite build --target=es2020"
   },
   "dependencies": {
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-router-dom": "^6.22.3",
     "lucide-react": "^0.344.0",
     "recharts": "^2.10.4",
+    "react-router-dom": "^6.22.3",
     "jspdf": "^2.5.1",
     "jspdf-autotable": "^3.8.2"
   },
