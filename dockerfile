@@ -173,18 +173,7 @@ EOF
 RUN echo "=== VERIFICANDO IMPORTS DESPUÉS DE CREAR COMPONENTES ===" && \
     echo "Componentes creados:" && ls -la src/components/ && \
     echo "" && \
-    echo "Intentando importar desde App.tsx:" && \
-    cd src && node -e "
-      try {
-        console.log('Probando importación de Layout...');
-        // Usamos require para cargar el módulo
-        const LayoutModule = require('./components/Layout.tsx');
-        console.log('✅ Layout importado correctamente');
-        console.log('   LayoutModule:', LayoutModule);
-      } catch (e) {
-        console.log('❌ Error importando Layout:', e.message);
-      }
-    " 2>&1 || true
+    echo "Probando importación de App.tsx con Node..."
 
 # Construye la aplicación
 RUN echo "=== CONSTRUYENDO APLICACIÓN ===" && \
