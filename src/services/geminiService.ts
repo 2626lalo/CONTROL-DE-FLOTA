@@ -388,6 +388,249 @@ IMPORTANTE: Responde SOLO con el JSON, sin texto adicional.`;
 };
 
 /**
+ * Analiza imágenes de baterías de vehículos
+ */
+export const analyzeBatteryImage = async (imageBase64: string): Promise<{brand: string | null, serialNumber: string | null, capacity: string | null, voltage: string | null, manufactureDate: string | null}> => {
+  try {
+    console.log('🚀 Iniciando análisis de imagen de batería...');
+    
+    const genAI = await getGenAI();
+    const model = genAI.getGenerativeModel({ 
+      model: 'gemini-pro-vision',
+      generationConfig: {
+        temperature: 0.1,
+        topP: 0.8,
+        topK: 40,
+        maxOutputTokens: 1024,
+      }
+    });
+
+    const prompt = `Eres un experto en baterías vehiculares. Analiza la imagen de la batería y extrae la siguiente información en formato JSON válido:
+
+IMPORTANTE: Responde SOLO con el JSON, sin texto adicional, sin marcas de código, sin explicaciones.
+
+{
+  "brand": "marca de la batería",
+  "serialNumber": "número de serie o lote",
+  "capacity": "capacidad en Ah",
+  "voltage": "voltaje (ej: 12V)",
+  "manufactureDate": "fecha de fabricación (YYYY-MM-DD) si es visible"
+}
+
+Reglas:
+1. Solo responder con el JSON
+2. Usar null para campos no encontrados
+3. Textos en español`;
+
+    const cleanBase64 = imageBase64.includes('base64,') 
+      ? imageBase64.split(',')[1] 
+      : imageBase64;
+
+    const imagePart = {
+      inlineData: {
+        data: cleanBase64,
+        mimeType: 'image/jpeg',
+      },
+    };
+
+    console.log('📤 Enviando solicitud a Gemini...');
+    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+    
+    const result = await model.generateContent([prompt, imagePart]);
+    clearTimeout(timeoutId);
+    
+    const response = await result.response;
+    const text = response.text();
+    
+    console.log('📥 Respuesta recibida:', text.substring(0, 150) + '...');
+
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      console.warn('⚠️ No se pudo extraer JSON, respuesta completa:', text);
+      throw new Error('No se pudo extraer JSON de la respuesta');
+    }
+
+    let parsedData;
+    try {
+      parsedData = JSON.parse(jsonMatch[0]);
+    } catch (parseError) {
+      const cleanedText = jsonMatch[0]
+        .replace(/```json\s*/g, '')
+        .replace(/```\s*/g, '')
+        .trim();
+      parsedData = JSON.parse(cleanedText);
+    }
+    
+    console.log('✅ Datos parseados exitosamente:', parsedData);
+    
+    return {
+      brand: parsedData.brand || null,
+      serialNumber: parsedData.serialNumber || null,
+      capacity: parsedData.capacity || null,
+      voltage: parsedData.voltage || null,
+      manufactureDate: parsedData.manufactureDate || null,
+    };
+    
+  } catch (error: any) {
+    console.error('❌ Error en analyzeBatteryImage:', error.message || error);
+    
+    return {
+      brand: null,
+      serialNumber: null,
+      capacity: null,
+      voltage: null,
+      manufactureDate: null,
+    };
+  }
+};
+
+/**
+ * Analiza etiquetas de extintores
+ */
+export const analyzeExtinguisherLabel = async (imageBase64: string): Promise<{expirationDate: string | null, type: string | null, capacity: string | null, lastServiceDate: string | null}> => {
+  try {
+    console.log('🚀 Iniciando análisis de etiqueta de extintor...');
+    
+    const genAI = await getGenAI();
+    const model = genAI.getGenerativeModel({ 
+      model: 'gemini-pro-vision',
+      generationConfig: {
+        temperature: 0.1,
+        topP: 0.8,
+        topK: 40,
+        maxOutputTokens: 1024,
+      }
+    });
+
+    const prompt = `Eres un experto en seguridad y extintores. Analiza la imagen de la etiqueta del extintor y extrae la siguiente información en formato JSON válido:
+
+IMPORTANTE: Responde SOLO con el JSON, sin texto adicional, sin marcas de código, sin explicaciones.
+
+{
+  "expirationDate": "fecha de vencimiento (YYYY-MM-DD) si es visible",
+  "type": "tipo de extintor (Agua, CO2, Polvo Químico, Espuma, Otro)",
+  "capacity": "capacidad (ej: 5 kg, 10 lb)",
+  "lastServiceDate": "última fecha de servicio (YYYY-MM-DD) si es visible"
+}
+
+Reglas:
+1. Solo responder con el JSON
+2. Usar null para campos no encontrados
+3. Textos en español`;
+
+    const cleanBase64 = imageBase64.includes('base64,') 
+      ? imageBase64.split(',')[1] 
+      : imageBase64;
+
+    const imagePart = {
+      inlineData: {
+        data: cleanBase64,
+        mimeType: 'image/jpeg',
+      },
+    };
+
+    console.log('📤 Enviando solicitud a Gemini...');
+    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+    
+    const result = await model.generateContent([prompt, imagePart]);
+    clearTimeout(timeoutId);
+    
+    const response = await result.response;
+    const text = response.text();
+    
+    console.log('📥 Respuesta recibida:', text.substring(0, 150) + '...');
+
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      console.warn('⚠️ No se pudo extraer JSON, respuesta completa:', text);
+      throw new Error('No se pudo extraer JSON de la respuesta');
+    }
+
+    let parsedData;
+    try {
+      parsedData = JSON.parse(jsonMatch[0]);
+    } catch (parseError) {
+      const cleanedText = jsonMatch[0]
+        .replace(/```json\s*/g, '')
+        .replace(/```\s*/g, '')
+        .trim();
+      parsedData = JSON.parse(cleanedText);
+    }
+    
+    console.log('✅ Datos parseados exitosamente:', parsedData);
+    
+    return {
+      expirationDate: parsedData.expirationDate || null,
+      type: parsedData.type || null,
+      capacity: parsedData.capacity || null,
+      lastServiceDate: parsedData.lastServiceDate || null,
+    };
+    
+  } catch (error: any) {
+    console.error('❌ Error en analyzeExtinguisherLabel:', error.message || error);
+    
+    return {
+      expirationDate: null,
+      type: null,
+      capacity: null,
+      lastServiceDate: null,
+    };
+  }
+};
+
+/**
+ * Versión simplificada para desarrollo/fallback de batería
+ */
+export const analyzeBatteryImageSimple = async (imageBase64: string) => {
+  try {
+    // Intentar con la función principal
+    return await analyzeBatteryImage(imageBase64);
+  } catch (error) {
+    console.warn('⚠️ Usando análisis simplificado de batería');
+    
+    // Simulación de datos para desarrollo
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    return {
+      brand: 'Bosch',
+      serialNumber: 'BAT-2024-5678',
+      capacity: '70Ah',
+      voltage: '12V',
+      manufactureDate: '2023-05-15',
+    };
+  }
+};
+
+/**
+ * Versión simplificada para desarrollo/fallback de extintor
+ */
+export const analyzeExtinguisherLabelSimple = async (imageBase64: string) => {
+  try {
+    // Intentar con la función principal
+    return await analyzeExtinguisherLabel(imageBase64);
+  } catch (error) {
+    console.warn('⚠️ Usando análisis simplificado de extintor');
+    
+    // Simulación de datos para desarrollo
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    const nextYear = new Date();
+    nextYear.setFullYear(nextYear.getFullYear() + 1);
+    
+    return {
+      expirationDate: nextYear.toISOString().split('T')[0],
+      type: 'Polvo Químico',
+      capacity: '5 kg',
+      lastServiceDate: new Date().toISOString().split('T')[0],
+    };
+  }
+};
+
+/**
  * Verifica si Gemini AI está disponible
  */
 export const isGeminiAvailable = async (): Promise<boolean> => {
