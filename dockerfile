@@ -1,16 +1,33 @@
-# ... después de COPY . .
+# 1. Etapa: Construcción de la aplicación
+FROM node:18-alpine AS build
+WORKDIR /app
 
-# === DIAGNÓSTICO MEJORADO ===
-RUN echo "=== VERIFICANDO PLUGIN REACT ===" && \
-    echo "1. Contenido de vite.config.ts:" && \
-    cat vite.config.ts && \
-    echo "" && \
-    echo "2. Verificando plugin en node_modules:" && \
-    ls -la node_modules/@vitejs/plugin-react/ && \
-    echo "" && \
-    echo "3. Ejecutando TypeScript con verificación estricta:" && \
-    npx tsc --noEmit --skipLibCheck 2>&1 | head -10
+# Copia los archivos de dependencias y las instala
+COPY package*.json ./
+RUN npm install
 
-# Construcción con modo desarrollo forzado
-RUN echo "=== CONSTRUYENDO EN MODO DESARROLLO ===" && \
-    VITE_USER_NODE_ENV=development npm run build
+# Copia el código fuente
+COPY . .
+
+# === DIAGNÓSTICO (opcional, pero útil) ===
+RUN echo "=== VERIFICANDO ESTRUCTURA ===" && \
+    echo "1. Archivos en raíz:" && ls -la && \
+    echo "2. Archivos en src/:" && ls -la src/ && \
+    echo "3. Archivos en src/components/:" && ls -la src/components/ && \
+    echo "4. Verificando TypeScript..." && \
+    npx tsc --noEmit --skipLibCheck 2>&1 | head -5 || true
+
+# Construye la aplicación
+RUN npm run build
+
+# 2. Etapa: Servir los archivos estáticos
+FROM nginx:alpine
+
+# Copia los archivos construidos desde la etapa anterior
+COPY --from=build /app/dist /usr/share/nginx/html
+
+# Expone el puerto 80
+EXPOSE 80
+
+# Comando para iniciar Nginx
+CMD ["nginx", "-g", "daemon off;"]
