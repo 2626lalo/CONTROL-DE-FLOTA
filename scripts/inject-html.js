@@ -50,10 +50,7 @@ if (jsFiles.length === 0) {
   process.exit(1);
 }
 
-// BUSCAR EL ARCHIVO JS CORRECTO (el más grande o que contenga "index" sin prefijo)
-let mainJsFile = null;
-
-// Opción 1: Buscar el más grande (normalmente el bundle principal)
+// BUSCAR EL ARCHIVO JS CORRECTO (el más grande)
 const jsFilesWithSize = jsFiles.map(file => {
   const filePath = path.join(assetsPath || distPath, file);
   return { file, size: fs.statSync(filePath).size };
@@ -66,12 +63,11 @@ jsFilesWithSize.forEach((f, i) => {
 });
 
 // Seleccionar el más grande
-mainJsFile = jsFilesWithSize[0].file;
+const mainJsFile = jsFilesWithSize[0].file;
 
-// Buscar archivo CSS principal (el que empiece con "index" o el primero)
+// Buscar archivo CSS principal
 let mainCssFile = null;
 if (cssFiles.length > 0) {
-  // Buscar CSS que empiece con "index"
   const indexCss = cssFiles.find(f => f.startsWith('index-') || f.startsWith('index.'));
   mainCssFile = indexCss || cssFiles[0];
 }
@@ -84,7 +80,7 @@ console.log(`  CSS: ${mainCssFile || 'ninguno'}`);
 const jsPath = (assetsPath && fs.existsSync(assetsPath)) ? `/assets/${mainJsFile}` : `/${mainJsFile}`;
 const cssPath = mainCssFile ? ((assetsPath && fs.existsSync(assetsPath)) ? `/assets/${mainCssFile}` : `/${mainCssFile}`) : '';
 
-// Leer el HTML original para mantener polyfills
+// Leer el HTML original
 const originalHtmlPath = path.join(__dirname, '../index.html');
 let originalHtml = '';
 try {
@@ -95,14 +91,13 @@ try {
   process.exit(1);
 }
 
-// Extraer los polyfills del original
+// Extraer polyfills
 let polyfills = '';
 const polyfillMatch = originalHtml.match(/<script>[\s\S]*?Polyfills ES2023[\s\S]*?<\/script>/);
 if (polyfillMatch) {
   polyfills = polyfillMatch[0];
   console.log('✅ Polyfills extraídos del original');
 } else {
-  // Polyfills por defecto
   polyfills = `    <script>
         if (!Array.prototype.toSorted) {
             Array.prototype.toSorted = function(compareFn) {
@@ -138,7 +133,7 @@ if (polyfillMatch) {
   console.log('⚠️  Polyfills no encontrados, usando versión por defecto');
 }
 
-// Crear nuevo HTML (sin el script de manejo de errores, porque lo manejamos en main.tsx)
+// Crear nuevo HTML SIN mensajes de error visuales
 const html = `<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -186,7 +181,7 @@ ${polyfills}
 </head>
 <body class="bg-slate-50 text-slate-900 antialiased">
     <div id="root">
-        <!-- Solo spinner, sin mensaje de error -->
+        <!-- Solo spinner de carga -->
         <div style="display: flex; justify-content: center; align-items: center; height: 100vh;">
             <div class="loading-spinner"></div>
         </div>
