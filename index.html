@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -5,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CONTROL DE FLOTA</title>
     
-    <!-- Polyfill CRÍTICO para toSorted() -->
+    <!-- Polyfill CRÍTICO para toSorted() - en HEAD, NO en body -->
     <script>
         if (!Array.prototype.toSorted) {
             Array.prototype.toSorted = function(compareFn) {
@@ -64,7 +65,8 @@
 <body class="bg-slate-50 text-slate-900 antialiased">
     <div id="root"></div>
     
-    <!-- ¡LÍNEA CRÍTICA! Vite reemplazará esto con los scripts generados -->
+    <!-- ¡¡¡ESTE ES EL SCRIPT QUE VITE DEBE REEMPLAZAR!!! -->
+    <!-- Debe estar en el BODY, NO en el HEAD -->
     <script type="module" src="/src/main.tsx"></script>
 </body>
 </html>
