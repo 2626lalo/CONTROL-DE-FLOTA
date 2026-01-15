@@ -15,7 +15,7 @@
     "lucide-react": "^0.309.0",
     "jspdf": "^2.5.1",
     "date-fns": "^2.30.0",
-    "axios": "^1.6.2",
+    "axios": "^1.6.0",
     "recharts": "^2.10.0"
   },
   "devDependencies": {
