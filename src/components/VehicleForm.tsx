@@ -1,9 +1,10 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useApp } from '../App';
 import { Vehicle, VehicleStatus, OwnershipType, Document as VehicleDocument, ServiceHistory } from '../types';
 import { analyzeVehicleImage, analyzeDocumentImage } from '../services/geminiService';
-import { LucideSave, LucideArrowLeft, LucideUpload, LucideTrash2, LucideLoader, LucideCamera, LucideFileText, LucideImage, LucideScanLine, LucideAlertCircle, LucideCheck, LucideImages, LucideRefreshCw, LucidePlus, LucideX, LucideZoomIn, LucideXCircle, LucideBuilding2, LucideHistory, LucidePaperclip, LucideExternalLink, LucideEye, LucideZoomOut, LucideMousePointer2, LucideDownload, LucideCalendar } from 'lucide-react';
+import { LucideSave, LucideArrowLeft, LucideUpload, LucideTrash2, LucideLoader, LucideCamera, LucideFileText, LucideImage, LucideScanLine, LucideAlertCircle, LucideCheck, Images, LucideRefreshCw, LucidePlus, LucideX, LucideZoomIn, LucideXCircle, LucideBuilding2, LucideHistory, LucidePaperclip, LucideExternalLink, LucideEye, LucideZoomOut, LucideMousePointer2, LucideDownload, LucideCalendar } from 'lucide-react';
 import { jsPDF } from "jspdf";
 
 const SimpleImageViewer = ({ url, onClose }: { url: string, onClose: () => void }) => {
@@ -660,7 +661,7 @@ export const VehicleForm = () => {
                 <span className="text-[10px] font-bold text-slate-500 uppercase mb-3 text-center leading-tight">{label}</span>
                 <div className="flex gap-2">
                     <div className="relative group cursor-pointer">
-                        <div className="bg-blue-50 text-blue-600 p-2 rounded-full hover:bg-blue-100 transition-colors border border-blue-100 shadow-sm"><LucideImages size={16}/></div>
+                        <div className="bg-blue-50 text-blue-600 p-2 rounded-full hover:bg-blue-100 transition-colors border border-blue-100 shadow-sm"><Images size={16}/></div>
                         <input type="file" accept="image/*" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => handleImageUpload(e, position)} title="Galería"/>
                     </div>
                     <div className="relative group cursor-pointer">
@@ -721,7 +722,7 @@ export const VehicleForm = () => {
                                     </div>
                                  ) : 
                                      <div className="flex justify-center gap-2">
-                                         <div className="relative"><button type="button" className="bg-blue-600 hover:bg-blue-700 text-white p-2 rounded flex items-center gap-1 text-xs font-bold"><LucideImages size={14}/> Galería</button><input type="file" accept="image/*" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => handleCedulaUpload(e, 'front')} /></div>
+                                         <div className="relative"><button type="button" className="bg-blue-600 hover:bg-blue-700 text-white p-2 rounded flex items-center gap-1 text-xs font-bold"><Images size={14}/> Galería</button><input type="file" accept="image/*" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => handleCedulaUpload(e, 'front')} /></div>
                                          <div className="relative"><button type="button" className="bg-slate-700 hover:bg-slate-800 text-white p-2 rounded flex items-center gap-1 text-xs font-bold"><LucideCamera size={14}/> Cámara</button><input type="file" accept="image/*" capture="environment" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => handleCedulaUpload(e, 'front')} /></div>
                                      </div>
                                  }
@@ -737,7 +738,7 @@ export const VehicleForm = () => {
                                     </div>
                                  ) : 
                                      <div className="flex justify-center gap-2">
-                                         <div className="relative"><button type="button" className="bg-blue-600 hover:bg-blue-700 text-white p-2 rounded flex items-center gap-1 text-xs font-bold"><LucideImages size={14}/> Galería</button><input type="file" accept="image/*" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => handleCedulaUpload(e, 'rear')} /></div>
+                                         <div className="relative"><button type="button" className="bg-blue-600 hover:bg-blue-700 text-white p-2 rounded flex items-center gap-1 text-xs font-bold"><Images size={14}/> Galería</button><input type="file" accept="image/*" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => handleCedulaUpload(e, 'rear')} /></div>
                                          <div className="relative"><button type="button" className="bg-slate-700 hover:bg-slate-800 text-white p-2 rounded flex items-center gap-1 text-xs font-bold"><LucideCamera size={14}/> Cámara</button><input type="file" accept="image/*" capture="environment" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => handleCedulaUpload(e, 'rear')} /></div>
                                      </div>
                                  }
@@ -810,7 +811,7 @@ export const VehicleForm = () => {
                                 <div className="flex gap-2">
                                     <div className="relative group cursor-pointer" title="Galería">
                                         <div className="bg-blue-100 text-blue-600 p-2 rounded-full hover:bg-blue-200 transition-colors border border-blue-200">
-                                            <LucideImages size={18}/>
+                                            <Images size={18}/>
                                         </div>
                                         <input type="file" accept="image/*" multiple className="absolute inset-0 opacity-0 cursor-pointer" onChange={handleOtherImageUpload}/>
                                     </div>
@@ -890,7 +891,7 @@ export const VehicleForm = () => {
                             </div>
                             {newDocType === '__CUSTOM__' && (
                                 <div className="flex-1 w-full animate-fadeIn">
-                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Nombre del Documento</label>
+                                    <label className="block text-xs font-bold text-slate-400 uppercase block mb-1">Nombre del Documento</label>
                                     <input type="text" className="w-full p-2 border rounded border-blue-300 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Ej: Permiso de Circulación" value={customDocName} onChange={(e) => setCustomDocName(e.target.value)} autoFocus />
                                 </div>
                             )}
