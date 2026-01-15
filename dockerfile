@@ -177,8 +177,10 @@ RUN echo "=== VERIFICANDO IMPORTS DESPUÉS DE CREAR COMPONENTES ===" && \
     cd src && node -e "
       try {
         console.log('Probando importación de Layout...');
-        require('../src/components/Layout.tsx');
+        // Usamos require para cargar el módulo
+        const LayoutModule = require('./components/Layout.tsx');
         console.log('✅ Layout importado correctamente');
+        console.log('   LayoutModule:', LayoutModule);
       } catch (e) {
         console.log('❌ Error importando Layout:', e.message);
       }
