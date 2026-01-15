@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useApp } from '../App';
 import { Vehicle, VehicleStatus, OwnershipType, Document as VehicleDocument, ServiceHistory } from '../types';
@@ -6,6 +6,53 @@ import { analyzeVehicleImage, analyzeDocumentImage } from '../services/geminiSer
 import { Save, ArrowLeft, Upload, Trash2, Loader, Camera, FileText, Image, ScanLine, AlertCircle, Check, RefreshCw, Plus, X, ZoomIn, XCircle, Building2, History, Paperclip, ExternalLink, Eye, ZoomOut, MousePointer2, Download, Calendar } from 'lucide-react';
 import { jsPDF } from "jspdf";
 
+// --- Utilidad para comprimir imágenes ---
+const compressImage = (file: File, maxWidth: number = 1200, quality: number = 0.7): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let { width, height } = img;
+
+        // Calcular nuevas dimensiones manteniendo la relación de aspecto
+        if (width > maxWidth) {
+          height = (height * maxWidth) / width;
+          width = maxWidth;
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject(new Error('No se pudo obtener el contexto del canvas'));
+          return;
+        }
+
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // Convertir a base64 JPEG con calidad especificada
+        const compressedBase64 = canvas.toDataURL('image/jpeg', quality);
+        // Quitar el prefijo (ej: "data:image/jpeg;base64,")
+        const base64Data = compressedBase64.split(',')[1];
+
+        console.log(`📊 Imagen comprimida: ${file.name}`);
+        console.log(`📏 Original: ${(file.size / 1024).toFixed(2)} KB`);
+        console.log(`📏 Comprimido: ${(base64Data.length * 0.75 / 1024).toFixed(2)} KB`);
+
+        resolve(base64Data);
+      };
+      img.onerror = () => reject(new Error('Error al cargar la imagen'));
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = () => reject(new Error('Error al leer el archivo'));
+    reader.readAsDataURL(file);
+  });
+};
+
+// --- Simple Image Viewer Component (sin cambios) ---
 const SimpleImageViewer = ({ url, onClose }: { url: string, onClose: () => void }) => {
     const isPdf = url.startsWith('data:application/pdf');
     return (
@@ -22,6 +69,7 @@ const SimpleImageViewer = ({ url, onClose }: { url: string, onClose: () => void 
     );
 };
 
+// --- Document Detail Modal (sin cambios) ---
 const DocumentDetailModal = ({ doc, onClose, onAddImage, onDeleteImage }: { doc: VehicleDocument, onClose: () => void, onAddImage: (files: FileList) => void, onDeleteImage: (idx: number) => void }) => {
     const [scale, setScale] = useState(1);
     const [currentImgIdx, setCurrentImgIdx] = useState(0);
@@ -276,6 +324,9 @@ export const VehicleForm = () => {
     const [simplePreviewImage, setSimplePreviewImage] = useState<string | null>(null);
     const [selectedDoc, setSelectedDoc] = useState<VehicleDocument | null>(null);
 
+    // Estados para limpiar memoria
+    const [temporaryImages, setTemporaryImages] = useState<string[]>([]);
+
     useEffect(() => {
         if (isDataLoading) return;
         if (isEdit && plate) {
@@ -300,6 +351,14 @@ export const VehicleForm = () => {
         }
     }, [isEdit, plate, vehicles, navigate, isDataLoading]);
 
+    // Limpiar imágenes temporales para liberar memoria
+    useEffect(() => {
+        return () => {
+            setTemporaryImages([]);
+            console.log('🧹 Memoria de imágenes temporales liberada');
+        };
+    }, []);
+
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
         setFormData(prev => ({
@@ -313,104 +372,152 @@ export const VehicleForm = () => {
     const handleCedulaUpload = async (e: React.ChangeEvent<HTMLInputElement>, side: 'front' | 'rear') => {
         const file = e.target.files && e.target.files[0]; 
         if (!file) return;
-        const reader = new FileReader();
-        reader.onloadend = async () => {
-            const base64 = reader.result as string;
-            if (side === 'front') setCedulaFront(base64); else setCedulaRear(base64);
-            
-            const currentFront = side === 'front' ? base64 : cedulaFront;
-            const currentRear = side === 'rear' ? base64 : cedulaRear;
 
-            if (currentFront && currentRear) {
-                setAnalyzing(true);
-                const analysis = await analyzeVehicleImage([currentFront.split(',')[1], currentRear.split(',')[1]]);
-                
-                if (analysis) {
-                    setFormData(prev => ({
-                        ...prev,
-                        plate: analysis.plate || prev.plate,
-                        make: analysis.make || prev.make,
-                        model: analysis.model || prev.model,
-                        year: analysis.year || prev.year,
-                        vin: analysis.vin || prev.vin,
-                        motorNum: analysis.motorNum || prev.motorNum,
-                        type: analysis.type || prev.type
-                    }));
-                }
-                
-                setFormData(prev => {
-                    const existingIndex = prev.documents.findIndex(d => d.type === 'TITLE' && d.name.includes('Cédula Identificación'));
-                    const cedulaDoc: VehicleDocument = {
-                        id: existingIndex >= 0 ? prev.documents[existingIndex].id : Date.now().toString() + Math.random().toString(36).substr(2, 5), 
-                        type: 'TITLE', 
-                        name: 'Cédula Identificación (Auto-generado)',
-                        images: [currentFront, currentRear],
-                        uploadedAt: new Date().toISOString(), 
-                        expirationDate: '', 
-                        issuer: 'Registro Automotor',
-                        isValid: true
-                    };
-                    let newDocs = [...prev.documents];
-                    if (existingIndex >= 0) newDocs[existingIndex] = cedulaDoc;
-                    else newDocs.push(cedulaDoc);
-                    return { ...prev, documents: newDocs };
-                });
-                setAnalyzing(false);
+        console.log(`📤 Subiendo cédula (${side}): ${file.name}, tamaño: ${(file.size / 1024).toFixed(2)} KB`);
+
+        try {
+            // Comprimir la imagen antes de convertir a base64
+            const compressedBase64 = await compressImage(file, 800, 0.6);
+            const base64Url = `data:image/jpeg;base64,${compressedBase64}`;
+            
+            if (side === 'front') {
+                setCedulaFront(base64Url);
+            } else {
+                setCedulaRear(base64Url);
             }
-        };
-        reader.readAsDataURL(file);
+
+            // Guardar en imágenes temporales para limpiar después
+            setTemporaryImages(prev => [...prev, base64Url]);
+
+            const currentFront = side === 'front' ? base64Url : cedulaFront;
+            const currentRear = side === 'rear' ? base64Url : cedulaRear;
+
+            // Si ya tenemos ambas imágenes, analizar
+            if (currentFront && currentRear) {
+                await analyzeCedulaImages(currentFront, currentRear);
+            }
+        } catch (error) {
+            console.error(`❌ Error al procesar la imagen (${side}):`, error);
+            alert(`Error al procesar la imagen ${side}. Intenta con una imagen más pequeña.`);
+        }
+    };
+
+    const analyzeCedulaImages = async (frontUrl: string, rearUrl: string) => {
+        setAnalyzing(true);
+        console.log('🚀 Iniciando análisis de cédula...');
+        
+        try {
+            // Extraer solo la parte base64 (sin el prefijo data:image/jpeg;base64,)
+            const frontBase64 = frontUrl.split(',')[1];
+            const rearBase64 = rearUrl.split(',')[1];
+            
+            console.log('📏 Tamaño de imágenes a analizar:');
+            console.log(`  - Frontal: ${(frontBase64.length * 0.75 / 1024).toFixed(2)} KB`);
+            console.log(`  - Trasera: ${(rearBase64.length * 0.75 / 1024).toFixed(2)} KB`);
+            
+            const analysis = await analyzeVehicleImage([frontBase64, rearBase64]);
+            console.log('🔍 Resultado del análisis:', analysis);
+            
+            if (analysis && (analysis.plate || analysis.make || analysis.model)) {
+                setFormData(prev => ({
+                    ...prev,
+                    plate: analysis.plate || prev.plate,
+                    make: analysis.make || prev.make,
+                    model: analysis.model || prev.model,
+                    year: analysis.year || prev.year,
+                    vin: analysis.vin || prev.vin,
+                    motorNum: analysis.motorNum || prev.motorNum,
+                    type: analysis.type || prev.type
+                }));
+                
+                console.log('✅ Datos extraídos correctamente de la cédula');
+            } else {
+                console.warn('⚠️ No se pudieron extraer datos de la cédula');
+                alert('No se pudieron extraer datos automáticamente de la cédula. Por favor, complete los campos manualmente.');
+            }
+            
+            // Actualizar o agregar documento de cédula
+            setFormData(prev => {
+                const existingIndex = prev.documents.findIndex(d => d.type === 'TITLE' && d.name.includes('Cédula Identificación'));
+                const cedulaDoc: VehicleDocument = {
+                    id: existingIndex >= 0 ? prev.documents[existingIndex].id : Date.now().toString() + Math.random().toString(36).substr(2, 5), 
+                    type: 'TITLE', 
+                    name: 'Cédula Identificación (Auto-generado)',
+                    images: [frontUrl, rearUrl],
+                    uploadedAt: new Date().toISOString(), 
+                    expirationDate: '', 
+                    issuer: 'Registro Automotor',
+                    isValid: true
+                };
+                let newDocs = [...prev.documents];
+                if (existingIndex >= 0) newDocs[existingIndex] = cedulaDoc;
+                else newDocs.push(cedulaDoc);
+                return { ...prev, documents: newDocs };
+            });
+            
+        } catch (error) {
+            console.error('❌ Error en el análisis de la cédula:', error);
+            alert('Error al analizar la cédula. Verifique la consola para más detalles.');
+        } finally {
+            setAnalyzing(false);
+        }
     };
 
     const handleRetryAnalysis = async () => {
         if (!cedulaFront || !cedulaRear) return;
-        setAnalyzing(true);
-        const analysis = await analyzeVehicleImage([cedulaFront.split(',')[1], cedulaRear.split(',')[1]]);
-        if (analysis) {
-            setFormData(prev => ({
-                ...prev,
-                plate: analysis.plate || prev.plate,
-                make: analysis.make || prev.make,
-                model: analysis.model || prev.model,
-                year: analysis.year || prev.year,
-                vin: analysis.vin || prev.vin,
-                motorNum: analysis.motorNum || prev.motorNum,
-                type: analysis.type || prev.type
-            }));
-        }
-        setAnalyzing(false);
+        await analyzeCedulaImages(cedulaFront, cedulaRear);
     };
 
-    const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, field: string) => {
+    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, field: string) => {
         const file = e.target.files && e.target.files[0]; 
         if (!file) return;
-        const reader = new FileReader();
-        reader.onloadend = () => {
-            const base64 = reader.result as string;
+        
+        console.log(`📤 Subiendo imagen para ${field}: ${file.name}`);
+        
+        try {
+            const compressedBase64 = await compressImage(file, 800, 0.7);
+            const base64Url = `data:image/jpeg;base64,${compressedBase64}`;
+            
             setFormData(prev => ({
                 ...prev,
-                images: { ...prev.images, [field]: base64 }
+                images: { ...prev.images, [field]: base64Url }
             }));
-        };
-        reader.readAsDataURL(file);
+            
+            // Limpiar después de 10 segundos
+            setTimeout(() => {
+                setTemporaryImages(prev => prev.filter(img => img !== base64Url));
+            }, 10000);
+            
+        } catch (error) {
+            console.error(`❌ Error al procesar imagen (${field}):`, error);
+            alert('Error al procesar la imagen. Intenta con una imagen más pequeña.');
+        }
     };
 
     const handleOtherImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = e.target.files; 
         if (!files || files.length === 0) return;
+        
+        console.log(`📤 Subiendo ${files.length} imágenes adicionales`);
+        
         const newImages: string[] = [];
-        const promises = Array.from(files).map((file: File) => {
-            return new Promise<void>((resolve) => {
-                const reader = new FileReader();
-                reader.onloadend = () => { 
-                    if (reader.result) {
-                        newImages.push(reader.result as string); 
-                    }
-                    resolve(); 
-                };
-                reader.readAsDataURL(file);
-            });
+        const promises = Array.from(files).map(async (file: File) => {
+            try {
+                const compressedBase64 = await compressImage(file, 600, 0.6);
+                const base64Url = `data:image/jpeg;base64,${compressedBase64}`;
+                newImages.push(base64Url);
+                
+                // Limpiar después de 10 segundos
+                setTimeout(() => {
+                    setTemporaryImages(prev => prev.filter(img => img !== base64Url));
+                }, 10000);
+            } catch (error) {
+                console.error(`❌ Error al procesar imagen ${file.name}:`, error);
+            }
         });
+        
         await Promise.all(promises);
+        
         setFormData(prev => ({ 
             ...prev, 
             images: { 
@@ -418,6 +525,7 @@ export const VehicleForm = () => {
                 others: [...(prev.images.others || []), ...newImages] 
             } 
         }));
+        
         e.target.value = '';
     };
 
@@ -434,21 +542,32 @@ export const VehicleForm = () => {
     const handleHistoryAttachment = async (e: React.ChangeEvent<HTMLInputElement>, historyId: string) => {
         const file = e.target.files && e.target.files[0]; 
         if (!file) return;
-        const reader = new FileReader();
-        reader.onloadend = () => {
-            const base64 = reader.result as string;
+        
+        try {
+            const compressedBase64 = await compressImage(file, 800, 0.7);
+            const base64Url = `data:image/jpeg;base64,${compressedBase64}`;
+            
             setFormData(prev => ({
                 ...prev,
                 history: prev.history.map(h => {
                     if (h.id === historyId) {
                         const attachments = h.attachments || [];
-                        return { ...h, attachments: [...attachments, base64] };
+                        return { ...h, attachments: [...attachments, base64Url] };
                     }
                     return h;
                 })
             }));
-        };
-        reader.readAsDataURL(file);
+            
+            // Limpiar después de 10 segundos
+            setTimeout(() => {
+                setTemporaryImages(prev => prev.filter(img => img !== base64Url));
+            }, 10000);
+            
+        } catch (error) {
+            console.error('❌ Error al procesar adjunto:', error);
+            alert('Error al procesar la imagen adjunta.');
+        }
+        
         e.target.value = '';
     };
 
@@ -501,29 +620,52 @@ export const VehicleForm = () => {
         setIsUploadingDoc(true);
         const newImages: string[] = [];
         
-        // Detect mimetype of the first file for analysis
-        const mimeType = files[0].type; 
-
-        const promises = Array.from(files).map((file: File) => {
-             return new Promise<void>((resolve) => {
-                const reader = new FileReader();
-                reader.onloadend = () => { 
-                    if(reader.result) {
-                        newImages.push(reader.result as string); 
-                    }
-                    resolve(); 
-                };
-                reader.readAsDataURL(file);
-             });
+        console.log(`📤 Subiendo documento: ${finalName}, ${files.length} archivos`);
+        
+        // Procesar y comprimir imágenes
+        const promises = Array.from(files).map(async (file: File) => {
+            try {
+                if (file.type === 'application/pdf') {
+                    // Para PDFs, leer directamente sin comprimir
+                    const reader = new FileReader();
+                    return new Promise<string>((resolve) => {
+                        reader.onloadend = () => { 
+                            if(reader.result) {
+                                newImages.push(reader.result as string); 
+                            }
+                            resolve(reader.result as string);
+                        };
+                        reader.readAsDataURL(file);
+                    });
+                } else {
+                    // Comprimir imágenes
+                    const compressedBase64 = await compressImage(file, 800, 0.6);
+                    const base64Url = `data:image/jpeg;base64,${compressedBase64}`;
+                    newImages.push(base64Url);
+                    return base64Url;
+                }
+            } catch (error) {
+                console.error(`❌ Error al procesar archivo ${file.name}:`, error);
+                return '';
+            }
         });
+        
         await Promise.all(promises);
         
+        // Análisis con Gemini
         let analysis: any = {};
-        if (newImages.length > 0) {
-            // Pass the split base64 and the detected mimeType to the service
-            analysis = await analyzeDocumentImage(newImages[0].split(',')[1], finalType, mimeType);
+        if (newImages.length > 0 && !newImages[0].startsWith('data:application/pdf')) {
+            console.log('🔍 Analizando documento con Gemini...');
+            try {
+                // Pasar solo la primera imagen para análisis
+                analysis = await analyzeDocumentImage(newImages[0].split(',')[1], finalType, files[0].type);
+                console.log('✅ Análisis completado:', analysis);
+            } catch (error) {
+                console.error('❌ Error en análisis de documento:', error);
+            }
         }
         
+        // Manejar conflicto de año para seguros
         if (finalType === 'INSURANCE' && analysis && analysis.year) {
             const currentYear = formData.year;
             const insuranceYear = analysis.year;
@@ -560,7 +702,6 @@ export const VehicleForm = () => {
     };
 
     const handleDeleteDoc = (docId: string) => {
-        // Use window.confirm explicitly ensuring the dialog is shown
         if(window.confirm("¿Está seguro que desea eliminar este documento definitivamente?")) {
             setFormData(prev => ({ ...prev, documents: prev.documents.filter(d => d.id !== docId) }));
         }
@@ -578,18 +719,32 @@ export const VehicleForm = () => {
     const handleAddImageToDoc = async (files: FileList) => {
         if (!selectedDoc) return;
         const newImages: string[] = [];
-        const promises = Array.from(files).map((file: File) => {
-             return new Promise<void>((resolve) => {
-                const reader = new FileReader();
-                reader.onloadend = () => { 
-                    if(reader.result) {
-                        newImages.push(reader.result as string); 
-                    }
-                    resolve(); 
-                };
-                reader.readAsDataURL(file);
-             });
+        
+        const promises = Array.from(files).map(async (file: File) => {
+            try {
+                if (file.type === 'application/pdf') {
+                    const reader = new FileReader();
+                    return new Promise<string>((resolve) => {
+                        reader.onloadend = () => { 
+                            if(reader.result) {
+                                newImages.push(reader.result as string); 
+                            }
+                            resolve(reader.result as string);
+                        };
+                        reader.readAsDataURL(file);
+                    });
+                } else {
+                    const compressedBase64 = await compressImage(file, 800, 0.6);
+                    const base64Url = `data:image/jpeg;base64,${compressedBase64}`;
+                    newImages.push(base64Url);
+                    return base64Url;
+                }
+            } catch (error) {
+                console.error(`❌ Error al procesar archivo ${file.name}:`, error);
+                return '';
+            }
         });
+        
         await Promise.all(promises);
 
         const updatedDoc = {
