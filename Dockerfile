@@ -1,4 +1,3 @@
-
 # Etapa de construcción
 FROM node:18-alpine AS build
 WORKDIR /app
@@ -8,21 +7,27 @@ RUN npm install --legacy-peer-deps
 
 COPY . .
 
-# Build
-RUN npm run build
+# Build con verificación explícita
+RUN npm run build 2>&1 | tee build.log && \
+    echo "=== VERIFICANDO SI VITE COMPLETÓ EL BUILD ===" && \
+    if grep -q "✓ built in" build.log; then \
+        echo "✅ Vite build completado exitosamente"; \
+    else \
+        echo "❌ Vite build NO se completó"; \
+        cat build.log; \
+        exit 1; \
+    fi
 
-# Verificar que los archivos se generaron
-RUN echo "=== VERIFICANDO BUILD ===" && \
+# Verificar archivos generados
+RUN echo "=== VERIFICANDO ARCHIVOS GENERADOS ===" && \
     ls -la dist/ && \
-    ls -la dist/assets/
+    echo "=== TAMAÑO DE ARCHIVOS JS ===" && \
+    find dist -name "*.js" -exec du -h {} \;
 
 # Etapa de producción
 FROM nginx:alpine
 
-# Configuración SIMPLE de nginx
 COPY nginx.conf /etc/nginx/conf.d/default.conf
-
-# Copiar archivos construidos
 COPY --from=build /app/dist /usr/share/nginx/html
 
 EXPOSE 80
