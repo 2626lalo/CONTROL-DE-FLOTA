@@ -2,22 +2,21 @@
 FROM node:18-alpine AS build
 WORKDIR /app
 
-# Copia solo package.json (sin package-lock.json)
+# Copia package.json y elimina cualquier lockfile viejo
 COPY package.json ./
+RUN rm -f package-lock.json && rm -rf node_modules
 
-# Elimina cualquier package-lock.json existente (por si acaso) y instala dependencias
-RUN rm -f package-lock.json && npm install --include=dev
+# Instala TODAS las dependencias (producción + desarrollo)
+RUN npm install --include=dev --legacy-peer-deps
 
-# Verificar que Vite esté instalado
-RUN echo "=== VERIFICANDO VITE ===" && \
-    npx vite --version
+# Verificar instalación
+RUN echo "=== VERIFICANDO INSTALACIÓN ===" && \
+    echo "Vite versión:" && npx vite --version && \
+    echo "React disponible:" && npm list react && \
+    echo "Total paquetes:" && npm list --depth=0 | wc -l
 
 # Copia el código fuente
 COPY . .
-
-# Verificar estructura
-RUN echo "=== ESTRUCTURA FINAL ===" && \
-    ls -la src/
 
 # Construye la aplicación
 RUN npm run build
