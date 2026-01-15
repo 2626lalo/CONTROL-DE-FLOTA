@@ -583,6 +583,242 @@ Reglas:
 };
 
 /**
+ * Analiza imágenes de presupuestos de reparación
+ */
+export const analyzeBudgetImage = async (imageBase64: string): Promise<{
+  workshop: string | null,
+  totalAmount: number | null,
+  currency: string | null,
+  items: Array<{description: string, quantity: number, unitPrice: number, total: number}> | null,
+  validityDate: string | null
+}> => {
+  try {
+    console.log('🚀 Iniciando análisis de imagen de presupuesto...');
+    
+    const genAI = await getGenAI();
+    const model = genAI.getGenerativeModel({ 
+      model: 'gemini-pro-vision',
+      generationConfig: {
+        temperature: 0.1,
+        topP: 0.8,
+        topK: 40,
+        maxOutputTokens: 2048,
+      }
+    });
+
+    const prompt = `Eres un experto en presupuestos de reparación vehicular. Analiza la imagen del presupuesto y extrae la siguiente información en formato JSON válido:
+
+IMPORTANTE: Responde SOLO con el JSON, sin texto adicional, sin marcas de código, sin explicaciones.
+
+{
+  "workshop": "nombre del taller o proveedor",
+  "totalAmount": número total del presupuesto,
+  "currency": "moneda (ARS, USD, etc.)",
+  "items": [
+    {
+      "description": "descripción del servicio o repuesto",
+      "quantity": cantidad,
+      "unitPrice": precio unitario,
+      "total": total por item
+    }
+  ],
+  "validityDate": "fecha de validez (YYYY-MM-DD) si es visible"
+}
+
+Reglas:
+1. Solo responder con el JSON
+2. Usar null para campos no encontrados
+3. Los montos deben ser números (sin símbolos de moneda)
+4. Textos en español
+5. Si no hay items visibles, usar array vacío []`;
+
+    const cleanBase64 = imageBase64.includes('base64,') 
+      ? imageBase64.split(',')[1] 
+      : imageBase64;
+
+    const imagePart = {
+      inlineData: {
+        data: cleanBase64,
+        mimeType: 'image/jpeg',
+      },
+    };
+
+    console.log('📤 Enviando solicitud a Gemini...');
+    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+    
+    const result = await model.generateContent([prompt, imagePart]);
+    clearTimeout(timeoutId);
+    
+    const response = await result.response;
+    const text = response.text();
+    
+    console.log('📥 Respuesta recibida:', text.substring(0, 200) + '...');
+
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      console.warn('⚠️ No se pudo extraer JSON, respuesta completa:', text);
+      throw new Error('No se pudo extraer JSON de la respuesta');
+    }
+
+    let parsedData;
+    try {
+      parsedData = JSON.parse(jsonMatch[0]);
+    } catch (parseError) {
+      const cleanedText = jsonMatch[0]
+        .replace(/```json\s*/g, '')
+        .replace(/```\s*/g, '')
+        .trim();
+      parsedData = JSON.parse(cleanedText);
+    }
+    
+    console.log('✅ Datos parseados exitosamente:', parsedData);
+    
+    return {
+      workshop: parsedData.workshop || null,
+      totalAmount: parsedData.totalAmount || null,
+      currency: parsedData.currency || 'ARS',
+      items: parsedData.items || [],
+      validityDate: parsedData.validityDate || null,
+    };
+    
+  } catch (error: any) {
+    console.error('❌ Error en analyzeBudgetImage:', error.message || error);
+    
+    return {
+      workshop: null,
+      totalAmount: null,
+      currency: 'ARS',
+      items: [],
+      validityDate: null,
+    };
+  }
+};
+
+/**
+ * Analiza imágenes de facturas
+ */
+export const analyzeInvoiceImage = async (imageBase64: string): Promise<{
+  invoiceNumber: string | null,
+  date: string | null,
+  supplier: string | null,
+  totalAmount: number | null,
+  currency: string | null,
+  taxId: string | null,
+  items: Array<{description: string, quantity: number, unitPrice: number, total: number}> | null
+}> => {
+  try {
+    console.log('🚀 Iniciando análisis de imagen de factura...');
+    
+    const genAI = await getGenAI();
+    const model = genAI.getGenerativeModel({ 
+      model: 'gemini-pro-vision',
+      generationConfig: {
+        temperature: 0.1,
+        topP: 0.8,
+        topK: 40,
+        maxOutputTokens: 2048,
+      }
+    });
+
+    const prompt = `Eres un experto en facturas. Analiza la imagen de la factura y extrae la siguiente información en formato JSON válido:
+
+IMPORTANTE: Responde SOLO con el JSON, sin texto adicional, sin marcas de código, sin explicaciones.
+
+{
+  "invoiceNumber": "número de factura",
+  "date": "fecha de emisión (YYYY-MM-DD)",
+  "supplier": "proveedor o emisor",
+  "totalAmount": monto total,
+  "currency": "moneda (ARS, USD, etc.)",
+  "taxId": "CUIT/CUIL/NIF si es visible",
+  "items": [
+    {
+      "description": "descripción del producto o servicio",
+      "quantity": cantidad,
+      "unitPrice": precio unitario,
+      "total": total por item
+    }
+  ]
+}
+
+Reglas:
+1. Solo responder con el JSON
+2. Usar null para campos no encontrados
+3. Los montos deben ser números (sin símbolos de moneda)
+4. Textos en español
+5. Si no hay items visibles, usar array vacío []`;
+
+    const cleanBase64 = imageBase64.includes('base64,') 
+      ? imageBase64.split(',')[1] 
+      : imageBase64;
+
+    const imagePart = {
+      inlineData: {
+        data: cleanBase64,
+        mimeType: 'image/jpeg',
+      },
+    };
+
+    console.log('📤 Enviando solicitud a Gemini...');
+    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+    
+    const result = await model.generateContent([prompt, imagePart]);
+    clearTimeout(timeoutId);
+    
+    const response = await result.response;
+    const text = response.text();
+    
+    console.log('📥 Respuesta recibida:', text.substring(0, 200) + '...');
+
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      console.warn('⚠️ No se pudo extraer JSON, respuesta completa:', text);
+      throw new Error('No se pudo extraer JSON de la respuesta');
+    }
+
+    let parsedData;
+    try {
+      parsedData = JSON.parse(jsonMatch[0]);
+    } catch (parseError) {
+      const cleanedText = jsonMatch[0]
+        .replace(/```json\s*/g, '')
+        .replace(/```\s*/g, '')
+        .trim();
+      parsedData = JSON.parse(cleanedText);
+    }
+    
+    console.log('✅ Datos parseados exitosamente:', parsedData);
+    
+    return {
+      invoiceNumber: parsedData.invoiceNumber || null,
+      date: parsedData.date || null,
+      supplier: parsedData.supplier || null,
+      totalAmount: parsedData.totalAmount || null,
+      currency: parsedData.currency || 'ARS',
+      taxId: parsedData.taxId || null,
+      items: parsedData.items || [],
+    };
+    
+  } catch (error: any) {
+    console.error('❌ Error en analyzeInvoiceImage:', error.message || error);
+    
+    return {
+      invoiceNumber: null,
+      date: null,
+      supplier: null,
+      totalAmount: null,
+      currency: 'ARS',
+      taxId: null,
+      items: [],
+    };
+  }
+};
+
+/**
  * Versión simplificada para desarrollo/fallback de batería
  */
 export const analyzeBatteryImageSimple = async (imageBase64: string) => {
@@ -626,6 +862,89 @@ export const analyzeExtinguisherLabelSimple = async (imageBase64: string) => {
       type: 'Polvo Químico',
       capacity: '5 kg',
       lastServiceDate: new Date().toISOString().split('T')[0],
+    };
+  }
+};
+
+/**
+ * Versión simplificada para desarrollo/fallback de presupuesto
+ */
+export const analyzeBudgetImageSimple = async (imageBase64: string) => {
+  try {
+    // Intentar con la función principal
+    return await analyzeBudgetImage(imageBase64);
+  } catch (error) {
+    console.warn('⚠️ Usando análisis simplificado de presupuesto');
+    
+    // Simulación de datos para desarrollo
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    const nextMonth = new Date();
+    nextMonth.setMonth(nextMonth.getMonth() + 1);
+    
+    return {
+      workshop: 'Taller Mecánico Ejemplo S.A.',
+      totalAmount: 125000,
+      currency: 'ARS',
+      items: [
+        {
+          description: 'Cambio de aceite y filtro',
+          quantity: 1,
+          unitPrice: 45000,
+          total: 45000
+        },
+        {
+          description: 'Pastillas de freno delanteras',
+          quantity: 1,
+          unitPrice: 80000,
+          total: 80000
+        }
+      ],
+      validityDate: nextMonth.toISOString().split('T')[0],
+    };
+  }
+};
+
+/**
+ * Versión simplificada para desarrollo/fallback de factura
+ */
+export const analyzeInvoiceImageSimple = async (imageBase64: string) => {
+  try {
+    // Intentar con la función principal
+    return await analyzeInvoiceImage(imageBase64);
+  } catch (error) {
+    console.warn('⚠️ Usando análisis simplificado de factura');
+    
+    // Simulación de datos para desarrollo
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    return {
+      invoiceNumber: 'FAC-001-00012345',
+      date: new Date().toISOString().split('T')[0],
+      supplier: 'Proveedor de Repuestos S.R.L.',
+      totalAmount: 187500,
+      currency: 'ARS',
+      taxId: '30-12345678-9',
+      items: [
+        {
+          description: 'Aceite sintético 5W30',
+          quantity: 2,
+          unitPrice: 35000,
+          total: 70000
+        },
+        {
+          description: 'Filtro de aire',
+          quantity: 1,
+          unitPrice: 25000,
+          total: 25000
+        },
+        {
+          description: 'Mano de obra',
+          quantity: 5,
+          unitPrice: 18500,
+          total: 92500
+        }
+      ],
     };
   }
 };
