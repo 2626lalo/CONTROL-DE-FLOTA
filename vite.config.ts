@@ -18,12 +18,12 @@ export default defineConfig({
           utils: ['date-fns', 'axios'],
           charts: ['recharts'],
           pdf: ['jspdf', 'jspdf-autotable'],
+          googleai: ['@google/genai'],
         },
       },
     },
   },
   define: {
     'process.env': {},
-    'import.meta.env.VITE_GOOGLE_AI_API_KEY': JSON.stringify(process.env.VITE_GOOGLE_AI_API_KEY || 'AIzaSyCNtMrkX8I2x-5taJn_j9JF3Ax_p9kPYFc'),
   },
 });
