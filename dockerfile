@@ -10,14 +10,16 @@ COPY . .
 # Build
 RUN npm run build
 
-# VERIFICAR que se generaron los archivos
-RUN echo "=== ARCHIVOS GENERADOS ===" && \
+# VERIFICAR que los archivos se generaron
+RUN echo "=== VERIFICANDO ARCHIVOS ===" && \
     ls -la dist/ && \
-    echo "=== ARCHIVOS JS EN assets ===" && \
-    ls -la dist/assets/*.js
+    echo "Archivos JS:" && ls -la dist/assets/*.js
 
-# REEMPLAZAR COMPLETAMENTE el index.html con uno MANUAL
-RUN cat > /app/dist/index.html << 'EOF'
+# Crear un script para generar index.html CORRECTAMENTE
+RUN cat > /app/create-html.sh << 'SCRIPT_EOF'
+#!/bin/sh
+echo "Creando index.html manualmente..."
+cat > /app/dist/index.html << 'HTML_EOF'
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -25,7 +27,6 @@ RUN cat > /app/dist/index.html << 'EOF'
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CONTROL DE FLOTA</title>
     
-    <!-- Polyfills -->
     <script>
         if (!Array.prototype.toSorted) {
             Array.prototype.toSorted = function(compareFn) {
@@ -60,8 +61,6 @@ RUN cat > /app/dist/index.html << 'EOF'
     </script>
     
     <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- CSS generado por Vite -->
     <link rel="stylesheet" href="/assets/index.DtXlcSpb.css">
     
     <style>
@@ -83,39 +82,24 @@ RUN cat > /app/dist/index.html << 'EOF'
 </head>
 <body class="bg-slate-50 text-slate-900 antialiased">
     <div id="root"></div>
-    
-    <!-- JS principal generado por Vite -->
     <script type="module" crossorigin src="/assets/index.nzfWp_A0.js"></script>
 </body>
 </html>
-EOF
+HTML_EOF
+echo "✅ index.html creado"
+SCRIPT_EOF
 
-# Verificar que se creó correctamente
-RUN echo "=== VERIFICANDO NUEVO index.html ===" && \
-    echo "Tamaño:" && du -h /app/dist/index.html && \
-    echo "Scripts encontrados:" && grep -o '<script.*>' /app/dist/index.html
+# Ejecutar el script
+RUN chmod +x /app/create-html.sh && /app/create-html.sh
 
 # Etapa de producción
 FROM nginx:alpine
 
-# Copiar configuración SIMPLE de nginx
-RUN echo 'server { \
-    listen 80; \
-    server_name _; \
-    root /usr/share/nginx/html; \
-    index index.html; \
-    location / { \
-        try_files $uri $uri/ /index.html; \
-    } \
-}' > /etc/nginx/conf.d/default.conf
+# Configuración SIMPLE de nginx
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 # Copiar archivos construidos
 COPY --from=build /app/dist /usr/share/nginx/html
-
-# Verificar copia
-RUN echo "=== ARCHIVOS EN NGINX ===" && \
-    ls -la /usr/share/nginx/html/ && \
-    ls -la /usr/share/nginx/html/assets/
 
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
