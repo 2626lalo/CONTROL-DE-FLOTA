@@ -1,25 +1,59 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
-
 // Variable global para la instancia de Gemini AI
-let genAIInstance: GoogleGenerativeAI | null = null;
+let genAIInstance: any = null;
 
 /**
  * Inicializa o retorna la instancia de Gemini AI
  */
-const getGenAI = (): GoogleGenerativeAI => {
+const getGenAI = async () => {
   if (!genAIInstance) {
-    const apiKey = import.meta.env.VITE_GOOGLE_AI_API_KEY;
+    // Usar tu clave API específica - primero intenta variable de entorno, si no, usa la clave directa
+    const apiKey = import.meta.env.VITE_GOOGLE_AI_API_KEY || 'AIzaSyCNtMrkX8I2x-5taJn_j9JF3Ax_p9kPYFc';
     
-    if (!apiKey || apiKey === 'your_api_key_here' || apiKey === '') {
-      console.error('❌ API key de Google AI no configurada');
-      throw new Error('API key de Google AI no configurada. Contacta al administrador.');
+    console.log('🔧 Inicializando Gemini AI...');
+    console.log('🔑 API Key (primeros 10 chars):', apiKey.substring(0, 10) + '...');
+    
+    try {
+      const { GoogleGenerativeAI } = await import('@google/genai');
+      genAIInstance = new GoogleGenerativeAI(apiKey);
+      console.log('✅ Gemini AI inicializado correctamente');
+    } catch (error) {
+      console.error('❌ Error cargando @google/genai:', error);
+      throw new Error('No se pudo cargar Google AI SDK');
     }
-    
-    console.log('🔧 Inicializando Gemini AI con API key...');
-    genAIInstance = new GoogleGenerativeAI(apiKey);
   }
   
   return genAIInstance;
+};
+
+/**
+ * Verifica la conexión con Gemini AI
+ */
+export const testGeminiConnection = async () => {
+  try {
+    console.log('🔍 Probando conexión con Gemini AI...');
+    const genAI = await getGenAI();
+    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+    
+    // Prueba simple con timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    
+    const result = await model.generateContent('Responde con "OK" si estás funcionando.');
+    clearTimeout(timeoutId);
+    
+    const response = await result.response;
+    const text = response.text();
+    
+    console.log('✅ Conexión exitosa:', text);
+    return { success: true, message: text };
+  } catch (error) {
+    console.error('❌ Error de conexión:', error);
+    return { 
+      success: false, 
+      error: error.message || 'Error desconocido',
+      details: error 
+    };
+  }
 };
 
 /**
@@ -29,7 +63,7 @@ export const analyzeVehicleImage = async (imagesBase64: string[]) => {
   try {
     console.log('🚀 Iniciando análisis de imagen de vehículo...');
     
-    const genAI = getGenAI();
+    const genAI = await getGenAI();
     const model = genAI.getGenerativeModel({ 
       model: 'gemini-pro-vision',
       generationConfig: {
@@ -61,13 +95,19 @@ export const analyzeVehicleImage = async (imagesBase64: string[]) => {
     // Preparar las imágenes
     const imageParts = imagesBase64.map(base64 => ({
       inlineData: {
-        data: base64,
+        data: base64.split(',')[1] || base64, // Remover data:image/jpeg;base64, si existe
         mimeType: 'image/jpeg',
       },
     }));
 
     console.log('📤 Enviando solicitud a Gemini...');
+    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+    
     const result = await model.generateContent([prompt, ...imageParts]);
+    clearTimeout(timeoutId);
+    
     const response = await result.response;
     const text = response.text();
     
@@ -76,6 +116,7 @@ export const analyzeVehicleImage = async (imagesBase64: string[]) => {
     // Extraer JSON de la respuesta
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
+      console.warn('⚠️ No se pudo extraer JSON, respuesta completa:', text);
       throw new Error('No se pudo extraer JSON de la respuesta');
     }
 
@@ -117,7 +158,7 @@ export const analyzeDocumentImage = async (imageBase64: string, docType: string,
   try {
     console.log(`🚀 Iniciando análisis de documento: ${docType}...`);
     
-    const genAI = getGenAI();
+    const genAI = await getGenAI();
     const model = genAI.getGenerativeModel({ 
       model: 'gemini-pro-vision',
       generationConfig: {
@@ -161,17 +202,25 @@ export const analyzeDocumentImage = async (imageBase64: string, docType: string,
       1. Solo responder con el JSON
       2. Fecha en formato YYYY-MM-DD
       3. Textos en español`;
+    } else {
+      prompt = `Eres un experto en documentos. Analiza la imagen y extrae cualquier información relevante en formato JSON válido.`;
     }
 
     const imagePart = {
       inlineData: {
-        data: imageBase64,
+        data: imageBase64.split(',')[1] || imageBase64, // Remover data:image/jpeg;base64, si existe
         mimeType: mimeType || 'image/jpeg',
       },
     };
 
     console.log('📤 Enviando solicitud a Gemini...');
+    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+    
     const result = await model.generateContent([prompt, imagePart]);
+    clearTimeout(timeoutId);
+    
     const response = await result.response;
     const text = response.text();
     
@@ -180,6 +229,7 @@ export const analyzeDocumentImage = async (imageBase64: string, docType: string,
     // Extraer JSON de la respuesta
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
+      console.warn('⚠️ No se pudo extraer JSON, respuesta completa:', text);
       throw new Error('No se pudo extraer JSON de la respuesta');
     }
 
@@ -225,11 +275,31 @@ export const analyzeDocumentImage = async (imageBase64: string, docType: string,
 /**
  * Verifica si Gemini AI está disponible
  */
-export const isGeminiAvailable = (): boolean => {
+export const isGeminiAvailable = async (): Promise<boolean> => {
   try {
-    const apiKey = import.meta.env.VITE_GOOGLE_AI_API_KEY;
-    return !!(apiKey && apiKey !== 'your_api_key_here' && apiKey !== '');
+    // Solo verificar que tenemos la API key
+    const apiKey = import.meta.env.VITE_GOOGLE_AI_API_KEY || 'AIzaSyCNtMrkX8I2x-5taJn_j9JF3Ax_p9kPYFc';
+    return !!(apiKey && apiKey.length > 30 && !apiKey.includes('your_api_key_here'));
   } catch {
     return false;
+  }
+};
+
+/**
+ * Obtiene información del modelo disponible
+ */
+export const getModelInfo = async () => {
+  try {
+    const genAI = await getGenAI();
+    return {
+      available: true,
+      apiKey: import.meta.env.VITE_GOOGLE_AI_API_KEY ? 'Configurada' : 'Usando clave directa',
+      model: 'gemini-pro-vision'
+    };
+  } catch (error) {
+    return {
+      available: false,
+      error: error.message
+    };
   }
 };
