@@ -1,4 +1,4 @@
-// scripts/inject-html.js - Versión sin manejo de errores visual
+// scripts/inject-html.js
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -50,7 +50,10 @@ if (jsFiles.length === 0) {
   process.exit(1);
 }
 
-// BUSCAR EL ARCHIVO JS CORRECTO (el más grande)
+// BUSCAR EL ARCHIVO JS CORRECTO (el más grande o que contenga "index" sin prefijo)
+let mainJsFile = null;
+
+// Opción 1: Buscar el más grande (normalmente el bundle principal)
 const jsFilesWithSize = jsFiles.map(file => {
   const filePath = path.join(assetsPath || distPath, file);
   return { file, size: fs.statSync(filePath).size };
@@ -63,11 +66,12 @@ jsFilesWithSize.forEach((f, i) => {
 });
 
 // Seleccionar el más grande
-const mainJsFile = jsFilesWithSize[0].file;
+mainJsFile = jsFilesWithSize[0].file;
 
-// Buscar archivo CSS principal
+// Buscar archivo CSS principal (el que empiece con "index" o el primero)
 let mainCssFile = null;
 if (cssFiles.length > 0) {
+  // Buscar CSS que empiece con "index"
   const indexCss = cssFiles.find(f => f.startsWith('index-') || f.startsWith('index.'));
   mainCssFile = indexCss || cssFiles[0];
 }
@@ -134,7 +138,7 @@ if (polyfillMatch) {
   console.log('⚠️  Polyfills no encontrados, usando versión por defecto');
 }
 
-// Crear nuevo HTML SIN manejo de errores visual
+// Crear nuevo HTML (sin el script de manejo de errores, porque lo manejamos en main.tsx)
 const html = `<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -164,15 +168,29 @@ ${polyfills}
             background: #94a3b8;
         }
         
-        /* Estilos de carga simple */
-        #root {
-            min-height: 100vh;
-            background: #f8fafc;
+        /* Spinner de carga */
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid #e5e7eb;
+            border-top-color: #3b82f6;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
         }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-900 antialiased">
-    <div id="root"></div>
+    <div id="root">
+        <!-- Solo spinner, sin mensaje de error -->
+        <div style="display: flex; justify-content: center; align-items: center; height: 100vh;">
+            <div class="loading-spinner"></div>
+        </div>
+    </div>
     <script type="module" crossorigin src="${jsPath}"></script>
 </body>
 </html>`;
