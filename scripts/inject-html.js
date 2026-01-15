@@ -1,3 +1,4 @@
+// scripts/inject-html.js - Versión sin manejo de errores visual
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -49,10 +50,7 @@ if (jsFiles.length === 0) {
   process.exit(1);
 }
 
-// BUSCAR EL ARCHIVO JS CORRECTO (el más grande o que contenga "index" sin prefijo)
-let mainJsFile = null;
-
-// Opción 1: Buscar el más grande (normalmente el bundle principal)
+// BUSCAR EL ARCHIVO JS CORRECTO (el más grande)
 const jsFilesWithSize = jsFiles.map(file => {
   const filePath = path.join(assetsPath || distPath, file);
   return { file, size: fs.statSync(filePath).size };
@@ -65,12 +63,11 @@ jsFilesWithSize.forEach((f, i) => {
 });
 
 // Seleccionar el más grande
-mainJsFile = jsFilesWithSize[0].file;
+const mainJsFile = jsFilesWithSize[0].file;
 
-// Buscar archivo CSS principal (el que empiece con "index" o el primero)
+// Buscar archivo CSS principal
 let mainCssFile = null;
 if (cssFiles.length > 0) {
-  // Buscar CSS que empiece con "index"
   const indexCss = cssFiles.find(f => f.startsWith('index-') || f.startsWith('index.'));
   mainCssFile = indexCss || cssFiles[0];
 }
@@ -137,7 +134,7 @@ if (polyfillMatch) {
   console.log('⚠️  Polyfills no encontrados, usando versión por defecto');
 }
 
-// Crear nuevo HTML
+// Crear nuevo HTML SIN manejo de errores visual
 const html = `<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -167,41 +164,16 @@ ${polyfills}
             background: #94a3b8;
         }
         
-        /* Estilos de carga */
+        /* Estilos de carga simple */
         #root {
             min-height: 100vh;
+            background: #f8fafc;
         }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-900 antialiased">
-    <div id="root">
-        <div style="display: flex; justify-content: center; align-items: center; height: 100vh;">
-            <div style="text-align: center;">
-                <div style="font-size: 24px; margin-bottom: 20px; color: #3b82f6;">Cargando CONTROL DE FLOTA...</div>
-                <div style="width: 50px; height: 50px; border: 5px solid #e5e7eb; border-top-color: #3b82f6; border-radius: 50%; margin: 0 auto; animation: spin 1s linear infinite;"></div>
-            </div>
-        </div>
-    </div>
+    <div id="root"></div>
     <script type="module" crossorigin src="${jsPath}"></script>
-    
-    <style>
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-    </style>
-    
-    <script>
-        // Script para manejar errores de carga
-        window.addEventListener('error', function(e) {
-            console.error('Error global:', e.error);
-            document.getElementById('root').innerHTML = 
-                '<div style="padding: 40px; text-align: center; color: #ef4444;">' +
-                '<h2 style="font-size: 24px; margin-bottom: 20px;">❌ Error al cargar la aplicación</h2>' +
-                '<p style="margin-bottom: 10px;">Detalles: ' + (e.error?.message || 'Error desconocido') + '</p>' +
-                '<button onclick="window.location.reload()" style="background: #3b82f6; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Reintentar</button>' +
-                '</div>';
-        });
-    </script>
 </body>
 </html>`;
 
