@@ -7,22 +7,29 @@ RUN npm install --legacy-peer-deps
 
 COPY . .
 
-# Build con verificación explícita
-RUN npm run build 2>&1 | tee build.log && \
-    echo "=== VERIFICANDO SI VITE COMPLETÓ EL BUILD ===" && \
-    if grep -q "✓ built in" build.log; then \
-        echo "✅ Vite build completado exitosamente"; \
-    else \
-        echo "❌ Vite build NO se completó"; \
-        cat build.log; \
-        exit 1; \
-    fi
+# Build con inyección manual de scripts
+RUN npm run build
 
-# Verificar archivos generados
-RUN echo "=== VERIFICANDO ARCHIVOS GENERADOS ===" && \
-    ls -la dist/ && \
-    echo "=== TAMAÑO DE ARCHIVOS JS ===" && \
-    find dist -name "*.js" -exec du -h {} \;
+# VERIFICACIÓN CRÍTICA: ¿El index.html tiene scripts?
+RUN echo "=== VERIFICACIÓN FINAL DEL HTML ===" && \
+    echo "=== Tamaño de index.html ===" && \
+    du -h /app/dist/index.html && \
+    echo "=== ¿Contiene scripts de React? ===" && \
+    if grep -q "index\..*\.js" /app/dist/index.html; then \
+        echo "✅ SÍ: index.html tiene scripts JS"; \
+        grep -o "index\..*\.js" /app/dist/index.html; \
+    else \
+        echo "❌ NO: index.html NO tiene scripts JS"; \
+        echo "=== Mostrando primeras 30 líneas ==="; \
+        head -30 /app/dist/index.html; \
+        exit 1; \
+    fi && \
+    echo "=== ¿Contiene CSS? ===" && \
+    if grep -q "\.css" /app/dist/index.html; then \
+        echo "✅ SÍ: index.html tiene CSS"; \
+    else \
+        echo "❌ NO: index.html NO tiene CSS"; \
+    fi
 
 # Etapa de producción
 FROM nginx:alpine
