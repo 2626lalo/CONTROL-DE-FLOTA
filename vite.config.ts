@@ -1,12 +1,30 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import path from 'path'
 
 export default defineConfig({
   plugins: [react()],
   base: '/',
+  
+  // Build configuration
   build: {
     outDir: 'dist',
     emptyOutDir: true,
     target: 'es2022'
+    // ¡NO NECESITAMOS rollupOptions! Vite ya detecta automáticamente src/main.tsx
+  },
+  
+  // Resolve aliases - actualizados para apuntar a src/
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+      '@components': path.resolve(__dirname, './src/components'),
+      '@services': path.resolve(__dirname, './src/services')
+    }
+  },
+  
+  // Optimize dependencies
+  optimizeDeps: {
+    include: ['react', 'react-dom', 'recharts', 'lucide-react']
   }
 })
