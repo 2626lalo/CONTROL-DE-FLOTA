@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect, createContext, useContext } from 'react';
 import { HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Layout } from './components/Layout';
@@ -49,6 +47,9 @@ interface AppContextType {
   notifyError: (msg: string) => void;
   globalError: string | null;
   clearGlobalError: () => void;
+  
+  // Google AI API
+  googleAI: any | null;
 }
 
 const AppContext = createContext<AppContextType>({} as AppContextType);
@@ -299,6 +300,9 @@ export default function App() {
   const [isDataLoading, setIsDataLoading] = useState(false);
   const [globalError, setGlobalError] = useState<string | null>(null);
 
+  // Google AI - Inicialización segura
+  const [googleAI, setGoogleAI] = useState<any | null>(null);
+
   const notifyError = (msg: string) => {
       console.error(msg);
       setGlobalError(msg);
@@ -405,6 +409,37 @@ export default function App() {
           if (!silent) setIsDataLoading(false);
       }
   };
+
+  // Initialize Google AI only when needed and with proper error handling
+  useEffect(() => {
+    const initializeGoogleAI = async () => {
+      try {
+        // Check if API key is available
+        const apiKey = import.meta.env.VITE_GOOGLE_AI_API_KEY;
+        
+        if (!apiKey) {
+          console.warn('Google AI API key no configurada. La funcionalidad de IA no estará disponible.');
+          return;
+        }
+
+        // Dynamic import to avoid bundling issues
+        const { GoogleGenerativeAI } = await import('@google/genai');
+        const genAI = new GoogleGenerativeAI(apiKey);
+        
+        // Store the instance in state
+        setGoogleAI(genAI);
+        console.log('Google AI inicializado correctamente');
+      } catch (error) {
+        console.warn('Error inicializando Google AI:', error);
+        // Don't show error to user, just log it
+      }
+    };
+
+    // Only initialize if online
+    if (isOnline) {
+      initializeGoogleAI();
+    }
+  }, [isOnline]);
 
   // Initial Load on Mount
   useEffect(() => {
@@ -527,7 +562,8 @@ export default function App() {
       checklists, addChecklist,
       isOnline, isSyncing,
       refreshData, isDataLoading,
-      notifyError, globalError, clearGlobalError
+      notifyError, globalError, clearGlobalError,
+      googleAI
     }}>
       <HashRouter>
         <Routes>
