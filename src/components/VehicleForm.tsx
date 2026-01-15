@@ -1,17 +1,16 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useApp } from '../App';
 import { Vehicle, VehicleStatus, OwnershipType, Document as VehicleDocument, ServiceHistory } from '../types';
 import { analyzeVehicleImage, analyzeDocumentImage } from '../services/geminiService';
-import { LucideSave, LucideArrowLeft, LucideUpload, LucideTrash2, LucideLoader, LucideCamera, LucideFileText, LucideImage, LucideScanLine, LucideAlertCircle, LucideCheck, Images, LucideRefreshCw, LucidePlus, LucideX, LucideZoomIn, LucideXCircle, LucideBuilding2, LucideHistory, LucidePaperclip, LucideExternalLink, LucideEye, LucideZoomOut, LucideMousePointer2, LucideDownload, LucideCalendar } from 'lucide-react';
+import { Save, ArrowLeft, Upload, Trash2, Loader, Camera, FileText, Image, ScanLine, AlertCircle, Check, RefreshCw, Plus, X, ZoomIn, XCircle, Building2, History, Paperclip, ExternalLink, Eye, ZoomOut, MousePointer2, Download, Calendar } from 'lucide-react';
 import { jsPDF } from "jspdf";
 
 const SimpleImageViewer = ({ url, onClose }: { url: string, onClose: () => void }) => {
     const isPdf = url.startsWith('data:application/pdf');
     return (
         <div className="fixed inset-0 z-[60] bg-black/95 flex items-center justify-center p-4" onClick={onClose}>
-            <button onClick={onClose} className="absolute top-4 right-4 text-white p-2 hover:bg-white/20 rounded-full z-10"><LucideXCircle size={32}/></button>
+            <button onClick={onClose} className="absolute top-4 right-4 text-white p-2 hover:bg-white/20 rounded-full z-10"><XCircle size={32}/></button>
             <div className="w-full h-full flex items-center justify-center overflow-hidden">
                 {isPdf ? (
                     <iframe src={url} className="w-full h-full bg-white rounded-lg" title="PDF Viewer"></iframe>
@@ -125,7 +124,7 @@ const DocumentDetailModal = ({ doc, onClose, onAddImage, onDeleteImage }: { doc:
                         
                         {!isPdf && currentUrl && (
                             <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/50 text-white px-3 py-1 rounded-full text-xs flex items-center gap-2 pointer-events-none backdrop-blur-sm">
-                                <LucideMousePointer2 size={12}/> Usar rueda para Zoom ({Math.round(scale * 100)}%)
+                                <MousePointer2 size={12}/> Usar rueda para Zoom ({Math.round(scale * 100)}%)
                             </div>
                         )}
                     </div>
@@ -138,7 +137,7 @@ const DocumentDetailModal = ({ doc, onClose, onAddImage, onDeleteImage }: { doc:
                                 className={`h-16 w-16 min-w-[4rem] rounded border-2 cursor-pointer overflow-hidden relative group ${idx === currentImgIdx ? 'border-blue-500 opacity-100' : 'border-white/30 opacity-60 hover:opacity-100'}`}
                             >
                                 {img.startsWith('data:application/pdf') ? (
-                                    <div className="w-full h-full bg-white flex items-center justify-center text-red-600"><LucideFileText/></div>
+                                    <div className="w-full h-full bg-white flex items-center justify-center text-red-600"><FileText/></div>
                                 ) : (
                                     <img src={img} className="w-full h-full object-cover" />
                                 )}
@@ -147,14 +146,14 @@ const DocumentDetailModal = ({ doc, onClose, onAddImage, onDeleteImage }: { doc:
                                         onClick={(e) => { e.stopPropagation(); onDeleteImage(idx); if(idx === currentImgIdx) setCurrentImgIdx(0); }}
                                         className="absolute top-0 right-0 bg-red-600 text-white p-0.5 opacity-0 group-hover:opacity-100"
                                     >
-                                        <LucideX size={10}/>
+                                        <X size={10}/>
                                     </button>
                                 )}
                             </div>
                         ))}
                         
                         <label className="h-16 w-16 min-w-[4rem] rounded border-2 border-dashed border-white/50 flex flex-col items-center justify-center text-white/70 hover:text-white hover:bg-white/10 cursor-pointer transition-colors">
-                            <LucidePlus size={20}/>
+                            <Plus size={20}/>
                             <span className="text-[9px] font-bold">Agregar</span>
                             <input type="file" multiple accept="image/*,.pdf" className="hidden" onChange={(e) => e.target.files && onAddImage(e.target.files)} />
                         </label>
@@ -170,10 +169,10 @@ const DocumentDetailModal = ({ doc, onClose, onAddImage, onDeleteImage }: { doc:
                                 className="p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors"
                                 title="Descargar como PDF"
                             >
-                                <LucideDownload size={20}/>
+                                <Download size={20}/>
                             </button>
                             <button onClick={onClose} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors">
-                                <LucideX size={24}/>
+                                <X size={24}/>
                             </button>
                         </div>
                     </div>
@@ -232,7 +231,7 @@ const DocumentDetailModal = ({ doc, onClose, onAddImage, onDeleteImage }: { doc:
 
                     <div className="p-4 border-t border-slate-100">
                          <label className="w-full bg-blue-600 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 cursor-pointer hover:bg-blue-700 transition shadow-lg">
-                            <LucideUpload size={18}/>
+                            <Upload size={18}/>
                             Subir Más Páginas
                             <input type="file" multiple accept="image/*,.pdf" className="hidden" onChange={(e) => e.target.files && onAddImage(e.target.files)} />
                          </label>
@@ -651,8 +650,8 @@ export const VehicleForm = () => {
                 <div className="aspect-square relative group bg-slate-100 rounded-lg border border-slate-300 overflow-hidden cursor-pointer" onClick={() => setSimplePreviewImage(imageSrc)}>
                     <img src={imageSrc} className="w-full h-full object-cover" />
                     <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[10px] font-bold text-center py-1 backdrop-blur-sm">{label}</div>
-                    <button type="button" onClick={(e) => { e.stopPropagation(); setFormData(prev => ({...prev, images: {...prev.images, [position]: ''}})); }} className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 shadow-md hover:bg-red-600 z-10"><LucideX size={14}/></button>
-                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"><LucideZoomIn className="text-white drop-shadow-md" size={32}/></div>
+                    <button type="button" onClick={(e) => { e.stopPropagation(); setFormData(prev => ({...prev, images: {...prev.images, [position]: ''}})); }} className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 shadow-md hover:bg-red-600 z-10"><X size={14}/></button>
+                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"><ZoomIn className="text-white drop-shadow-md" size={32}/></div>
                 </div>
             );
         }
@@ -661,11 +660,11 @@ export const VehicleForm = () => {
                 <span className="text-[10px] font-bold text-slate-500 uppercase mb-3 text-center leading-tight">{label}</span>
                 <div className="flex gap-2">
                     <div className="relative group cursor-pointer">
-                        <div className="bg-blue-50 text-blue-600 p-2 rounded-full hover:bg-blue-100 transition-colors border border-blue-100 shadow-sm"><Images size={16}/></div>
+                        <div className="bg-blue-50 text-blue-600 p-2 rounded-full hover:bg-blue-100 transition-colors border border-blue-100 shadow-sm"><Image size={16}/></div>
                         <input type="file" accept="image/*" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => handleImageUpload(e, position)} title="Galería"/>
                     </div>
                     <div className="relative group cursor-pointer">
-                        <div className="bg-slate-100 text-slate-600 p-2 rounded-full hover:bg-slate-200 transition-colors border border-slate-200 shadow-sm"><LucideCamera size={16}/></div>
+                        <div className="bg-slate-100 text-slate-600 p-2 rounded-full hover:bg-slate-200 transition-colors border border-slate-200 shadow-sm"><Camera size={16}/></div>
                         <input type="file" accept="image/*" capture="environment" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => handleImageUpload(e, position)} title="Cámara"/>
                     </div>
                 </div>
@@ -676,7 +675,7 @@ export const VehicleForm = () => {
     if (isDataLoading && !formData.plate && isEdit) {
         return (
             <div className="flex items-center justify-center h-64">
-                <LucideLoader className="animate-spin text-blue-600" size={32} />
+                <Loader className="animate-spin text-blue-600" size={32} />
                 <span className="ml-2 font-bold text-slate-600">Cargando unidad...</span>
             </div>
         );
@@ -696,7 +695,7 @@ export const VehicleForm = () => {
             
             <div className="flex items-center gap-4 mb-6">
                 <button onClick={() => navigate('/vehicles')} className="p-2 bg-white rounded-full shadow hover:bg-slate-100">
-                    <LucideArrowLeft size={20} />
+                    <ArrowLeft size={20} />
                 </button>
                 <h1 className="text-2xl font-bold text-slate-800">{isEdit ? `Editar Unidad: ${formData.plate}` : 'Nueva Unidad'}</h1>
             </div>
@@ -706,49 +705,49 @@ export const VehicleForm = () => {
                 <div className="bg-white rounded-xl shadow-sm p-6 border border-slate-200">
                     <div className="flex justify-between items-center mb-4">
                         <h2 className="text-lg font-bold text-slate-700 flex items-center gap-2">
-                            <LucideScanLine className="text-blue-600"/> Carga Automática (Cédula)
+                            <ScanLine className="text-blue-600"/> Carga Automática (Cédula)
                         </h2>
                     </div>
                     <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg mb-6">
                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                              <div className={`border-2 border-dashed rounded-lg p-3 text-center transition-colors ${cedulaFront ? 'bg-green-50 border-green-300' : 'bg-white border-blue-200'}`}>
                                  <p className="text-xs font-bold text-slate-500 uppercase mb-2 flex items-center justify-center gap-2">
-                                     {cedulaFront && <LucideCheck size={14} className="text-green-600"/>} Cara Frontal
+                                     {cedulaFront && <Check size={14} className="text-green-600"/>} Cara Frontal
                                  </p>
                                  {cedulaFront ? (
                                     <div className="relative">
                                         <img src={cedulaFront} className="h-24 w-auto mx-auto object-contain rounded mb-2 border cursor-pointer" onClick={() => setSimplePreviewImage(cedulaFront)}/>
-                                        <button type="button" onClick={() => setCedulaFront(null)} className="absolute top-0 right-0 bg-red-500 text-white rounded-full p-1"><LucideX size={12}/></button>
+                                        <button type="button" onClick={() => setCedulaFront(null)} className="absolute top-0 right-0 bg-red-500 text-white rounded-full p-1"><X size={12}/></button>
                                     </div>
                                  ) : 
                                      <div className="flex justify-center gap-2">
-                                         <div className="relative"><button type="button" className="bg-blue-600 hover:bg-blue-700 text-white p-2 rounded flex items-center gap-1 text-xs font-bold"><Images size={14}/> Galería</button><input type="file" accept="image/*" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => handleCedulaUpload(e, 'front')} /></div>
-                                         <div className="relative"><button type="button" className="bg-slate-700 hover:bg-slate-800 text-white p-2 rounded flex items-center gap-1 text-xs font-bold"><LucideCamera size={14}/> Cámara</button><input type="file" accept="image/*" capture="environment" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => handleCedulaUpload(e, 'front')} /></div>
+                                         <div className="relative"><button type="button" className="bg-blue-600 hover:bg-blue-700 text-white p-2 rounded flex items-center gap-1 text-xs font-bold"><Image size={14}/> Galería</button><input type="file" accept="image/*" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => handleCedulaUpload(e, 'front')} /></div>
+                                         <div className="relative"><button type="button" className="bg-slate-700 hover:bg-slate-800 text-white p-2 rounded flex items-center gap-1 text-xs font-bold"><Camera size={14}/> Cámara</button><input type="file" accept="image/*" capture="environment" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => handleCedulaUpload(e, 'front')} /></div>
                                      </div>
                                  }
                              </div>
                              <div className={`border-2 border-dashed rounded-lg p-3 text-center transition-colors ${cedulaRear ? 'bg-green-50 border-green-300' : 'bg-white border-blue-200'}`}>
                                  <p className="text-xs font-bold text-slate-500 uppercase mb-2 flex items-center justify-center gap-2">
-                                     {cedulaRear && <LucideCheck size={14} className="text-green-600"/>} Cara Trasera
+                                     {cedulaRear && <Check size={14} className="text-green-600"/>} Cara Trasera
                                  </p>
                                  {cedulaRear ? (
                                     <div className="relative">
                                         <img src={cedulaRear} className="h-24 w-auto mx-auto object-contain rounded mb-2 border cursor-pointer" onClick={() => setSimplePreviewImage(cedulaRear)}/>
-                                        <button type="button" onClick={() => setCedulaRear(null)} className="absolute top-0 right-0 bg-red-500 text-white rounded-full p-1"><LucideX size={12}/></button>
+                                        <button type="button" onClick={() => setCedulaRear(null)} className="absolute top-0 right-0 bg-red-500 text-white rounded-full p-1"><X size={12}/></button>
                                     </div>
                                  ) : 
                                      <div className="flex justify-center gap-2">
-                                         <div className="relative"><button type="button" className="bg-blue-600 hover:bg-blue-700 text-white p-2 rounded flex items-center gap-1 text-xs font-bold"><Images size={14}/> Galería</button><input type="file" accept="image/*" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => handleCedulaUpload(e, 'rear')} /></div>
-                                         <div className="relative"><button type="button" className="bg-slate-700 hover:bg-slate-800 text-white p-2 rounded flex items-center gap-1 text-xs font-bold"><LucideCamera size={14}/> Cámara</button><input type="file" accept="image/*" capture="environment" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => handleCedulaUpload(e, 'rear')} /></div>
+                                         <div className="relative"><button type="button" className="bg-blue-600 hover:bg-blue-700 text-white p-2 rounded flex items-center gap-1 text-xs font-bold"><Image size={14}/> Galería</button><input type="file" accept="image/*" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => handleCedulaUpload(e, 'rear')} /></div>
+                                         <div className="relative"><button type="button" className="bg-slate-700 hover:bg-slate-800 text-white p-2 rounded flex items-center gap-1 text-xs font-bold"><Camera size={14}/> Cámara</button><input type="file" accept="image/*" capture="environment" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => handleCedulaUpload(e, 'rear')} /></div>
                                      </div>
                                  }
                              </div>
                          </div>
-                         {analyzing && <div className="mt-4 text-center text-blue-600 text-sm font-bold flex items-center justify-center gap-2 bg-white/50 p-2 rounded"><LucideLoader className="animate-spin" size={16}/> Analizando Cédula y Extrayendo datos...</div>}
+                         {analyzing && <div className="mt-4 text-center text-blue-600 text-sm font-bold flex items-center justify-center gap-2 bg-white/50 p-2 rounded"><Loader className="animate-spin" size={16}/> Analizando Cédula y Extrayendo datos...</div>}
                          {cedulaFront && cedulaRear && !analyzing && (
                              <div className="mt-3 text-center">
                                  <button type="button" onClick={handleRetryAnalysis} className="text-xs font-bold text-blue-700 hover:text-blue-900 underline flex items-center justify-center gap-1 mx-auto">
-                                     <LucideRefreshCw size={12}/> Re-analizar imágenes
+                                     <RefreshCw size={12}/> Re-analizar imágenes
                                  </button>
                              </div>
                          )}
@@ -796,7 +795,7 @@ export const VehicleForm = () => {
                 </div>
 
                 <div className="bg-white rounded-xl shadow-sm p-6 border border-slate-200">
-                    <h2 className="text-lg font-bold text-slate-700 mb-4 flex items-center gap-2"><LucideCamera /> Estado Visual del Vehículo</h2>
+                    <h2 className="text-lg font-bold text-slate-700 mb-4 flex items-center gap-2"><Camera /> Estado Visual del Vehículo</h2>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                         {renderPhotoInput('Frente', 'front')}
                         {renderPhotoInput('Trasera', 'rear')}
@@ -804,19 +803,19 @@ export const VehicleForm = () => {
                         {renderPhotoInput('Lat. Der', 'right')}
                     </div>
                     <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
-                        <h4 className="font-bold text-slate-700 mb-3 text-sm uppercase flex items-center gap-2"><LucidePlus size={16}/> Otras Fotos (Detalles, Interior, etc)</h4>
+                        <h4 className="font-bold text-slate-700 mb-3 text-sm uppercase flex items-center gap-2"><Plus size={16}/> Otras Fotos (Detalles, Interior, etc)</h4>
                         <div className="grid grid-cols-3 md:grid-cols-5 gap-3">
                             <div className="aspect-square bg-white border-2 border-dashed border-blue-300 rounded-lg flex flex-col items-center justify-center relative hover:bg-slate-50 transition-colors p-2">
                                 <span className="text-[10px] text-blue-600 font-bold text-center leading-tight mb-2">Agregar<br/>Fotos</span>
                                 <div className="flex gap-2">
                                     <div className="relative group cursor-pointer" title="Galería">
                                         <div className="bg-blue-100 text-blue-600 p-2 rounded-full hover:bg-blue-200 transition-colors border border-blue-200">
-                                            <Images size={18}/>
+                                            <Image size={18}/>
                                         </div>
                                         <input type="file" accept="image/*" multiple className="absolute inset-0 opacity-0 cursor-pointer" onChange={handleOtherImageUpload}/>
                                     </div>
                                     <div className="relative group cursor-pointer" title="Cámara">
-                                        <div className="bg-slate-100 text-slate-600 p-2 rounded-full hover:bg-slate-200 transition-colors border border-slate-200 shadow-sm"><LucideCamera size={18}/></div>
+                                        <div className="bg-slate-100 text-slate-600 p-2 rounded-full hover:bg-slate-200 transition-colors border border-slate-200 shadow-sm"><Camera size={18}/></div>
                                         <input type="file" accept="image/*" capture="environment" className="absolute inset-0 opacity-0 cursor-pointer" onChange={handleOtherImageUpload}/>
                                     </div>
                                 </div>
@@ -824,7 +823,7 @@ export const VehicleForm = () => {
                             {formData.images && formData.images.others && formData.images.others.map((img, idx) => (
                                 <div key={idx} className="aspect-square relative group cursor-pointer" onClick={() => setSimplePreviewImage(img)}>
                                     <img src={img} className="w-full h-full object-cover rounded-lg border border-slate-300" />
-                                    <button type="button" onClick={(e) => { e.stopPropagation(); removeOtherImage(idx); }} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-md hover:bg-red-600 transition-colors z-10"><LucideX size={12}/></button>
+                                    <button type="button" onClick={(e) => { e.stopPropagation(); removeOtherImage(idx); }} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-md hover:bg-red-600 transition-colors z-10"><X size={12}/></button>
                                 </div>
                             ))}
                         </div>
@@ -833,7 +832,7 @@ export const VehicleForm = () => {
 
                 <div className="bg-white rounded-xl shadow-sm p-6 border border-slate-200">
                     <h2 className="text-lg font-bold text-slate-700 mb-4 flex items-center gap-2">
-                        <LucideBuilding2 size={20}/> Estado y Propiedad
+                        <Building2 size={20}/> Estado y Propiedad
                     </h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                         <div>
@@ -875,7 +874,7 @@ export const VehicleForm = () => {
                 </div>
 
                 <div className="bg-white rounded-xl shadow-sm p-6 border border-slate-200">
-                    <h2 className="text-lg font-bold text-slate-700 mb-4 flex items-center gap-2"><LucideFileText /> Documentación Digital</h2>
+                    <h2 className="text-lg font-bold text-slate-700 mb-4 flex items-center gap-2"><FileText /> Documentación Digital</h2>
                     
                     <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-6">
                         <div className="flex flex-col md:flex-row gap-4 items-end">
@@ -899,14 +898,14 @@ export const VehicleForm = () => {
                             <div className="flex gap-2 w-full md:w-auto">
                                 {/* Camera Button */}
                                 <label className={`flex items-center justify-center gap-2 bg-slate-700 text-white px-4 py-2 rounded-lg font-bold cursor-pointer hover:bg-slate-800 transition ${isUploadingDoc ? 'opacity-50 pointer-events-none' : ''}`}>
-                                    <LucideCamera size={18}/>
+                                    <Camera size={18}/>
                                     <span className="hidden md:inline">Cámara</span>
                                     <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handleDocUpload} disabled={isUploadingDoc}/>
                                 </label>
 
                                 {/* File/PDF Upload Button */}
                                 <label className={`flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg font-bold cursor-pointer hover:bg-blue-700 transition ${isUploadingDoc ? 'opacity-50 pointer-events-none' : ''}`}>
-                                    {isUploadingDoc ? <LucideLoader className="animate-spin" size={18}/> : <LucideUpload size={18}/>}
+                                    {isUploadingDoc ? <Loader className="animate-spin" size={18}/> : <Upload size={18}/>}
                                     <span>{isUploadingDoc ? 'Analizando...' : 'Subir PDF/Foto'}</span>
                                     <input type="file" multiple accept="image/*,.pdf" className="hidden" onChange={handleDocUpload} disabled={isUploadingDoc}/>
                                 </label>
@@ -928,11 +927,11 @@ export const VehicleForm = () => {
                                     <div className="flex items-center gap-3">
                                         <div className="h-12 w-12 rounded overflow-hidden bg-slate-200 border border-slate-300 flex-shrink-0">
                                             {doc.images && doc.images.length > 0 && doc.images[0].startsWith('data:application/pdf') ? (
-                                                <div className="w-full h-full flex items-center justify-center text-red-500"><LucideFileText size={20}/></div>
+                                                <div className="w-full h-full flex items-center justify-center text-red-500"><FileText size={20}/></div>
                                             ) : doc.images && doc.images.length > 0 ? (
                                                 <img src={doc.images[0]} className="w-full h-full object-cover" alt="thumbnail"/>
                                             ) : (
-                                                <div className="w-full h-full flex items-center justify-center text-slate-400"><LucideImage size={20}/></div>
+                                                <div className="w-full h-full flex items-center justify-center text-slate-400"><Image size={20}/></div>
                                             )}
                                         </div>
                                         <div>
@@ -956,7 +955,7 @@ export const VehicleForm = () => {
                                         onClick={(e) => { e.preventDefault(); e.stopPropagation(); setSelectedDoc(doc); }} 
                                         className="text-blue-600 font-bold text-xs hover:bg-blue-50 px-3 py-1.5 rounded border border-transparent hover:border-blue-100 transition-all flex items-center gap-1"
                                     >
-                                        <LucideEye size={14}/> Ver
+                                        <Eye size={14}/> Ver
                                     </button>
                                     <button 
                                         type="button" 
@@ -968,7 +967,7 @@ export const VehicleForm = () => {
                                         className="text-slate-400 hover:text-red-600 p-2 hover:bg-red-50 rounded transition-colors" 
                                         title="Eliminar Documento"
                                     >
-                                        <LucideTrash2 size={16} />
+                                        <Trash2 size={16} />
                                     </button>
                                 </div>
                             </div>
@@ -978,7 +977,7 @@ export const VehicleForm = () => {
                 </div>
 
                 <div className="bg-white rounded-xl shadow-sm p-6 border border-slate-200">
-                    <h2 className="text-lg font-bold text-slate-700 mb-4 flex items-center gap-2"><LucideHistory /> Historial de Eventos y Mantenimiento</h2>
+                    <h2 className="text-lg font-bold text-slate-700 mb-4 flex items-center gap-2"><History /> Historial de Eventos y Mantenimiento</h2>
                     <div className="space-y-4">
                          {formData.history && formData.history.length > 0 ? (
                             formData.history.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((item) => (
@@ -995,15 +994,15 @@ export const VehicleForm = () => {
                                                 return (
                                                     <div key={idx} className="relative group">
                                                         {isPdf ? (
-                                                             <div onClick={() => setSimplePreviewImage(att)} className="w-12 h-12 bg-red-50 text-red-600 border border-red-200 rounded flex flex-col items-center justify-center cursor-pointer hover:bg-red-100"><LucideFileText size={16}/><span className="text-[8px] font-bold">PDF</span></div>
+                                                             <div onClick={() => setSimplePreviewImage(att)} className="w-12 h-12 bg-red-50 text-red-600 border border-red-200 rounded flex flex-col items-center justify-center cursor-pointer hover:bg-red-100"><FileText size={16}/><span className="text-[8px] font-bold">PDF</span></div>
                                                         ) : (
                                                             <div onClick={() => setSimplePreviewImage(att)} className="w-12 h-12 rounded border border-slate-200 overflow-hidden cursor-pointer hover:opacity-80"><img src={att} className="w-full h-full object-cover" /></div>
                                                         )}
-                                                        <button type="button" onClick={() => removeHistoryAttachment(item.id, idx)} className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"><LucideX size={10}/></button>
+                                                        <button type="button" onClick={() => removeHistoryAttachment(item.id, idx)} className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"><X size={10}/></button>
                                                     </div>
                                                 );
                                             })}
-                                            <label className="w-12 h-12 flex flex-col items-center justify-center bg-white border border-dashed border-blue-300 rounded text-blue-500 cursor-pointer hover:bg-blue-50 transition-colors" title="Adjuntar Factura/Foto"><LucidePaperclip size={16}/><span className="text-[8px] font-bold mt-0.5">Adjuntar</span><input type="file" accept="image/*,application/pdf" className="hidden" onChange={(e) => handleHistoryAttachment(e, item.id)}/></label>
+                                            <label className="w-12 h-12 flex flex-col items-center justify-center bg-white border border-dashed border-blue-300 rounded text-blue-500 cursor-pointer hover:bg-blue-50 transition-colors" title="Adjuntar Factura/Foto"><Paperclip size={16}/><span className="text-[8px] font-bold mt-0.5">Adjuntar</span><input type="file" accept="image/*,application/pdf" className="hidden" onChange={(e) => handleHistoryAttachment(e, item.id)}/></label>
                                         </div>
                                     </div>
                                 </div>
@@ -1014,7 +1013,7 @@ export const VehicleForm = () => {
 
                 <div className="flex justify-end gap-4 pt-4">
                     <button type="button" onClick={() => navigate('/vehicles')} className="px-6 py-3 rounded-lg border border-slate-300 text-slate-600 font-bold hover:bg-slate-50">Cancelar</button>
-                    <button type="submit" disabled={loading} className="px-8 py-3 rounded-lg bg-green-600 text-white font-bold hover:bg-green-700 shadow-lg flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed">{loading ? <LucideLoader className="animate-spin" /> : <LucideSave />} Guardar Unidad</button>
+                    <button type="submit" disabled={loading} className="px-8 py-3 rounded-lg bg-green-600 text-white font-bold hover:bg-green-700 shadow-lg flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed">{loading ? <Loader className="animate-spin" /> : <Save />} Guardar Unidad</button>
                 </div>
             </form>
         </div>
