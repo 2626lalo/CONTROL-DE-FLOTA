@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Camera, Upload, Check, X, Car, FileText, Shield, AlertCircle } from 'lucide-react';
-import { analyzeVehicleImage, analyzeDocumentImage, testGeminiConnection } from '../services/geminiService';
+import { Camera, Upload, Check, X, Car, FileText, Shield, AlertCircle, RefreshCw, Wifi, WifiOff } from 'lucide-react';
+import { analyzeVehicleImage, analyzeDocumentImage, testGeminiConnection, getGeminiStatus } from '../services/geminiService';
 
 interface VehicleFormProps {
   initialData?: any;
@@ -33,7 +33,9 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ initialData, onSubmit, onCanc
   });
 
   const [geminiStatus, setGeminiStatus] = useState<'checking' | 'connected' | 'disconnected'>('checking');
-  const [geminiMessage, setGeminiMessage] = useState('');
+  const [geminiMessage, setGeminiMessage] = useState('Verificando conexión con Google AI...');
+  const [lastTestTime, setLastTestTime] = useState<string>('');
+  const [testingConnection, setTestingConnection] = useState(false);
 
   // Verificar conexión con Gemini al cargar
   useEffect(() => {
@@ -41,21 +43,40 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ initialData, onSubmit, onCanc
   }, []);
 
   const checkGeminiConnection = async () => {
+    setTestingConnection(true);
     setGeminiStatus('checking');
+    setGeminiMessage('Probando conexión con Google AI...');
+    
     const result = await testGeminiConnection();
+    const status = await getGeminiStatus();
     
     if (result.success) {
       setGeminiStatus('connected');
-      setGeminiMessage('✅ Conectado a Google AI');
+      setGeminiMessage(`✅ Conectado a Google AI - ${result.message}`);
     } else {
       setGeminiStatus('disconnected');
-      setGeminiMessage('❌ No conectado: ' + (result.error || 'Error desconocido'));
+      setGeminiMessage(`❌ ${result.error || 'No se pudo conectar a Google AI'}`);
     }
+    
+    setLastTestTime(new Date().toLocaleTimeString());
+    setTestingConnection(false);
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, imageType: 'front' | 'back' | 'document') => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    // Validar tamaño de archivo (máximo 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      alert('La imagen es demasiado grande. Por favor, sube una imagen menor a 5MB.');
+      return;
+    }
+
+    // Validar tipo de archivo
+    if (!file.type.startsWith('image/')) {
+      alert('Por favor, sube solo archivos de imagen.');
+      return;
+    }
 
     // Actualizar el estado del archivo
     setFormData(prev => ({
@@ -68,49 +89,83 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ initialData, onSubmit, onCanc
 
     try {
       const reader = new FileReader();
+      
       reader.onload = async (event) => {
         const base64 = event.target?.result as string;
         
+        let result;
         if (imageType === 'document') {
-          const result = await analyzeDocumentImage(base64, 'Cédula', file.type);
-          setFormData(prev => ({
-            ...prev,
-            plate: result.plate || prev.plate,
-            vin: result.vin || prev.vin,
-            motorNum: result.motorNum || prev.motorNum,
-            year: result.year || prev.year,
-            make: result.make || prev.make,
-            model: result.model || prev.model,
-            color: result.color || prev.color,
-            type: result.type || prev.type,
-          }));
+          result = await analyzeDocumentImage(base64, 'Cédula', file.type);
         } else {
-          const result = await analyzeVehicleImage([base64]);
+          result = await analyzeVehicleImage([base64]);
+        }
+        
+        if (result.success && result.data) {
+          // Actualizar solo los campos que tengan datos
+          const updates: any = {};
+          
+          Object.keys(result.data).forEach(key => {
+            const value = result.data[key];
+            if (value !== null && value !== undefined && value !== '') {
+              updates[key] = value;
+            }
+          });
+          
           setFormData(prev => ({
             ...prev,
-            plate: result.plate || prev.plate,
-            make: result.make || prev.make,
-            model: result.model || prev.model,
-            year: result.year || prev.year,
-            color: result.color || prev.color,
-            type: result.type || prev.type,
-            vin: result.vin || prev.vin,
-            motorNum: result.motorNum || prev.motorNum,
+            ...updates
           }));
+          
+          // Mostrar notificación de éxito
+          if (Object.keys(updates).length > 0) {
+            alert(`✅ Se extrajeron ${Object.keys(updates).length} campos automáticamente. Revísalos y edita si es necesario.`);
+          } else {
+            alert('ℹ️ No se pudieron extraer datos automáticamente. Por favor, completa los campos manualmente.');
+          }
+        } else {
+          alert(`⚠️ ${result.error || 'No se pudieron extraer datos automáticamente. Completa los campos manualmente.'}`);
         }
         
         setProcessing(prev => ({ ...prev, [imageType]: false }));
       };
       
+      reader.onerror = () => {
+        alert('Error al leer el archivo. Intenta de nuevo.');
+        setProcessing(prev => ({ ...prev, [imageType]: false }));
+      };
+      
       reader.readAsDataURL(file);
-    } catch (error) {
+    } catch (error: any) {
       console.error(`Error procesando ${imageType}:`, error);
+      alert(`Error al procesar la imagen: ${error.message || 'Error desconocido'}`);
       setProcessing(prev => ({ ...prev, [imageType]: false }));
     }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validaciones básicas
+    if (!formData.plate.trim()) {
+      alert('Por favor, ingresa el número de placa.');
+      return;
+    }
+    
+    if (!formData.make.trim()) {
+      alert('Por favor, ingresa la marca del vehículo.');
+      return;
+    }
+    
+    if (!formData.model.trim()) {
+      alert('Por favor, ingresa el modelo del vehículo.');
+      return;
+    }
+    
+    if (!formData.year) {
+      alert('Por favor, ingresa el año del vehículo.');
+      return;
+    }
+    
     onSubmit(formData);
   };
 
@@ -119,124 +174,249 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ initialData, onSubmit, onCanc
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
+  const removeImage = (imageType: 'front' | 'back' | 'document') => {
+    setFormData(prev => ({
+      ...prev,
+      [`${imageType}Image`]: null
+    }));
+  };
+
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {/* Estado de Gemini AI */}
-      <div className="bg-gray-50 p-4 rounded-lg mb-4">
+      <div className={`p-4 rounded-lg mb-4 ${
+        geminiStatus === 'connected' ? 'bg-green-50 border border-green-200' : 
+        geminiStatus === 'checking' ? 'bg-yellow-50 border border-yellow-200' : 'bg-red-50 border border-red-200'
+      }`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className={`w-3 h-3 rounded-full ${
-              geminiStatus === 'connected' ? 'bg-green-500' : 
-              geminiStatus === 'checking' ? 'bg-yellow-500' : 'bg-red-500'
-            }`} />
-            <span className="font-medium">
-              {geminiStatus === 'connected' ? 'Google AI: Conectado' : 
-               geminiStatus === 'checking' ? 'Google AI: Verificando...' : 'Google AI: No conectado'}
-            </span>
-            <span className="text-sm text-gray-600">{geminiMessage}</span>
+            <div className={`p-1 rounded-full ${
+              geminiStatus === 'connected' ? 'bg-green-100' : 
+              geminiStatus === 'checking' ? 'bg-yellow-100' : 'bg-red-100'
+            }`}>
+              {geminiStatus === 'connected' ? (
+                <Wifi size={20} className="text-green-600" />
+              ) : geminiStatus === 'checking' ? (
+                <RefreshCw size={20} className="text-yellow-600 animate-spin" />
+              ) : (
+                <WifiOff size={20} className="text-red-600" />
+              )}
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className={`font-medium ${
+                  geminiStatus === 'connected' ? 'text-green-800' : 
+                  geminiStatus === 'checking' ? 'text-yellow-800' : 'text-red-800'
+                }`}>
+                  {geminiStatus === 'connected' ? 'Google AI: Conectado' : 
+                   geminiStatus === 'checking' ? 'Google AI: Verificando...' : 'Google AI: No conectado'}
+                </span>
+                {lastTestTime && (
+                  <span className="text-xs text-gray-500">({lastTestTime})</span>
+                )}
+              </div>
+              <p className={`text-sm ${
+                geminiStatus === 'connected' ? 'text-green-700' : 
+                geminiStatus === 'checking' ? 'text-yellow-700' : 'text-red-700'
+              }`}>
+                {geminiMessage}
+              </p>
+            </div>
           </div>
           <button
             type="button"
             onClick={checkGeminiConnection}
-            className="flex items-center gap-2 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium hover:bg-blue-200 transition"
+            disabled={testingConnection}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition ${
+              testingConnection 
+                ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
+                : 'bg-blue-100 text-blue-800 hover:bg-blue-200'
+            }`}
           >
-            <Check size={14} />
-            Probar Conexión
+            {testingConnection ? (
+              <>
+                <RefreshCw size={16} className="animate-spin" />
+                Probando...
+              </>
+            ) : (
+              <>
+                <RefreshCw size={16} />
+                Probar Conexión
+              </>
+            )}
           </button>
         </div>
       </div>
 
       {/* Sección de Imágenes */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Imagen Frontal */}
-        <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+        <div className={`border-2 ${formData.frontImage ? 'border-green-300' : 'border-dashed border-gray-300'} rounded-lg p-4`}>
           <div className="flex flex-col items-center gap-3">
-            <Camera className="h-12 w-12 text-gray-400" />
-            <div>
-              <p className="font-medium">Vista Frontal</p>
-              <p className="text-sm text-gray-500">Sube foto frontal del vehículo</p>
-            </div>
-            <label className="cursor-pointer bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition">
-              <Upload size={18} className="inline mr-2" />
-              Subir Imagen
+            {formData.frontImage ? (
+              <>
+                <div className="relative w-full">
+                  <div className="aspect-video bg-gray-100 rounded-lg flex items-center justify-center">
+                    <Camera className="h-12 w-12 text-gray-400" />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeImage('front')}
+                    className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded-full hover:bg-red-600"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+                <p className="text-sm text-gray-600 truncate max-w-full">
+                  {formData.frontImage.name}
+                </p>
+              </>
+            ) : (
+              <>
+                <Camera className="h-12 w-12 text-gray-400" />
+                <div className="text-center">
+                  <p className="font-medium">Vista Frontal</p>
+                  <p className="text-xs text-gray-500 mt-1">Sube foto frontal del vehículo</p>
+                </div>
+              </>
+            )}
+            
+            <label className={`cursor-pointer px-4 py-2 rounded-lg transition flex items-center gap-2 ${
+              formData.frontImage 
+                ? 'bg-gray-100 text-gray-700 hover:bg-gray-200' 
+                : 'bg-blue-600 text-white hover:bg-blue-700'
+            }`}>
+              <Upload size={18} />
+              {formData.frontImage ? 'Cambiar Imagen' : 'Subir Imagen'}
               <input
                 type="file"
                 accept="image/*"
                 className="hidden"
                 onChange={(e) => handleImageUpload(e, 'front')}
                 capture="environment"
+                disabled={processing.front}
               />
             </label>
-            {formData.frontImage && (
-              <div className="flex items-center gap-2 text-green-600">
-                <Check size={16} />
-                <span className="text-sm">Imagen cargada</span>
-              </div>
-            )}
+            
             {processing.front && (
-              <div className="text-blue-600 text-sm">Procesando con AI...</div>
+              <div className="flex items-center gap-2 text-blue-600 text-sm">
+                <RefreshCw size={14} className="animate-spin" />
+                Procesando con AI...
+              </div>
             )}
           </div>
         </div>
 
         {/* Imagen Trasera */}
-        <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+        <div className={`border-2 ${formData.backImage ? 'border-green-300' : 'border-dashed border-gray-300'} rounded-lg p-4`}>
           <div className="flex flex-col items-center gap-3">
-            <Camera className="h-12 w-12 text-gray-400" />
-            <div>
-              <p className="font-medium">Vista Trasera</p>
-              <p className="text-sm text-gray-500">Sube foto trasera del vehículo</p>
-            </div>
-            <label className="cursor-pointer bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition">
-              <Upload size={18} className="inline mr-2" />
-              Subir Imagen
+            {formData.backImage ? (
+              <>
+                <div className="relative w-full">
+                  <div className="aspect-video bg-gray-100 rounded-lg flex items-center justify-center">
+                    <Camera className="h-12 w-12 text-gray-400" />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeImage('back')}
+                    className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded-full hover:bg-red-600"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+                <p className="text-sm text-gray-600 truncate max-w-full">
+                  {formData.backImage.name}
+                </p>
+              </>
+            ) : (
+              <>
+                <Camera className="h-12 w-12 text-gray-400" />
+                <div className="text-center">
+                  <p className="font-medium">Vista Trasera</p>
+                  <p className="text-xs text-gray-500 mt-1">Sube foto trasera del vehículo</p>
+                </div>
+              </>
+            )}
+            
+            <label className={`cursor-pointer px-4 py-2 rounded-lg transition flex items-center gap-2 ${
+              formData.backImage 
+                ? 'bg-gray-100 text-gray-700 hover:bg-gray-200' 
+                : 'bg-blue-600 text-white hover:bg-blue-700'
+            }`}>
+              <Upload size={18} />
+              {formData.backImage ? 'Cambiar Imagen' : 'Subir Imagen'}
               <input
                 type="file"
                 accept="image/*"
                 className="hidden"
                 onChange={(e) => handleImageUpload(e, 'back')}
                 capture="environment"
+                disabled={processing.back}
               />
             </label>
-            {formData.backImage && (
-              <div className="flex items-center gap-2 text-green-600">
-                <Check size={16} />
-                <span className="text-sm">Imagen cargada</span>
-              </div>
-            )}
+            
             {processing.back && (
-              <div className="text-blue-600 text-sm">Procesando con AI...</div>
+              <div className="flex items-center gap-2 text-blue-600 text-sm">
+                <RefreshCw size={14} className="animate-spin" />
+                Procesando con AI...
+              </div>
             )}
           </div>
         </div>
 
         {/* Documento */}
-        <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+        <div className={`border-2 ${formData.documentImage ? 'border-green-300' : 'border-dashed border-gray-300'} rounded-lg p-4`}>
           <div className="flex flex-col items-center gap-3">
-            <FileText className="h-12 w-12 text-gray-400" />
-            <div>
-              <p className="font-medium">Cédula Vehicular</p>
-              <p className="text-sm text-gray-500">Sube foto de la cédula</p>
-            </div>
-            <label className="cursor-pointer bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition">
-              <Upload size={18} className="inline mr-2" />
-              Subir Documento
+            {formData.documentImage ? (
+              <>
+                <div className="relative w-full">
+                  <div className="aspect-video bg-gray-100 rounded-lg flex items-center justify-center">
+                    <FileText className="h-12 w-12 text-gray-400" />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeImage('document')}
+                    className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded-full hover:bg-red-600"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+                <p className="text-sm text-gray-600 truncate max-w-full">
+                  {formData.documentImage.name}
+                </p>
+              </>
+            ) : (
+              <>
+                <FileText className="h-12 w-12 text-gray-400" />
+                <div className="text-center">
+                  <p className="font-medium">Cédula Vehicular</p>
+                  <p className="text-xs text-gray-500 mt-1">Sube foto de la cédula</p>
+                </div>
+              </>
+            )}
+            
+            <label className={`cursor-pointer px-4 py-2 rounded-lg transition flex items-center gap-2 ${
+              formData.documentImage 
+                ? 'bg-gray-100 text-gray-700 hover:bg-gray-200' 
+                : 'bg-blue-600 text-white hover:bg-blue-700'
+            }`}>
+              <Upload size={18} />
+              {formData.documentImage ? 'Cambiar Documento' : 'Subir Documento'}
               <input
                 type="file"
                 accept="image/*"
                 className="hidden"
                 onChange={(e) => handleImageUpload(e, 'document')}
                 capture="environment"
+                disabled={processing.document}
               />
             </label>
-            {formData.documentImage && (
-              <div className="flex items-center gap-2 text-green-600">
-                <Check size={16} />
-                <span className="text-sm">Documento cargado</span>
-              </div>
-            )}
+            
             {processing.document && (
-              <div className="text-blue-600 text-sm">Procesando con AI...</div>
+              <div className="flex items-center gap-2 text-blue-600 text-sm">
+                <RefreshCw size={14} className="animate-spin" />
+                Procesando con AI...
+              </div>
             )}
           </div>
         </div>
@@ -262,6 +442,7 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ initialData, onSubmit, onCanc
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
               placeholder="Ej: ABC123"
+              maxLength={10}
             />
           </div>
 
@@ -276,7 +457,7 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ initialData, onSubmit, onCanc
               onChange={handleChange}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
-              placeholder="Ej: Toyota"
+              placeholder="Ej: Toyota, Ford, Chevrolet..."
             />
           </div>
 
@@ -291,7 +472,7 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ initialData, onSubmit, onCanc
               onChange={handleChange}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
-              placeholder="Ej: Corolla"
+              placeholder="Ej: Corolla, F-150, Silverado..."
             />
           </div>
 
@@ -323,7 +504,7 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ initialData, onSubmit, onCanc
               onChange={handleChange}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
-              placeholder="Ej: Blanco"
+              placeholder="Ej: Blanco, Negro, Rojo..."
             />
           </div>
 
@@ -343,13 +524,14 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ initialData, onSubmit, onCanc
               <option value="Pickup">Pickup</option>
               <option value="Van">Van</option>
               <option value="Truck">Camión</option>
+              <option value="Motorcycle">Motocicleta</option>
               <option value="Other">Otro</option>
             </select>
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Número de VIN
+              Número de VIN (Chasis)
             </label>
             <input
               type="text"
@@ -358,6 +540,7 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ initialData, onSubmit, onCanc
               onChange={handleChange}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="Ej: 1HGCM82633A123456"
+              maxLength={17}
             />
           </div>
 
@@ -371,7 +554,7 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ initialData, onSubmit, onCanc
               value={formData.motorNum}
               onChange={handleChange}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Ej: MTR123456"
+              placeholder="Ej: MTR123456789"
             />
           </div>
         </div>
@@ -395,7 +578,7 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ initialData, onSubmit, onCanc
               value={formData.insuranceCompany}
               onChange={handleChange}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Ej: MAPFRE"
+              placeholder="Ej: MAPFRE, Seguros Equinoccial, QBE..."
             />
           </div>
 
@@ -429,36 +612,50 @@ const VehicleForm: React.FC<VehicleFormProps> = ({ initialData, onSubmit, onCanc
       </div>
 
       {/* Nota sobre AI */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <div className="flex items-start gap-3">
-          <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5" />
-          <div>
-            <p className="font-medium text-blue-800">Función de Inteligencia Artificial</p>
-            <p className="text-sm text-blue-600">
-              Al subir imágenes, Google AI analizará automáticamente los datos del vehículo y llenará los campos correspondientes.
-              Puedes revisar y editar la información antes de guardar.
-            </p>
+      {geminiStatus === 'connected' && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5" />
+            <div>
+              <p className="font-medium text-blue-800">Función de Inteligencia Artificial Activada</p>
+              <p className="text-sm text-blue-600 mt-1">
+                Al subir imágenes, Google AI analizará automáticamente los datos del vehículo y llenará los campos correspondientes.
+                Puedes revisar y editar la información antes de guardar.
+              </p>
+              <ul className="text-xs text-blue-700 mt-2 list-disc list-inside space-y-1">
+                <li>Sube fotos claras y bien iluminadas para mejores resultados</li>
+                <li>La cédula vehicular debe ser legible</li>
+                <li>El procesamiento toma 3-10 segundos por imagen</li>
+                <li>Siempre verifica los datos extraídos automáticamente</li>
+              </ul>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Botones */}
-      <div className="flex justify-end gap-3 pt-4 border-t">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition"
-        >
-          <X size={18} className="inline mr-2" />
-          Cancelar
-        </button>
-        <button
-          type="submit"
-          className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-        >
-          <Check size={18} className="inline mr-2" />
-          Guardar Vehículo
-        </button>
+      <div className="flex justify-between items-center pt-4 border-t">
+        <div className="text-sm text-gray-500">
+          {geminiStatus === 'connected' ? '✅ Google AI disponible para procesamiento' : '⚠️ Google AI no disponible - Completa manualmente'}
+        </div>
+        
+        <div className="flex gap-3">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition flex items-center gap-2"
+          >
+            <X size={18} />
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center gap-2"
+          >
+            <Check size={18} />
+            Guardar Vehículo
+          </button>
+        </div>
       </div>
     </form>
   );
