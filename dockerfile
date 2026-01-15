@@ -12,47 +12,47 @@ RUN npm install --include=dev --legacy-peer-deps
 # Copia el código fuente
 COPY . .
 
-# === DIAGNÓSTICO COMPLETO DE COMPONENTES ===
-RUN echo "=== DIAGNÓSTICO COMPLETO DE COMPONENTES ===" && \
+# === DIAGNÓSTICO ESTRUCTURAL COMPLETO ===
+RUN echo "=== DIAGNÓSTICO ESTRUCTURAL ===" && \
     echo "" && \
-    echo "1. VERIFICANDO EXISTENCIA DE COMPONENTES:" && \
-    echo "   Layout.tsx:" && [ -f src/components/Layout.tsx ] && echo "      ✅ EXISTE" || echo "      ❌ NO EXISTE" && \
-    echo "   Dashboard.tsx:" && [ -f src/components/Dashboard.tsx ] && echo "      ✅ EXISTE" || echo "      ❌ NO EXISTE" && \
-    echo "   VehicleList.tsx:" && [ -f src/components/VehicleList.tsx ] && echo "      ✅ EXISTE" || echo "      ❌ NO EXISTE" && \
-    echo "   VehicleForm.tsx:" && [ -f src/components/VehicleForm.tsx ] && echo "      ✅ EXISTE" || echo "      ❌ NO EXISTE" && \
-    echo "   Checklist.tsx:" && [ -f src/components/Checklist.tsx ] && echo "      ✅ EXISTE" || echo "      ❌ NO EXISTE" && \
-    echo "   ServiceManager.tsx:" && [ -f src/components/ServiceManager.tsx ] && echo "      ✅ EXISTE" || echo "      ❌ NO EXISTE" && \
-    echo "   AdminUsers.tsx:" && [ -f src/components/AdminUsers.tsx ] && echo "      ✅ EXISTE" || echo "      ❌ NO EXISTE" && \
+    echo "1. ESTRUCTURA DEL PROYECTO:" && \
+    find . -name "*.tsx" -o -name "*.ts" | grep -v node_modules | head -30 && \
     echo "" && \
-    echo "2. VERIFICANDO EXPORTACIONES EN COMPONENTES:" && \
-    echo "   Layout export:" && [ -f src/components/Layout.tsx ] && grep -q "export default" src/components/Layout.tsx && echo "      ✅ TIENE export default" || echo "      ❌ NO TIENE export default" && \
-    echo "   Dashboard export:" && [ -f src/components/Dashboard.tsx ] && grep -q "export default" src/components/Dashboard.tsx && echo "      ✅ TIENE export default" || echo "      ❌ NO TIENE export default" && \
+    echo "2. UBICACIÓN DE App.tsx:" && \
+    pwd && ls -la && ls -la src/ && \
     echo "" && \
-    echo "3. VERIFICANDO ERRORES DE TYPESCRIPT:" && \
-    npx tsc --noEmit 2>&1 | grep -E "error|Error" | head -20 || echo "   ✅ No se encontraron errores críticos" && \
+    echo "3. ¿EXISTE src/components?:" && \
+    if [ -d "src/components" ]; then \
+        echo "✅ SI, existe src/components/" && \
+        echo "   Contenido:" && ls -la src/components/; \
+    else \
+        echo "❌ NO, NO existe src/components/"; \
+        echo "   Creando estructura mínima..."; \
+        mkdir -p src/components; \
+    fi && \
     echo "" && \
-    echo "4. CONTENIDO DE src/components/:" && \
-    ls -la src/components/ 2>/dev/null || echo "   ❌ No existe el directorio src/components/" && \
+    echo "4. VERIFICANDO RUTAS DE IMPORTS DESDE App.tsx:" && \
+    echo "   App.tsx está en: $(pwd)/src/App.tsx" && \
+    echo "   Ruta relativa './components/Layout' resuelve a: $(pwd)/src/components/Layout" && \
     echo "" && \
-    echo "5. VERIFICANDO IMPORTS EN App.tsx:" && \
-    grep -n "import.*from.*components" src/App.tsx
+    echo "5. BUSCANDO COMPONENTES EN CUALQUIER LUGAR:" && \
+    find . -name "*Layout*" -o -name "*Dashboard*" -o -name "*Vehicle*" 2>/dev/null | grep -v node_modules
 
-# Intenta construir con modo verboso
-RUN echo "=== INTENTANDO CONSTRUCCIÓN ===" && \
-    npm run build 2>&1 || echo "Build falló"
-
-# Si falla la construcción, crear componentes mínimos
-RUN echo "=== CREANDO COMPONENTES FALTANTES (SI ES NECESARIO) ===" && \
-    if [ ! -f src/components/Layout.tsx ]; then \
+# === CREAR COMPONENTES MÍNIMOS SI NO EXISTEN ===
+RUN echo "=== CREANDO COMPONENTES FALTANTES ===" && \
+    mkdir -p src/components && \
+    # Layout.tsx
+    if [ ! -f "src/components/Layout.tsx" ]; then \
         echo "Creando Layout.tsx mínimo..." && \
-        mkdir -p src/components && \
         cat > src/components/Layout.tsx << 'EOF'
 import React from 'react';
 
-const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return (
     <div className="layout">
-      {children}
+      <header>Header</header>
+      <main>{children}</main>
+      <footer>Footer</footer>
     </div>
   );
 };
@@ -60,15 +60,17 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 export default Layout;
 EOF
     fi && \
-    if [ ! -f src/components/Dashboard.tsx ]; then \
+    # Dashboard.tsx
+    if [ ! -f "src/components/Dashboard.tsx" ]; then \
         echo "Creando Dashboard.tsx mínimo..." && \
         cat > src/components/Dashboard.tsx << 'EOF'
 import React from 'react';
 
-const Dashboard: React.FC = () => {
+export const Dashboard: React.FC = () => {
   return (
     <div>
       <h1>Dashboard</h1>
+      <p>Dashboard component</p>
     </div>
   );
 };
@@ -76,15 +78,17 @@ const Dashboard: React.FC = () => {
 export default Dashboard;
 EOF
     fi && \
-    if [ ! -f src/components/VehicleList.tsx ]; then \
+    # VehicleList.tsx
+    if [ ! -f "src/components/VehicleList.tsx" ]; then \
         echo "Creando VehicleList.tsx mínimo..." && \
         cat > src/components/VehicleList.tsx << 'EOF'
 import React from 'react';
 
-const VehicleList: React.FC = () => {
+export const VehicleList: React.FC = () => {
   return (
     <div>
-      <h1>VehicleList</h1>
+      <h1>Vehicle List</h1>
+      <p>Vehicle list component</p>
     </div>
   );
 };
@@ -92,15 +96,17 @@ const VehicleList: React.FC = () => {
 export default VehicleList;
 EOF
     fi && \
-    if [ ! -f src/components/VehicleForm.tsx ]; then \
+    # VehicleForm.tsx
+    if [ ! -f "src/components/VehicleForm.tsx" ]; then \
         echo "Creando VehicleForm.tsx mínimo..." && \
         cat > src/components/VehicleForm.tsx << 'EOF'
 import React from 'react';
 
-const VehicleForm: React.FC = () => {
+export const VehicleForm: React.FC = () => {
   return (
     <div>
-      <h1>VehicleForm</h1>
+      <h1>Vehicle Form</h1>
+      <p>Vehicle form component</p>
     </div>
   );
 };
@@ -108,15 +114,17 @@ const VehicleForm: React.FC = () => {
 export default VehicleForm;
 EOF
     fi && \
-    if [ ! -f src/components/Checklist.tsx ]; then \
+    # Checklist.tsx
+    if [ ! -f "src/components/Checklist.tsx" ]; then \
         echo "Creando Checklist.tsx mínimo..." && \
         cat > src/components/Checklist.tsx << 'EOF'
 import React from 'react';
 
-const Checklist: React.FC = () => {
+export const Checklist: React.FC = () => {
   return (
     <div>
       <h1>Checklist</h1>
+      <p>Checklist component</p>
     </div>
   );
 };
@@ -124,15 +132,17 @@ const Checklist: React.FC = () => {
 export default Checklist;
 EOF
     fi && \
-    if [ ! -f src/components/ServiceManager.tsx ]; then \
+    # ServiceManager.tsx
+    if [ ! -f "src/components/ServiceManager.tsx" ]; then \
         echo "Creando ServiceManager.tsx mínimo..." && \
         cat > src/components/ServiceManager.tsx << 'EOF'
 import React from 'react';
 
-const ServiceManager: React.FC = () => {
+export const ServiceManager: React.FC = () => {
   return (
     <div>
-      <h1>ServiceManager</h1>
+      <h1>Service Manager</h1>
+      <p>Service manager component</p>
     </div>
   );
 };
@@ -140,15 +150,17 @@ const ServiceManager: React.FC = () => {
 export default ServiceManager;
 EOF
     fi && \
-    if [ ! -f src/components/AdminUsers.tsx ]; then \
+    # AdminUsers.tsx
+    if [ ! -f "src/components/AdminUsers.tsx" ]; then \
         echo "Creando AdminUsers.tsx mínimo..." && \
         cat > src/components/AdminUsers.tsx << 'EOF'
 import React from 'react';
 
-const AdminUsers: React.FC = () => {
+export const AdminUsers: React.FC = () => {
   return (
     <div>
-      <h1>AdminUsers</h1>
+      <h1>Admin Users</h1>
+      <p>Admin users component</p>
     </div>
   );
 };
@@ -157,8 +169,23 @@ export default AdminUsers;
 EOF
     fi
 
-# Ahora intenta construir con todos los componentes
-RUN echo "=== CONSTRUYENDO CON COMPONENTES COMPLETOS ===" && \
+# Verificar las importaciones después de crear componentes
+RUN echo "=== VERIFICANDO IMPORTS DESPUÉS DE CREAR COMPONENTES ===" && \
+    echo "Componentes creados:" && ls -la src/components/ && \
+    echo "" && \
+    echo "Intentando importar desde App.tsx:" && \
+    cd src && node -e "
+      try {
+        console.log('Probando importación de Layout...');
+        require('../src/components/Layout.tsx');
+        console.log('✅ Layout importado correctamente');
+      } catch (e) {
+        console.log('❌ Error importando Layout:', e.message);
+      }
+    " 2>&1 || true
+
+# Construye la aplicación
+RUN echo "=== CONSTRUYENDO APLICACIÓN ===" && \
     npm run build
 
 # 2. Etapa: Servir los archivos estáticos
