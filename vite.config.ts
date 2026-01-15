@@ -6,8 +6,10 @@ export default defineConfig({
   base: '/',
   build: {
     outDir: 'dist',
-    // No necesitamos rollupOptions complicados
-    // Vite manejará automáticamente los nombres
+    // Forzar que Vite inyecte los scripts
+    rollupOptions: {
+      input: 'index.html',
+    },
   },
   server: {
     port: 3000,
