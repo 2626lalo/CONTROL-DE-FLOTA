@@ -1,4 +1,3 @@
-// scripts/fix-html.js - VERSIÓN ES MODULES
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -6,50 +5,83 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-console.log('🔧 Arreglando index.html...');
+console.log('🔧 Inyectando scripts en index.html...');
 
 const distPath = path.join(__dirname, '../dist');
 const assetsPath = path.join(distPath, 'assets');
 
-// Verificar que existe la carpeta assets
-if (!fs.existsSync(assetsPath)) {
-  console.error('❌ No existe la carpeta assets');
-  console.log('Contenido de dist:', fs.readdirSync(distPath));
+// Verificar que existe la carpeta dist
+if (!fs.existsSync(distPath)) {
+  console.error('❌ No existe la carpeta dist');
   process.exit(1);
 }
 
-// Buscar archivos generados
-const jsFiles = fs.readdirSync(assetsPath).filter(f => 
-  f.endsWith('.js') && f.startsWith('index-') && !f.includes('.map')
-);
-const cssFiles = fs.readdirSync(assetsPath).filter(f => 
-  f.endsWith('.css') && f.startsWith('index-')
-);
+// Buscar archivos generados por Vite
+let jsFiles = [];
+let cssFiles = [];
 
-console.log('Archivos encontrados en assets:');
-console.log('- JS:', jsFiles);
-console.log('- CSS:', cssFiles);
+// Buscar en assets si existe
+if (fs.existsSync(assetsPath)) {
+  jsFiles = fs.readdirSync(assetsPath).filter(f => 
+    f.endsWith('.js') && f.includes('index') && !f.includes('.map')
+  );
+  cssFiles = fs.readdirSync(assetsPath).filter(f => 
+    f.endsWith('.css') && f.includes('index')
+  );
+} else {
+  // Buscar directamente en dist
+  jsFiles = fs.readdirSync(distPath).filter(f => 
+    f.endsWith('.js') && f.includes('index') && !f.includes('.map')
+  );
+  cssFiles = fs.readdirSync(distPath).filter(f => 
+    f.endsWith('.css') && f.includes('index')
+  );
+}
 
-if (jsFiles.length === 0 || cssFiles.length === 0) {
-  console.error('❌ No se encontraron archivos generados');
+console.log('📁 Archivos encontrados:');
+console.log('  JS:', jsFiles);
+console.log('  CSS:', cssFiles);
+
+if (jsFiles.length === 0) {
+  console.error('❌ No se encontraron archivos JS generados por Vite');
+  console.log('  Contenido de dist:', fs.readdirSync(distPath));
+  if (fs.existsSync(assetsPath)) {
+    console.log('  Contenido de assets:', fs.readdirSync(assetsPath));
+  }
   process.exit(1);
 }
 
 const jsFile = jsFiles[0];
-const cssFile = cssFiles[0];
+const cssFile = cssFiles.length > 0 ? cssFiles[0] : '';
 
-console.log(`📦 Usando: JS=${jsFile}, CSS=${cssFile}`);
+console.log(`📦 Archivos seleccionados:`);
+console.log(`  JS: ${jsFile}`);
+console.log(`  CSS: ${cssFile}`);
 
-// Crear HTML MANUALMENTE
-const html = `<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CONTROL DE FLOTA</title>
-    
-    <!-- Polyfills -->
-    <script>
+// Determinar rutas correctas
+const jsPath = assetsPath && fs.existsSync(assetsPath) ? `/assets/${jsFile}` : `/${jsFile}`;
+const cssPath = cssFile ? (assetsPath && fs.existsSync(assetsPath) ? `/assets/${cssFile}` : `/${cssFile}`) : '';
+
+// Leer el HTML original para mantener polyfills
+const originalHtmlPath = path.join(__dirname, '../index.html');
+let originalHtml = '';
+try {
+  originalHtml = fs.readFileSync(originalHtmlPath, 'utf-8');
+  console.log('✅ HTML original leído correctamente');
+} catch (error) {
+  console.error('❌ Error leyendo index.html original:', error.message);
+  process.exit(1);
+}
+
+// Extraer los polyfills del original
+let polyfills = '';
+const polyfillMatch = originalHtml.match(/<script>[\s\S]*?Polyfills ES2023[\s\S]*?<\/script>/);
+if (polyfillMatch) {
+  polyfills = polyfillMatch[0];
+  console.log('✅ Polyfills extraídos del original');
+} else {
+  // Polyfills por defecto
+  polyfills = `    <script>
         if (!Array.prototype.toSorted) {
             Array.prototype.toSorted = function(compareFn) {
                 var arr = this.slice();
@@ -80,10 +112,23 @@ const html = `<!DOCTYPE html>
             };
         }
         console.log('Polyfills ES2023 cargados correctamente');
-    </script>
+    </script>`;
+  console.log('⚠️  Polyfills no encontrados, usando versión por defecto');
+}
+
+// Crear nuevo HTML
+const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CONTROL DE FLOTA</title>
+    
+    <!-- Polyfills ES2023 -->
+${polyfills}
     
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="/assets/${cssFile}">
+    ${cssPath ? `<link rel="stylesheet" href="${cssPath}">` : ''}
     
     <style>
         ::-webkit-scrollbar {
@@ -104,11 +149,26 @@ const html = `<!DOCTYPE html>
 </head>
 <body class="bg-slate-50 text-slate-900 antialiased">
     <div id="root"></div>
-    <script type="module" crossorigin src="/assets/${jsFile}"></script>
+    <script type="module" crossorigin src="${jsPath}"></script>
 </body>
 </html>`;
 
 // Escribir el archivo
 fs.writeFileSync(path.join(distPath, 'index.html'), html);
+
+// Verificar resultado
+const stats = fs.statSync(path.join(distPath, 'index.html'));
 console.log('✅ HTML regenerado manualmente');
-console.log('📏 Tamaño del nuevo index.html:', fs.statSync(path.join(distPath, 'index.html')).size, 'bytes');
+console.log(`📏 Tamaño del nuevo index.html: ${stats.size} bytes`);
+
+// Mostrar preview
+console.log('\n🔍 Preview del index.html generado:');
+console.log('='.repeat(50));
+const generatedHtml = fs.readFileSync(path.join(distPath, 'index.html'), 'utf-8');
+const lines = generatedHtml.split('\n');
+lines.forEach((line, index) => {
+  if (line.includes('<script') || line.includes('<link') || line.includes('Polyfills')) {
+    console.log(`${index + 1}: ${line.trim()}`);
+  }
+});
+console.log('='.repeat(50));
