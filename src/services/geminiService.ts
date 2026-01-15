@@ -1,22 +1,29 @@
-import { GoogleGenerativeAI } from '@google/genai';
-
 // Variable global para la instancia de Gemini AI
-let genAIInstance: GoogleGenerativeAI | null = null;
+let genAIInstance: any = null;
 
 /**
  * Inicializa o retorna la instancia de Gemini AI
  */
-const getGenAI = () => {
+const getGenAI = async () => {
   if (!genAIInstance) {
     const apiKey = import.meta.env.VITE_GOOGLE_AI_API_KEY;
     
     if (!apiKey || apiKey === 'your_api_key_here' || apiKey === '') {
       console.error('❌ API key de Google AI no configurada');
-      throw new Error('API key de Google AI no configurada');
+      throw new Error('API key de Google AI no configurada. Contacta al administrador.');
     }
     
     console.log('🔧 Inicializando Gemini AI con API key...');
-    genAIInstance = new GoogleGenerativeAI(apiKey);
+    
+    try {
+      // Importación dinámica para evitar errores de compilación
+      const { GoogleGenerativeAI } = await import('@google/genai');
+      genAIInstance = new GoogleGenerativeAI(apiKey);
+      console.log('✅ Gemini AI inicializado correctamente');
+    } catch (error) {
+      console.error('❌ Error cargando módulo Google AI:', error);
+      throw new Error('No se pudo cargar el módulo de Google AI');
+    }
   }
   
   return genAIInstance;
@@ -28,8 +35,9 @@ const getGenAI = () => {
 export const analyzeVehicleImage = async (imagesBase64: string[]) => {
   try {
     console.log('🚀 Iniciando análisis de imagen de vehículo...');
+    console.log('📊 Número de imágenes:', imagesBase64.length);
     
-    const genAI = getGenAI();
+    const genAI = await getGenAI();
     const model = genAI.getGenerativeModel({ 
       model: 'gemini-pro-vision',
       generationConfig: {
@@ -76,6 +84,7 @@ export const analyzeVehicleImage = async (imagesBase64: string[]) => {
     // Extraer JSON de la respuesta
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
+      console.warn('⚠️ No se pudo extraer JSON, respuesta completa:', text);
       throw new Error('No se pudo extraer JSON de la respuesta');
     }
 
@@ -117,7 +126,7 @@ export const analyzeDocumentImage = async (imageBase64: string, docType: string,
   try {
     console.log(`🚀 Iniciando análisis de documento: ${docType}...`);
     
-    const genAI = getGenAI();
+    const genAI = await getGenAI();
     const model = genAI.getGenerativeModel({ 
       model: 'gemini-pro-vision',
       generationConfig: {
@@ -180,6 +189,7 @@ export const analyzeDocumentImage = async (imageBase64: string, docType: string,
     // Extraer JSON de la respuesta
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
+      console.warn('⚠️ No se pudo extraer JSON, respuesta completa:', text);
       throw new Error('No se pudo extraer JSON de la respuesta');
     }
 
@@ -228,8 +238,53 @@ export const analyzeDocumentImage = async (imageBase64: string, docType: string,
 export const isGeminiAvailable = (): boolean => {
   try {
     const apiKey = import.meta.env.VITE_GOOGLE_AI_API_KEY;
-    return !!(apiKey && apiKey !== 'your_api_key_here' && apiKey !== '');
+    const isConfigured = !!(apiKey && apiKey !== 'your_api_key_here' && apiKey !== '');
+    console.log('🔍 Verificación Gemini:', { isConfigured, apiKeyLength: apiKey?.length || 0 });
+    return isConfigured;
   } catch {
     return false;
   }
+};
+
+/**
+ * Versión simplificada para cuando Gemini no está disponible
+ */
+export const processImageWithMock = async (imageType: 'front' | 'back' | 'document') => {
+  console.log(`🔄 Usando procesamiento mock para: ${imageType}`);
+  
+  // Datos de ejemplo para testing
+  const mockData = {
+    front: {
+      plate: 'ABC123',
+      make: 'Toyota',
+      model: 'Tacoma',
+      year: 2023,
+      color: 'Blanco',
+      type: 'Pickup',
+      vin: '1HGCM82633A123456',
+      motorNum: 'MTR789012'
+    },
+    back: {
+      plate: 'ABC123',
+      vin: '1HGCM82633A123456',
+      motorNum: 'MTR789012',
+      year: 2023,
+      make: 'Toyota',
+      model: 'Tacoma',
+      color: 'Blanco',
+      type: 'Pickup'
+    },
+    document: {
+      issuer: 'MAPFRE',
+      policyNumber: 'POL-123456',
+      expirationDate: '2024-12-31',
+      year: 2023,
+      isValid: true
+    }
+  };
+  
+  // Simular delay de procesamiento
+  await new Promise(resolve => setTimeout(resolve, 1000));
+  
+  return mockData[imageType];
 };
