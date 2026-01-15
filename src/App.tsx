@@ -3,7 +3,8 @@ import { HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-d
 import { Layout } from './components/Layout';
 import { Dashboard } from './components/Dashboard';
 import { VehicleList } from './components/VehicleList';
-import { VehicleForm } from './components/VehicleForm';
+// Importación corregida para VehicleForm
+import VehicleFormComponent from './components/VehicleForm';
 import { Checklist as ChecklistComp } from './components/Checklist';
 import { ServiceManager } from './components/ServiceManager';
 import { AdminUsers } from './components/AdminUsers';
@@ -51,8 +52,6 @@ interface AppContextType {
   
   checklists: Checklist[];
   addChecklist: (c: Checklist) => void;
-  updateChecklist: (c: Checklist) => void;
-  deleteChecklist: (id: string) => void;
 
   // Offline features
   isOnline: boolean;
@@ -67,34 +66,12 @@ interface AppContextType {
   globalError: string | null;
   clearGlobalError: () => void;
   
-  // Notifications
-  notifications: Notification[];
-  addNotification: (notification: Notification) => void;
-  clearNotifications: () => void;
-  
   // Google AI API
   googleAI: any | null;
-  
-  // Vehicle statistics
-  getVehicleStats: () => {
-    total: number;
-    active: number;
-    maintenance: number;
-    inactive: number;
-  };
 }
 
 const AppContext = createContext<AppContextType>({} as AppContextType);
 export const useApp = () => useContext(AppContext);
-
-interface Notification {
-  id: string;
-  title: string;
-  message: string;
-  type: 'info' | 'warning' | 'error' | 'success';
-  timestamp: Date;
-  read: boolean;
-}
 
 // --- SAFE PARSE HELPER (Prevents crashes on corrupted LocalStorage) ---
 const safeJSONParse = <T,>(key: string, fallback: T): T => {
@@ -133,7 +110,6 @@ const LoginScreen = () => {
     setLoading(true);
     setError('');
     
-    // Simulate network delay
     setTimeout(async () => {
         if (isRegistering) {
             const success = await register(email, password, name);
@@ -151,7 +127,6 @@ const LoginScreen = () => {
   };
 
   const handleGoogleClick = () => {
-      // Simulation of Google Auth Flow
       if (!isOnline) {
           setError("La autenticación con Google requiere conexión a internet.");
           return;
@@ -180,7 +155,6 @@ const LoginScreen = () => {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 to-gray-900 text-white relative overflow-hidden">
       {/* Background Decor & Animation */}
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0">
-          {/* Animated Background Image: Toyota Tacoma / 4x4 in Snow/Mountains */}
           <div 
             className="w-full h-full bg-cover bg-center opacity-60 animate-pulse-slow"
             style={{ 
@@ -450,7 +424,6 @@ export default function App() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [serviceRequests, setServiceRequests] = useState<ServiceRequest[]>([]);
   const [checklists, setChecklists] = useState<Checklist[]>([]);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
 
   // OFFLINE & LOADING STATES
   const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -469,49 +442,13 @@ export default function App() {
 
   const clearGlobalError = () => setGlobalError(null);
 
-  const addNotification = (notification: Omit<Notification, 'id' | 'timestamp'>) => {
-    const newNotification: Notification = {
-      ...notification,
-      id: Date.now().toString(),
-      timestamp: new Date(),
-      read: false
-    };
-    setNotifications(prev => [newNotification, ...prev.slice(0, 9)]);
-  };
-
-  const clearNotifications = () => {
-    setNotifications([]);
-  };
-
-  const getVehicleStats = () => {
-    const total = vehicles.length;
-    const active = vehicles.filter(v => v.status === 'active').length;
-    const maintenance = vehicles.filter(v => v.status === 'maintenance').length;
-    const inactive = vehicles.filter(v => v.status === 'inactive').length;
-    
-    return { total, active, maintenance, inactive };
-  };
-
   // Network Listeners
   useEffect(() => {
       const handleOnline = () => {
           setIsOnline(true);
-          addNotification({
-            title: 'Conexión restablecida',
-            message: 'Estás de vuelta en línea. Sincronizando datos...',
-            type: 'success'
-          });
           handleSync();
       };
-      
-      const handleOffline = () => {
-          setIsOnline(false);
-          addNotification({
-            title: 'Sin conexión',
-            message: 'Trabajando en modo offline. Los cambios se sincronizarán cuando recuperes la conexión.',
-            type: 'warning'
-          });
-      };
+      const handleOffline = () => setIsOnline(false);
 
       window.addEventListener('online', handleOnline);
       window.addEventListener('offline', handleOffline);
@@ -542,23 +479,12 @@ export default function App() {
 
       if (pendingVehicles.length > 0 || pendingChecklists.length > 0 || pendingRequests.length > 0) {
           setIsSyncing(true);
-          addNotification({
-            title: 'Sincronización',
-            message: 'Sincronizando datos con el servidor...',
-            type: 'info'
-          });
-          
           setTimeout(() => {
               setVehicles(prev => prev.map(v => v.syncStatus === 'PENDING' ? { ...v, syncStatus: 'SYNCED' } : v));
               setChecklists(prev => prev.map(c => c.syncStatus === 'PENDING' ? { ...c, syncStatus: 'SYNCED' } : c));
               setServiceRequests(prev => prev.map(r => r.syncStatus === 'PENDING' ? { ...r, syncStatus: 'SYNCED' } : r));
               
               setIsSyncing(false);
-              addNotification({
-                title: 'Sincronización completada',
-                message: `Se sincronizaron ${pendingVehicles.length + pendingChecklists.length + pendingRequests.length} elementos`,
-                type: 'success'
-              });
           }, 3000);
       }
   };
@@ -597,11 +523,6 @@ export default function App() {
           } else {
               setChecklists([]);
           }
-
-          const savedNotifications = safeJSONParse<Notification[]>('fp_notifications', []);
-          if (savedNotifications.length > 0) {
-              setNotifications(savedNotifications);
-          }
       } catch (err) {
           console.error("Error refreshing data:", err);
           notifyError("Error al cargar datos. Se han usado valores por defecto.");
@@ -639,15 +560,6 @@ export default function App() {
   // Initial Load on Mount
   useEffect(() => {
       refreshData();
-      
-      // Load current user from localStorage if exists
-      const savedUser = safeJSONParse<User | null>('fp_current_user', null);
-      if (savedUser) {
-          const validUser = registeredUsers.find(u => u.id === savedUser.id);
-          if (validUser) {
-              setCurrentUser(validUser);
-          }
-      }
   }, []);
 
   // Save persistence when state changes
@@ -666,18 +578,6 @@ export default function App() {
   useEffect(() => { 
       localStorage.setItem('fp_checklists', JSON.stringify(checklists)); 
   }, [checklists]);
-  
-  useEffect(() => { 
-      localStorage.setItem('fp_notifications', JSON.stringify(notifications)); 
-  }, [notifications]);
-  
-  useEffect(() => {
-      if (currentUser) {
-          localStorage.setItem('fp_current_user', JSON.stringify(currentUser));
-      } else {
-          localStorage.removeItem('fp_current_user');
-      }
-  }, [currentUser]);
 
   const login = async (email: string, pass: string): Promise<{success: boolean, message?: string}> => {
     try {
@@ -687,15 +587,7 @@ export default function App() {
             if (existingUser.password !== pass.trim()) {
                  return { success: false, message: "Contraseña incorrecta." };
             }
-            if (!existingUser.approved) {
-                return { success: false, message: "Tu cuenta está pendiente de aprobación." };
-            }
             setCurrentUser(existingUser);
-            addNotification({
-              title: 'Sesión iniciada',
-              message: `Bienvenido de vuelta, ${existingUser.name}`,
-              type: 'success'
-            });
             refreshData();
             return { success: true };
         } 
@@ -726,14 +618,6 @@ export default function App() {
           setRegisteredUsers(prev => [...prev, newUser]);
           setCurrentUser(newUser);
           
-          addNotification({
-            title: 'Registro exitoso',
-            message: isSuperAdmin 
-              ? 'Cuenta de administrador creada' 
-              : 'Tu cuenta ha sido creada y está pendiente de aprobación',
-            type: isSuperAdmin ? 'success' : 'info'
-          });
-          
           return true;
       } catch (e) {
           notifyError("Error al registrar usuario.");
@@ -745,13 +629,6 @@ export default function App() {
       try {
           const existingUser = registeredUsers.find(u => u.email.toLowerCase() === email.toLowerCase());
           if (existingUser) {
-              if (!existingUser.approved) {
-                  addNotification({
-                    title: 'Cuenta pendiente',
-                    message: 'Tu cuenta está pendiente de aprobación del administrador',
-                    type: 'warning'
-                  });
-              }
               setCurrentUser(existingUser);
               refreshData();
           } else {
@@ -767,12 +644,6 @@ export default function App() {
               };
               setRegisteredUsers(prev => [...prev, newUser]);
               setCurrentUser(newUser);
-              
-              addNotification({
-                title: 'Registro con Google',
-                message: isSuperAdmin ? 'Administrador registrado' : 'Cuenta creada con Google',
-                type: 'success'
-              });
           }
       } catch (e) {
           notifyError("Error en login con Google.");
@@ -780,11 +651,6 @@ export default function App() {
   };
 
   const logout = () => {
-      addNotification({
-        title: 'Sesión finalizada',
-        message: `Hasta luego, ${currentUser?.name}`,
-        type: 'info'
-      });
       setCurrentUser(null);
   };
 
@@ -802,87 +668,33 @@ export default function App() {
 
   // --- Vehicle CRUD ---
   const addVehicle = (v: Vehicle) => {
-    const newVehicle = { ...v, syncStatus: isOnline ? 'SYNCED' : 'PENDING' };
-    setVehicles(prev => [...prev, newVehicle]);
-    addNotification({
-      title: 'Vehículo agregado',
-      message: `Se agregó el vehículo ${v.plate}`,
-      type: 'success'
-    });
+    setVehicles(prev => [...prev, { ...v, syncStatus: isOnline ? 'SYNCED' : 'PENDING' }]);
   };
   
   const updateVehicle = (v: Vehicle) => {
-    const updatedVehicle = { ...v, syncStatus: isOnline ? 'SYNCED' : 'PENDING' };
-    setVehicles(prev => prev.map(item => item.plate === v.plate ? updatedVehicle : item));
-    addNotification({
-      title: 'Vehículo actualizado',
-      message: `Se actualizó el vehículo ${v.plate}`,
-      type: 'success'
-    });
+    setVehicles(prev => prev.map(item => item.plate === v.plate ? { ...v, syncStatus: isOnline ? 'SYNCED' : 'PENDING' } : item));
   };
   
   const deleteVehicle = (plate: string) => {
     setVehicles(prev => prev.filter(v => v.plate !== plate));
-    addNotification({
-      title: 'Vehículo eliminado',
-      message: `Se eliminó el vehículo ${plate}`,
-      type: 'warning'
-    });
   };
 
   // --- Service Request CRUD ---
   const addServiceRequest = (sr: ServiceRequest) => {
-    const newRequest = { ...sr, syncStatus: isOnline ? 'SYNCED' : 'PENDING' };
-    setServiceRequests(prev => [...prev, newRequest]);
-    addNotification({
-      title: 'Solicitud creada',
-      message: `Nueva solicitud de servicio para ${sr.plate}`,
-      type: 'success'
-    });
+    setServiceRequests(prev => [...prev, { ...sr, syncStatus: isOnline ? 'SYNCED' : 'PENDING' }]);
   };
   
   const updateServiceRequest = (sr: ServiceRequest) => {
-    const updatedRequest = { ...sr, syncStatus: isOnline ? 'SYNCED' : 'PENDING' };
-    setServiceRequests(prev => prev.map(item => item.id === sr.id ? updatedRequest : item));
-    addNotification({
-      title: 'Solicitud actualizada',
-      message: `Solicitud #${sr.id} actualizada`,
-      type: 'success'
-    });
+    setServiceRequests(prev => prev.map(item => item.id === sr.id ? { ...sr, syncStatus: isOnline ? 'SYNCED' : 'PENDING' } : item));
   };
 
   const deleteServiceRequest = (id: string) => {
     setServiceRequests(prev => prev.filter(r => r.id !== id));
-    addNotification({
-      title: 'Solicitud eliminada',
-      message: `Solicitud #${id} eliminada`,
-      type: 'warning'
-    });
   };
 
   // --- Checklist CRUD ---
   const addChecklist = (c: Checklist) => {
-    const newChecklist = { ...c, syncStatus: isOnline ? 'SYNCED' : 'PENDING' };
-    setChecklists(prev => [...prev, newChecklist]);
-    addNotification({
-      title: 'Checklist completado',
-      message: `Checklist para vehículo ${c.plate}`,
-      type: 'success'
-    });
-  };
-
-  const updateChecklist = (c: Checklist) => {
-    const updatedChecklist = { ...c, syncStatus: isOnline ? 'SYNCED' : 'PENDING' };
-    setChecklists(prev => prev.map(item => item.id === c.id ? updatedChecklist : item));
-  };
-
-  const deleteChecklist = (id: string) => {
-    setChecklists(prev => prev.filter(c => c.id !== id));
-    addNotification({
-      title: 'Checklist eliminado',
-      message: 'Checklist eliminado del sistema',
-      type: 'warning'
-    });
+    setChecklists(prev => [...prev, { ...c, syncStatus: isOnline ? 'SYNCED' : 'PENDING' }]);
   };
 
   return (
@@ -905,8 +717,6 @@ export default function App() {
       deleteServiceRequest,
       checklists, 
       addChecklist,
-      updateChecklist,
-      deleteChecklist,
       isOnline, 
       isSyncing,
       refreshData, 
@@ -914,11 +724,7 @@ export default function App() {
       notifyError, 
       globalError, 
       clearGlobalError,
-      notifications,
-      addNotification,
-      clearNotifications,
-      googleAI,
-      getVehicleStats
+      googleAI
     }}>
       <HashRouter>
         <Routes>
@@ -956,8 +762,8 @@ const ProtectedRoutes = () => {
     <Routes>
       <Route path="/" element={<Dashboard />} />
       <Route path="/vehicles" element={<VehicleList />} />
-      <Route path="/vehicles/new" element={isManager ? <VehicleForm /> : <Navigate to="/vehicles" />} />
-      <Route path="/vehicles/:plate" element={<VehicleForm />} />
+      <Route path="/vehicles/new" element={isManager ? <VehicleFormComponent /> : <Navigate to="/vehicles" />} />
+      <Route path="/vehicles/:plate" element={<VehicleFormComponent />} />
       <Route path="/checklist" element={<ChecklistComp />} />
       <Route path="/service" element={<ServiceManager />} />
       
