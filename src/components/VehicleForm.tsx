@@ -79,8 +79,10 @@ const VehicleForm: React.FC = () => {
   const [uploadedDocuments, setUploadedDocuments] = useState<{file: File, type: string}[]>([]);
   const [showImagePreview, setShowImagePreview] = useState<string | null>(null);
   
-  const frontImageInputRef = useRef<HTMLInputElement>(null);
-  const backImageInputRef = useRef<HTMLInputElement>(null);
+  const frontCameraInputRef = useRef<HTMLInputElement>(null);
+  const frontFileInputRef = useRef<HTMLInputElement>(null);
+  const backCameraInputRef = useRef<HTMLInputElement>(null);
+  const backFileInputRef = useRef<HTMLInputElement>(null);
   const documentInputRef = useRef<HTMLInputElement>(null);
 
   // Form state
@@ -297,12 +299,20 @@ const VehicleForm: React.FC = () => {
     }));
   };
 
-  const triggerFrontImageInput = () => {
-    frontImageInputRef.current?.click();
+  const triggerFrontCamera = () => {
+    frontCameraInputRef.current?.click();
   };
 
-  const triggerBackImageInput = () => {
-    backImageInputRef.current?.click();
+  const triggerFrontFileUpload = () => {
+    frontFileInputRef.current?.click();
+  };
+
+  const triggerBackCamera = () => {
+    backCameraInputRef.current?.click();
+  };
+
+  const triggerBackFileUpload = () => {
+    backFileInputRef.current?.click();
   };
 
   const triggerDocumentInput = () => {
@@ -438,10 +448,7 @@ const VehicleForm: React.FC = () => {
                     </div>
                   </div>
                 ) : (
-                  <div 
-                    onClick={triggerFrontImageInput}
-                    className="cursor-pointer flex flex-col items-center justify-center h-48"
-                  >
+                  <div className="flex flex-col items-center justify-center h-48">
                     <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-3">
                       {processingFrontImage ? (
                         <Loader size={24} className="animate-spin text-blue-600" />
@@ -450,19 +457,55 @@ const VehicleForm: React.FC = () => {
                       )}
                     </div>
                     <p className="text-sm text-slate-600 text-center mb-2">
-                      {processingFrontImage ? 'Procesando con Gemini AI...' : 'Haz clic para subir foto'}
+                      {processingFrontImage ? 'Procesando con Gemini AI...' : 'Selecciona una opción'}
                     </p>
-                    <p className="text-xs text-slate-500 text-center">
-                      Toma una foto de la parte frontal del vehículo
-                    </p>
+                    <div className="flex flex-col gap-2 w-full max-w-xs">
+                      <button
+                        type="button"
+                        onClick={triggerFrontCamera}
+                        disabled={processingFrontImage}
+                        className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
+                      >
+                        <Camera size={18} />
+                        Tomar Foto
+                      </button>
+                      <div className="relative flex items-center justify-center">
+                        <div className="flex-grow h-px bg-slate-300"></div>
+                        <span className="mx-2 text-xs text-slate-500">o</span>
+                        <div className="flex-grow h-px bg-slate-300"></div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={triggerFrontFileUpload}
+                        disabled={processingFrontImage}
+                        className="flex items-center justify-center gap-2 px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition disabled:opacity-50"
+                      >
+                        <Upload size={18} />
+                        Subir Archivo
+                      </button>
+                    </div>
                   </div>
                 )}
                 
+                {/* Input para tomar foto con cámara */}
                 <input
                   type="file"
-                  ref={frontImageInputRef}
+                  ref={frontCameraInputRef}
                   accept="image/*"
                   capture="environment"
+                  onChange={(e) => {
+                    if (e.target.files?.[0]) {
+                      handleFrontImageUpload(e.target.files[0]);
+                    }
+                  }}
+                  className="hidden"
+                />
+                
+                {/* Input para subir archivo */}
+                <input
+                  type="file"
+                  ref={frontFileInputRef}
+                  accept="image/*"
                   onChange={(e) => {
                     if (e.target.files?.[0]) {
                       handleFrontImageUpload(e.target.files[0]);
@@ -509,10 +552,7 @@ const VehicleForm: React.FC = () => {
                     </div>
                   </div>
                 ) : (
-                  <div 
-                    onClick={triggerBackImageInput}
-                    className="cursor-pointer flex flex-col items-center justify-center h-48"
-                  >
+                  <div className="flex flex-col items-center justify-center h-48">
                     <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-3">
                       {processingBackImage ? (
                         <Loader size={24} className="animate-spin text-green-600" />
@@ -521,19 +561,55 @@ const VehicleForm: React.FC = () => {
                       )}
                     </div>
                     <p className="text-sm text-slate-600 text-center mb-2">
-                      {processingBackImage ? 'Procesando con Gemini AI...' : 'Haz clic para subir foto'}
+                      {processingBackImage ? 'Procesando con Gemini AI...' : 'Selecciona una opción'}
                     </p>
-                    <p className="text-xs text-slate-500 text-center">
-                      Toma una foto de la parte posterior de la cédula
-                    </p>
+                    <div className="flex flex-col gap-2 w-full max-w-xs">
+                      <button
+                        type="button"
+                        onClick={triggerBackCamera}
+                        disabled={processingBackImage}
+                        className="flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition disabled:opacity-50"
+                      >
+                        <Camera size={18} />
+                        Tomar Foto
+                      </button>
+                      <div className="relative flex items-center justify-center">
+                        <div className="flex-grow h-px bg-slate-300"></div>
+                        <span className="mx-2 text-xs text-slate-500">o</span>
+                        <div className="flex-grow h-px bg-slate-300"></div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={triggerBackFileUpload}
+                        disabled={processingBackImage}
+                        className="flex items-center justify-center gap-2 px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition disabled:opacity-50"
+                      >
+                        <Upload size={18} />
+                        Subir Archivo
+                      </button>
+                    </div>
                   </div>
                 )}
                 
+                {/* Input para tomar foto con cámara */}
                 <input
                   type="file"
-                  ref={backImageInputRef}
+                  ref={backCameraInputRef}
                   accept="image/*"
                   capture="environment"
+                  onChange={(e) => {
+                    if (e.target.files?.[0]) {
+                      handleBackImageUpload(e.target.files[0]);
+                    }
+                  }}
+                  className="hidden"
+                />
+                
+                {/* Input para subir archivo */}
+                <input
+                  type="file"
+                  ref={backFileInputRef}
+                  accept="image/*"
                   onChange={(e) => {
                     if (e.target.files?.[0]) {
                       handleBackImageUpload(e.target.files[0]);
@@ -726,16 +802,27 @@ const VehicleForm: React.FC = () => {
               <span className="text-xs text-slate-500">(Gemini extraerá datos automáticamente)</span>
             </div>
             
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={triggerDocumentInput}
-                disabled={!!processingDocument}
-                className={`flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition ${processingDocument ? 'opacity-50 cursor-not-allowed' : ''}`}
-              >
-                {processingDocument === 'Insurance' ? <Loader size={18} className="animate-spin" /> : <FileUp size={18} />}
-                {processingDocument === 'Insurance' ? 'Procesando...' : 'Subir Póliza'}
-              </button>
+            <div className="flex flex-col gap-2 w-full max-w-xs">
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={triggerDocumentInput}
+                  disabled={!!processingDocument}
+                  className={`flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition ${processingDocument ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  {processingDocument === 'Insurance' ? <Loader size={18} className="animate-spin" /> : <Camera size={18} />}
+                  {processingDocument === 'Insurance' ? 'Procesando...' : 'Tomar Foto'}
+                </button>
+                <button
+                  type="button"
+                  onClick={triggerDocumentInput}
+                  disabled={!!processingDocument}
+                  className={`flex items-center gap-2 px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition ${processingDocument ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  {processingDocument === 'Insurance' ? <Loader size={18} className="animate-spin" /> : <FileUp size={18} />}
+                  {processingDocument === 'Insurance' ? 'Procesando...' : 'Subir Archivo'}
+                </button>
+              </div>
               
               <input
                 type="file"
