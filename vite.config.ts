@@ -7,13 +7,13 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     rollupOptions: {
-      input: 'index.html',
+      input: './index.html',
       output: {
         entryFileNames: 'assets/[name].[hash].js',
         chunkFileNames: 'assets/[name].[hash].js',
-        assetFileNames: 'assets/[name].[hash][extname]',
-      },
-    },
+        assetFileNames: 'assets/[name].[hash][extname]'
+      }
+    }
   },
   server: {
     port: 3000,
