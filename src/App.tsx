@@ -25,8 +25,13 @@ import {
   LucideUsers,
   LucideBell,
   LucideCloud,
-  LucideCloudOff
+  LucideCloudOff,
+  LucideWifi,
+  LucideWifiOff,
+  LucideAlertCircle,
+  LucideRefreshCw
 } from 'lucide-react';
+import { testGeminiConnection } from './services/geminiService';
 
 // --- Context ---
 interface AppContextType {
@@ -67,6 +72,11 @@ interface AppContextType {
   
   // Google AI API
   googleAI: any | null;
+  
+  // Google AI Status
+  geminiStatus: 'checking' | 'connected' | 'disconnected';
+  geminiMessage: string;
+  checkGeminiConnection: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType>({} as AppContextType);
@@ -86,7 +96,7 @@ const safeJSONParse = <T,>(key: string, fallback: T): T => {
 
 // --- Login Component ---
 const LoginScreen = () => {
-  const { login, register, googleLogin, isOnline } = useApp();
+  const { login, register, googleLogin, isOnline, geminiStatus } = useApp();
   const [isRegistering, setIsRegistering] = useState(false);
   
   const [name, setName] = useState('');
@@ -179,11 +189,24 @@ const LoginScreen = () => {
           </div>
       </div>
 
-      {/* Status Indicator */}
-      <div className="absolute top-4 right-4 z-20">
+      {/* Status Indicators */}
+      <div className="absolute top-4 right-4 z-20 flex flex-col gap-2">
         <div className={`flex items-center gap-2 px-3 py-2 rounded-full backdrop-blur-sm ${isOnline ? 'bg-green-900/30 text-green-400' : 'bg-yellow-900/30 text-yellow-400'}`}>
           {isOnline ? <LucideCloud size={16} /> : <LucideCloudOff size={16} />}
           <span className="text-sm font-medium">{isOnline ? 'En línea' : 'Sin conexión'}</span>
+        </div>
+        
+        <div className={`flex items-center gap-2 px-3 py-2 rounded-full backdrop-blur-sm ${
+          geminiStatus === 'connected' ? 'bg-green-900/30 text-green-400' : 
+          geminiStatus === 'checking' ? 'bg-yellow-900/30 text-yellow-400' : 'bg-red-900/30 text-red-400'
+        }`}>
+          {geminiStatus === 'connected' ? <LucideWifi size={16} /> : 
+           geminiStatus === 'checking' ? <LucideRefreshCw size={16} className="animate-spin" /> : 
+           <LucideWifiOff size={16} />}
+          <span className="text-sm font-medium">
+            Google AI: {geminiStatus === 'connected' ? 'Conectado' : 
+                      geminiStatus === 'checking' ? 'Verificando...' : 'No disponible'}
+          </span>
         </div>
       </div>
 
@@ -338,7 +361,7 @@ const LoginScreen = () => {
       
       {/* Footer */}
       <div className="absolute bottom-4 left-0 right-0 text-center z-20">
-        <p className="text-xs text-slate-500">Sistema de Gestión de Flota 4x4 • Versión 2.0</p>
+        <p className="text-xs text-slate-500">Sistema de Gestión de Flota 4x4 • Versión 2.1 (AI) • Google AI: {geminiStatus === 'connected' ? '✅ Disponible' : '⚠️ No disponible'}</p>
       </div>
       
       {/* Animations */}
@@ -432,6 +455,8 @@ export default function App() {
 
   // Google AI - Inicialización segura
   const [googleAI, setGoogleAI] = useState<any | null>(null);
+  const [geminiStatus, setGeminiStatus] = useState<'checking' | 'connected' | 'disconnected'>('checking');
+  const [geminiMessage, setGeminiMessage] = useState('Verificando conexión con Google AI...');
 
   const notifyError = (msg: string) => {
       console.error(msg);
@@ -441,11 +466,63 @@ export default function App() {
 
   const clearGlobalError = () => setGlobalError(null);
 
+  // Verificar conexión con Gemini AI
+  const checkGeminiConnection = async () => {
+    if (!isOnline) {
+      setGeminiStatus('disconnected');
+      setGeminiMessage('Sin conexión a internet');
+      setGoogleAI(null);
+      return;
+    }
+
+    setGeminiStatus('checking');
+    setGeminiMessage('Verificando conexión con Google AI...');
+    
+    try {
+      const result = await testGeminiConnection();
+      
+      if (result.success) {
+        setGeminiStatus('connected');
+        setGeminiMessage(`✅ ${result.message || 'Conectado a Google AI'}`);
+        
+        // Inicializar la instancia de Google AI
+        const apiKey = import.meta.env.VITE_GOOGLE_AI_API_KEY || 'AIzaSyCNtMrkX8I2x-5taJn_j9JF3Ax_p9kPYFc';
+        
+        if (apiKey && apiKey !== 'your_api_key_here') {
+          try {
+            const { GoogleGenerativeAI } = await import('@google/genai');
+            const genAI = new GoogleGenerativeAI(apiKey);
+            setGoogleAI(genAI);
+            console.log('✅ Google AI inicializado correctamente');
+          } catch (error: any) {
+            console.error('❌ Error cargando @google/genai:', error);
+            setGeminiStatus('disconnected');
+            setGeminiMessage('Error al cargar la biblioteca de Google AI');
+          }
+        } else {
+          setGeminiStatus('disconnected');
+          setGeminiMessage('API key no configurada');
+        }
+      } else {
+        setGeminiStatus('disconnected');
+        setGeminiMessage(`❌ ${result.error || 'No se pudo conectar a Google AI'}`);
+        setGoogleAI(null);
+      }
+    } catch (error: any) {
+      console.error('❌ Error en checkGeminiConnection:', error);
+      setGeminiStatus('disconnected');
+      setGeminiMessage(`Error: ${error.message || 'Error desconocido'}`);
+      setGoogleAI(null);
+    }
+  };
+
   // Network Listeners
   useEffect(() => {
       const handleOnline = () => {
           setIsOnline(true);
           handleSync();
+          // Verificar Gemini cuando vuelve la conexión
+          setTimeout(() => checkGeminiConnection(), 1000);
       };
       const handleOffline = () => setIsOnline(false);
 
@@ -530,35 +607,14 @@ export default function App() {
       }
   };
 
-  // Initialize Google AI
-  useEffect(() => {
-    const initializeGoogleAI = async () => {
-      try {
-        const apiKey = import.meta.env.VITE_GOOGLE_AI_API_KEY;
-        
-        if (!apiKey) {
-          console.warn('Google AI API key no configurada');
-          return;
-        }
-
-        const { GoogleGenerativeAI } = await import('@google/genai');
-        const genAI = new GoogleGenerativeAI(apiKey);
-        
-        setGoogleAI(genAI);
-        console.log('Google AI inicializado correctamente');
-      } catch (error) {
-        console.warn('Error inicializando Google AI:', error);
-      }
-    };
-
-    if (isOnline) {
-      initializeGoogleAI();
-    }
-  }, [isOnline]);
-
   // Initial Load on Mount
   useEffect(() => {
       refreshData();
+      
+      // Verificar Google AI después de 2 segundos
+      setTimeout(() => {
+          checkGeminiConnection();
+      }, 2000);
   }, []);
 
   // Save persistence when state changes
@@ -723,7 +779,10 @@ export default function App() {
       notifyError, 
       globalError, 
       clearGlobalError,
-      googleAI
+      googleAI,
+      geminiStatus,
+      geminiMessage,
+      checkGeminiConnection
     }}>
       <HashRouter>
         <Routes>
@@ -745,6 +804,27 @@ export default function App() {
           } />
         </Routes>
       </HashRouter>
+      
+      {/* Global Error Notification */}
+      {globalError && (
+        <div className="fixed top-4 right-4 z-50 animate-fadeIn">
+          <div className="bg-red-500 text-white p-4 rounded-lg shadow-lg max-w-sm">
+            <div className="flex items-start gap-3">
+              <LucideAlertCircle size={20} className="flex-shrink-0" />
+              <div className="flex-1">
+                <p className="font-medium">Error</p>
+                <p className="text-sm opacity-90">{globalError}</p>
+              </div>
+              <button 
+                onClick={clearGlobalError}
+                className="text-white hover:text-gray-200"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AppContext.Provider>
   );
 }
