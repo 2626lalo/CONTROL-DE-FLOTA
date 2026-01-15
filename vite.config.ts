@@ -6,15 +6,13 @@ export default defineConfig({
   plugins: [react()],
   base: '/',
   
-  // Build configuration
   build: {
     outDir: 'dist',
     emptyOutDir: true,
     target: 'es2022'
-    // ¡NO NECESITAMOS rollupOptions! Vite ya detecta automáticamente src/main.tsx
+    // ¡NO necesitamos rollupOptions! Vite detecta automáticamente src/main.tsx
   },
   
-  // Resolve aliases - actualizados para apuntar a src/
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
@@ -23,8 +21,7 @@ export default defineConfig({
     }
   },
   
-  // Optimize dependencies
   optimizeDeps: {
-    include: ['react', 'react-dom', 'recharts', 'lucide-react']
+    include: ['react', 'react-dom', 'recharts', 'lucide-react', 'react-router-dom']
   }
 })
