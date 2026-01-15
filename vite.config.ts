@@ -7,7 +7,9 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     rollupOptions: {
-      input: 'index.html',
+      input: {
+        main: 'index.html',
+      },
       output: {
         entryFileNames: 'assets/[name].[hash].js',
         chunkFileNames: 'assets/[name].[hash].js',
