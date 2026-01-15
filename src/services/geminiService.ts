@@ -1,28 +1,57 @@
+// Gemini AI Service para procesamiento de imágenes vehiculares
+// Usa la clave API: AIzaSyCNtMrkX8I2x-5taJn_j9JF3Ax_p9kPYFc
+
 // Variable global para la instancia de Gemini AI
 let genAIInstance: any = null;
+let isInitializing = false;
 
 /**
  * Inicializa o retorna la instancia de Gemini AI
  */
-const getGenAI = async () => {
-  if (!genAIInstance) {
-    // Usar tu clave API específica - primero intenta variable de entorno, si no, usa la clave directa
+const getGenAI = async (): Promise<any> => {
+  // Si ya está inicializado, retornar la instancia
+  if (genAIInstance) {
+    return genAIInstance;
+  }
+
+  // Si se está inicializando, esperar
+  if (isInitializing) {
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    return getGenAI();
+  }
+
+  isInitializing = true;
+  
+  try {
+    console.log('🔧 Inicializando Gemini AI...');
+    
+    // Obtener la clave API - primero de variable de entorno, luego clave directa
     const apiKey = import.meta.env.VITE_GOOGLE_AI_API_KEY || 'AIzaSyCNtMrkX8I2x-5taJn_j9JF3Ax_p9kPYFc';
     
-    console.log('🔧 Inicializando Gemini AI...');
-    console.log('🔑 API Key (primeros 10 chars):', apiKey.substring(0, 10) + '...');
-    
-    try {
-      const { GoogleGenerativeAI } = await import('@google/genai');
-      genAIInstance = new GoogleGenerativeAI(apiKey);
-      console.log('✅ Gemini AI inicializado correctamente');
-    } catch (error) {
-      console.error('❌ Error cargando @google/genai:', error);
-      throw new Error('No se pudo cargar Google AI SDK');
+    console.log('🔑 API Key disponible:', apiKey ? 'Sí' : 'No');
+    if (apiKey) {
+      console.log('🔑 API Key (primeros 10 chars):', apiKey.substring(0, 10) + '...');
     }
+
+    if (!apiKey || apiKey === 'your_api_key_here') {
+      throw new Error('API key no configurada. Configura VITE_GOOGLE_AI_API_KEY en las variables de entorno.');
+    }
+
+    // Importar dinámicamente el SDK
+    const { GoogleGenerativeAI } = await import('@google/genai');
+    
+    // Crear instancia
+    genAIInstance = new GoogleGenerativeAI(apiKey);
+    
+    console.log('✅ Gemini AI inicializado correctamente');
+    isInitializing = false;
+    return genAIInstance;
+    
+  } catch (error) {
+    console.error('❌ Error inicializando Gemini AI:', error);
+    isInitializing = false;
+    throw error;
   }
-  
-  return genAIInstance;
 };
 
 /**
@@ -31,27 +60,41 @@ const getGenAI = async () => {
 export const testGeminiConnection = async () => {
   try {
     console.log('🔍 Probando conexión con Gemini AI...');
+    
     const genAI = await getGenAI();
-    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+    const model = genAI.getGenerativeModel({ 
+      model: 'gemini-pro',
+      generationConfig: {
+        maxOutputTokens: 50,
+      }
+    });
     
     // Prueba simple con timeout
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Timeout después de 10 segundos')), 10000)
+    );
     
-    const result = await model.generateContent('Responde con "OK" si estás funcionando.');
-    clearTimeout(timeoutId);
+    const result = await Promise.race([
+      model.generateContent('Responde con "OK" si estás funcionando correctamente.'),
+      timeoutPromise
+    ]);
     
-    const response = await result.response;
+    const response = await (result as any).response;
     const text = response.text();
     
-    console.log('✅ Conexión exitosa:', text);
-    return { success: true, message: text };
-  } catch (error) {
-    console.error('❌ Error de conexión:', error);
+    console.log('✅ Conexión exitosa:', text.trim());
+    return { 
+      success: true, 
+      message: text.trim(),
+      status: 'connected'
+    };
+    
+  } catch (error: any) {
+    console.error('❌ Error de conexión:', error.message || error);
     return { 
       success: false, 
       error: error.message || 'Error desconocido',
-      details: error 
+      status: 'disconnected'
     };
   }
 };
@@ -62,6 +105,7 @@ export const testGeminiConnection = async () => {
 export const analyzeVehicleImage = async (imagesBase64: string[]) => {
   try {
     console.log('🚀 Iniciando análisis de imagen de vehículo...');
+    console.log('📷 Número de imágenes:', imagesBase64.length);
     
     const genAI = await getGenAI();
     const model = genAI.getGenerativeModel({ 
@@ -75,78 +119,112 @@ export const analyzeVehicleImage = async (imagesBase64: string[]) => {
     });
 
     const prompt = `Eres un experto en reconocimiento de vehículos. Analiza la imagen y extrae la siguiente información en formato JSON válido:
-    {
-      "plate": "número de placa si es visible",
-      "make": "marca del vehículo",
-      "model": "modelo del vehículo",
-      "year": año numérico,
-      "color": "color principal",
-      "type": "tipo (Sedan, SUV, Pickup, Van, Truck, Other)",
-      "vin": "número VIN si es visible",
-      "motorNum": "número de motor si es visible"
-    }
 
-    Reglas:
-    1. Si un campo no es visible, usar null
-    2. El año debe ser un número (ej: 2023)
-    3. Los textos en español
-    4. Solo responder con el JSON, sin texto adicional`;
+IMPORTANTE: Responde SOLO con el JSON, sin texto adicional, sin marcas de código, sin explicaciones.
+
+{
+  "plate": "número de placa si es visible",
+  "make": "marca del vehículo",
+  "model": "modelo del vehículo",
+  "year": año numérico,
+  "color": "color principal",
+  "type": "tipo (Sedan, SUV, Pickup, Van, Truck, Other)",
+  "vin": "número VIN si es visible",
+  "motorNum": "número de motor si es visible"
+}
+
+Reglas:
+1. Si un campo no es visible, usar null
+2. El año debe ser un número (ej: 2023)
+3. Los textos en español
+4. Solo responder con el JSON, sin texto adicional`;
 
     // Preparar las imágenes
-    const imageParts = imagesBase64.map(base64 => ({
-      inlineData: {
-        data: base64.split(',')[1] || base64, // Remover data:image/jpeg;base64, si existe
-        mimeType: 'image/jpeg',
-      },
-    }));
+    const imageParts = imagesBase64.map(base64 => {
+      // Limpiar el base64 si tiene prefijo data URL
+      const cleanBase64 = base64.includes('base64,') 
+        ? base64.split(',')[1] 
+        : base64;
+      
+      return {
+        inlineData: {
+          data: cleanBase64,
+          mimeType: 'image/jpeg',
+        },
+      };
+    });
 
     console.log('📤 Enviando solicitud a Gemini...');
     
+    // Timeout de 30 segundos
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30000);
     
-    const result = await model.generateContent([prompt, ...imageParts]);
-    clearTimeout(timeoutId);
-    
-    const response = await result.response;
-    const text = response.text();
-    
-    console.log('📥 Respuesta recibida:', text.substring(0, 200) + '...');
+    try {
+      const result = await model.generateContent([prompt, ...imageParts]);
+      clearTimeout(timeoutId);
+      
+      const response = await result.response;
+      const text = response.text();
+      
+      console.log('📥 Respuesta recibida:', text.substring(0, 150) + '...');
 
-    // Extraer JSON de la respuesta
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      console.warn('⚠️ No se pudo extraer JSON, respuesta completa:', text);
-      throw new Error('No se pudo extraer JSON de la respuesta');
+      // Extraer JSON de la respuesta
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        console.warn('⚠️ No se pudo extraer JSON, respuesta completa:', text);
+        throw new Error('No se pudo extraer JSON de la respuesta');
+      }
+
+      let parsedData;
+      try {
+        parsedData = JSON.parse(jsonMatch[0]);
+      } catch (parseError) {
+        // Intentar limpiar el JSON
+        const cleanedText = jsonMatch[0]
+          .replace(/```json\s*/g, '')
+          .replace(/```\s*/g, '')
+          .trim();
+        parsedData = JSON.parse(cleanedText);
+      }
+      
+      console.log('✅ Datos parseados exitosamente:', parsedData);
+      
+      return {
+        success: true,
+        data: {
+          plate: parsedData.plate || null,
+          make: parsedData.make || null,
+          model: parsedData.model || null,
+          year: parsedData.year || null,
+          color: parsedData.color || null,
+          type: parsedData.type || 'Other',
+          vin: parsedData.vin || null,
+          motorNum: parsedData.motorNum || null,
+        }
+      };
+      
+    } catch (timeoutError) {
+      console.error('⏰ Timeout en análisis de imagen');
+      throw new Error('El análisis tomó demasiado tiempo. Intenta con una imagen más clara.');
     }
 
-    const parsedData = JSON.parse(jsonMatch[0]);
-    console.log('✅ Datos parseados:', parsedData);
+  } catch (error: any) {
+    console.error('❌ Error en analyzeVehicleImage:', error.message || error);
     
     return {
-      plate: parsedData.plate || null,
-      make: parsedData.make || null,
-      model: parsedData.model || null,
-      year: parsedData.year || null,
-      color: parsedData.color || null,
-      type: parsedData.type || 'Other',
-      vin: parsedData.vin || null,
-      motorNum: parsedData.motorNum || null,
-    };
-
-  } catch (error) {
-    console.error('❌ Error en analyzeVehicleImage:', error);
-    
-    // Datos por defecto en caso de error
-    return {
-      plate: null,
-      make: null,
-      model: null,
-      year: null,
-      color: null,
-      type: 'Other',
-      vin: null,
-      motorNum: null,
+      success: false,
+      error: error.message || 'Error procesando la imagen',
+      data: {
+        plate: null,
+        make: null,
+        model: null,
+        year: null,
+        color: null,
+        type: 'Other',
+        vin: null,
+        motorNum: null,
+      }
     };
   }
 };
@@ -173,101 +251,138 @@ export const analyzeDocumentImage = async (imageBase64: string, docType: string,
     
     if (docType === 'Cédula') {
       prompt = `Eres un experto en documentos vehiculares. Analiza la imagen de la cédula vehicular y extrae la siguiente información en formato JSON válido:
-      {
-        "plate": "número de placa",
-        "vin": "número de chasis/VIN",
-        "motorNum": "número de motor",
-        "year": año de fabricación,
-        "make": "marca",
-        "model": "modelo",
-        "color": "color",
-        "type": "tipo de vehículo"
-      }
 
-      Reglas:
-      1. Solo responder con el JSON
-      2. Usar null para campos no encontrados
-      3. Textos en español`;
+IMPORTANTE: Responde SOLO con el JSON, sin texto adicional, sin marcas de código, sin explicaciones.
+
+{
+  "plate": "número de placa",
+  "vin": "número de chasis/VIN",
+  "motorNum": "número de motor",
+  "year": año de fabricación,
+  "make": "marca",
+  "model": "modelo",
+  "color": "color",
+  "type": "tipo de vehículo"
+}
+
+Reglas:
+1. Solo responder con el JSON
+2. Usar null para campos no encontrados
+3. Textos en español`;
     } else if (docType === 'Insurance') {
       prompt = `Eres un experto en pólizas de seguro. Analiza el documento y extrae la siguiente información en formato JSON válido:
-      {
-        "issuer": "compañía aseguradora",
-        "policyNumber": "número de póliza",
-        "expirationDate": "fecha de vencimiento (YYYY-MM-DD)",
-        "year": "año del vehículo",
-        "isValid": true/false
-      }
 
-      Reglas:
-      1. Solo responder con el JSON
-      2. Fecha en formato YYYY-MM-DD
-      3. Textos en español`;
+IMPORTANTE: Responde SOLO con el JSON, sin texto adicional, sin marcas de código, sin explicaciones.
+
+{
+  "issuer": "compañía aseguradora",
+  "policyNumber": "número de póliza",
+  "expirationDate": "fecha de vencimiento (YYYY-MM-DD)",
+  "year": "año del vehículo",
+  "isValid": true/false
+}
+
+Reglas:
+1. Solo responder con el JSON
+2. Fecha en formato YYYY-MM-DD
+3. Textos en español`;
     } else {
-      prompt = `Eres un experto en documentos. Analiza la imagen y extrae cualquier información relevante en formato JSON válido.`;
+      prompt = `Eres un experto en documentos. Analiza la imagen y extrae cualquier información relevante en formato JSON válido.
+
+IMPORTANTE: Responde SOLO con el JSON, sin texto adicional.`;
     }
+
+    // Limpiar el base64 si tiene prefijo data URL
+    const cleanBase64 = imageBase64.includes('base64,') 
+      ? imageBase64.split(',')[1] 
+      : imageBase64;
 
     const imagePart = {
       inlineData: {
-        data: imageBase64.split(',')[1] || imageBase64, // Remover data:image/jpeg;base64, si existe
+        data: cleanBase64,
         mimeType: mimeType || 'image/jpeg',
       },
     };
 
     console.log('📤 Enviando solicitud a Gemini...');
     
+    // Timeout de 30 segundos
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30000);
     
-    const result = await model.generateContent([prompt, imagePart]);
-    clearTimeout(timeoutId);
-    
-    const response = await result.response;
-    const text = response.text();
-    
-    console.log('📥 Respuesta recibida:', text.substring(0, 200) + '...');
+    try {
+      const result = await model.generateContent([prompt, imagePart]);
+      clearTimeout(timeoutId);
+      
+      const response = await result.response;
+      const text = response.text();
+      
+      console.log('📥 Respuesta recibida:', text.substring(0, 150) + '...');
 
-    // Extraer JSON de la respuesta
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      console.warn('⚠️ No se pudo extraer JSON, respuesta completa:', text);
-      throw new Error('No se pudo extraer JSON de la respuesta');
+      // Extraer JSON de la respuesta
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        console.warn('⚠️ No se pudo extraer JSON, respuesta completa:', text);
+        throw new Error('No se pudo extraer JSON de la respuesta');
+      }
+
+      let parsedData;
+      try {
+        parsedData = JSON.parse(jsonMatch[0]);
+      } catch (parseError) {
+        // Intentar limpiar el JSON
+        const cleanedText = jsonMatch[0]
+          .replace(/```json\s*/g, '')
+          .replace(/```\s*/g, '')
+          .trim();
+        parsedData = JSON.parse(cleanedText);
+      }
+      
+      console.log('✅ Datos parseados exitosamente:', parsedData);
+      
+      return {
+        success: true,
+        data: {
+          plate: parsedData.plate || null,
+          vin: parsedData.vin || null,
+          motorNum: parsedData.motorNum || null,
+          year: parsedData.year || null,
+          make: parsedData.make || null,
+          model: parsedData.model || null,
+          color: parsedData.color || null,
+          type: parsedData.type || null,
+          issuer: parsedData.issuer || null,
+          policyNumber: parsedData.policyNumber || null,
+          expirationDate: parsedData.expirationDate || null,
+          isValid: parsedData.isValid || false,
+        }
+      };
+      
+    } catch (timeoutError) {
+      console.error('⏰ Timeout en análisis de documento');
+      throw new Error('El análisis tomó demasiado tiempo. Intenta con una imagen más clara.');
     }
 
-    const parsedData = JSON.parse(jsonMatch[0]);
-    console.log('✅ Datos parseados:', parsedData);
+  } catch (error: any) {
+    console.error(`❌ Error en analyzeDocumentImage (${docType}):`, error.message || error);
     
     return {
-      plate: parsedData.plate || null,
-      vin: parsedData.vin || null,
-      motorNum: parsedData.motorNum || null,
-      year: parsedData.year || null,
-      make: parsedData.make || null,
-      model: parsedData.model || null,
-      color: parsedData.color || null,
-      type: parsedData.type || null,
-      issuer: parsedData.issuer || null,
-      policyNumber: parsedData.policyNumber || null,
-      expirationDate: parsedData.expirationDate || null,
-      isValid: parsedData.isValid || false,
-    };
-
-  } catch (error) {
-    console.error(`❌ Error en analyzeDocumentImage (${docType}):`, error);
-    
-    // Datos por defecto en caso de error
-    return {
-      plate: null,
-      vin: null,
-      motorNum: null,
-      year: null,
-      make: null,
-      model: null,
-      color: null,
-      type: null,
-      issuer: null,
-      policyNumber: null,
-      expirationDate: null,
-      isValid: false,
+      success: false,
+      error: error.message || 'Error procesando el documento',
+      data: {
+        plate: null,
+        vin: null,
+        motorNum: null,
+        year: null,
+        make: null,
+        model: null,
+        color: null,
+        type: null,
+        issuer: null,
+        policyNumber: null,
+        expirationDate: null,
+        isValid: false,
+      }
     };
   }
 };
@@ -277,29 +392,101 @@ export const analyzeDocumentImage = async (imageBase64: string, docType: string,
  */
 export const isGeminiAvailable = async (): Promise<boolean> => {
   try {
-    // Solo verificar que tenemos la API key
+    // Verificar que tenemos la API key
     const apiKey = import.meta.env.VITE_GOOGLE_AI_API_KEY || 'AIzaSyCNtMrkX8I2x-5taJn_j9JF3Ax_p9kPYFc';
-    return !!(apiKey && apiKey.length > 30 && !apiKey.includes('your_api_key_here'));
-  } catch {
+    
+    if (!apiKey || apiKey === 'your_api_key_here' || apiKey.length < 30) {
+      console.log('❌ API key inválida o no configurada');
+      return false;
+    }
+    
+    // Probar conexión real
+    const testResult = await testGeminiConnection();
+    return testResult.success;
+    
+  } catch (error) {
+    console.error('❌ Error verificando disponibilidad de Gemini:', error);
     return false;
   }
 };
 
 /**
- * Obtiene información del modelo disponible
+ * Obtiene información del estado de Gemini AI
  */
-export const getModelInfo = async () => {
+export const getGeminiStatus = async () => {
   try {
-    const genAI = await getGenAI();
+    const testResult = await testGeminiConnection();
+    
     return {
-      available: true,
-      apiKey: import.meta.env.VITE_GOOGLE_AI_API_KEY ? 'Configurada' : 'Usando clave directa',
-      model: 'gemini-pro-vision'
+      available: testResult.success,
+      status: testResult.status,
+      message: testResult.message || testResult.error,
+      apiKeyConfigured: !!(import.meta.env.VITE_GOOGLE_AI_API_KEY || 'AIzaSyCNtMrkX8I2x-5taJn_j9JF3Ax_p9kPYFc'),
+      timestamp: new Date().toISOString(),
     };
-  } catch (error) {
+    
+  } catch (error: any) {
     return {
       available: false,
-      error: error.message
+      status: 'error',
+      message: error.message || 'Error desconocido',
+      apiKeyConfigured: false,
+      timestamp: new Date().toISOString(),
     };
   }
+};
+
+/**
+ * Procesamiento simulado para cuando Gemini no está disponible (modo demo)
+ */
+export const processImageWithMock = async (imageType: 'front' | 'back' | 'document'): Promise<any> => {
+  console.log(`🔄 Usando procesamiento mock para: ${imageType}`);
+  
+  // Datos de ejemplo para testing
+  const mockData: any = {
+    front: {
+      success: true,
+      data: {
+        plate: 'ABC123',
+        make: 'Toyota',
+        model: 'Corolla',
+        year: 2022,
+        color: 'Blanco',
+        type: 'Sedan',
+        vin: '1HGCM82633A123456',
+        motorNum: 'MTR789012'
+      }
+    },
+    back: {
+      success: true,
+      data: {
+        plate: 'ABC123',
+        vin: '1HGCM82633A123456',
+        motorNum: 'MTR789012',
+        year: 2022,
+        make: 'Toyota',
+        model: 'Corolla',
+        color: 'Blanco',
+        type: 'Sedan'
+      }
+    },
+    document: {
+      success: true,
+      data: {
+        issuer: 'MAPFRE',
+        policyNumber: 'POL-123456',
+        expirationDate: '2024-12-31',
+        year: 2022,
+        isValid: true,
+        plate: 'ABC123',
+        make: 'Toyota',
+        model: 'Corolla'
+      }
+    }
+  };
+  
+  // Simular delay de procesamiento
+  await new Promise(resolve => setTimeout(resolve, 1500));
+  
+  return mockData[imageType] || { success: false, data: {} };
 };
