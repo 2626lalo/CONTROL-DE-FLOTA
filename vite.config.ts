@@ -1,36 +1,21 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import path from 'path'
 
-// https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
-  base: '/', // IMPORTANTE: Para Cloud Run, la base es la raíz
-  
-  // Configuración de construcción CRÍTICA
+  base: '/',
   build: {
     outDir: 'dist',
     emptyOutDir: true,
-    sourcemap: false, // Desactiva sourcemaps para producción
-    
-    // Configuración de Rollup para encontrar el punto de entrada
+    target: 'es2020',
+    // Configuración CRÍTICA: Especifica los puntos de entrada
     rollupOptions: {
       input: {
-        main: path.resolve(__dirname, 'index.html')
+        main: './index.html', // Tu HTML está en raíz
+        app: './index.tsx'    // Tu punto de entrada está en raíz
       }
     }
   },
-  
-  // Configuración del servidor de desarrollo
-  server: {
-    port: 3000,
-    open: true
-  },
-  
-  // Configuración de resolución de rutas
-  resolve: {
-    alias: {
-      '@': path.resolve(__dirname, './src')
-    }
-  }
+  // También especifica la carpeta pública si usas assets
+  publicDir: 'public'
 })
