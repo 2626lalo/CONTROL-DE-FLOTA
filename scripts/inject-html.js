@@ -1,4 +1,4 @@
-// scripts/inject-html.js
+// scripts/fix-html.js - VERSIÓN ES MODULES
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -6,12 +6,19 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+console.log('🔧 Arreglando index.html...');
+
 const distPath = path.join(__dirname, '../dist');
 const assetsPath = path.join(distPath, 'assets');
 
-console.log('🔍 Buscando archivos generados...');
+// Verificar que existe la carpeta assets
+if (!fs.existsSync(assetsPath)) {
+  console.error('❌ No existe la carpeta assets');
+  console.log('Contenido de dist:', fs.readdirSync(distPath));
+  process.exit(1);
+}
 
-// Encontrar archivos JS y CSS generados
+// Buscar archivos generados
 const jsFiles = fs.readdirSync(assetsPath).filter(f => 
   f.endsWith('.js') && f.startsWith('index-') && !f.includes('.map')
 );
@@ -19,20 +26,21 @@ const cssFiles = fs.readdirSync(assetsPath).filter(f =>
   f.endsWith('.css') && f.startsWith('index-')
 );
 
-console.log('JS files:', jsFiles);
-console.log('CSS files:', cssFiles);
+console.log('Archivos encontrados en assets:');
+console.log('- JS:', jsFiles);
+console.log('- CSS:', cssFiles);
 
 if (jsFiles.length === 0 || cssFiles.length === 0) {
-  console.error('❌ No se encontraron archivos JS o CSS generados');
+  console.error('❌ No se encontraron archivos generados');
   process.exit(1);
 }
 
 const jsFile = jsFiles[0];
 const cssFile = cssFiles[0];
 
-console.log(`📦 Usando JS: ${jsFile}, CSS: ${cssFile}`);
+console.log(`📦 Usando: JS=${jsFile}, CSS=${cssFile}`);
 
-// Crear el HTML MANUALMENTE con los scripts correctos
+// Crear HTML MANUALMENTE
 const html = `<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -40,7 +48,7 @@ const html = `<!DOCTYPE html>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CONTROL DE FLOTA</title>
     
-    <!-- Polyfills ES2023 -->
+    <!-- Polyfills -->
     <script>
         if (!Array.prototype.toSorted) {
             Array.prototype.toSorted = function(compareFn) {
@@ -71,6 +79,7 @@ const html = `<!DOCTYPE html>
                 return arr;
             };
         }
+        console.log('Polyfills ES2023 cargados correctamente');
     </script>
     
     <script src="https://cdn.tailwindcss.com"></script>
@@ -99,6 +108,7 @@ const html = `<!DOCTYPE html>
 </body>
 </html>`;
 
-// Escribir el nuevo index.html
+// Escribir el archivo
 fs.writeFileSync(path.join(distPath, 'index.html'), html);
-console.log('✅ HTML regenerado manualmente con scripts inyectados');
+console.log('✅ HTML regenerado manualmente');
+console.log('📏 Tamaño del nuevo index.html:', fs.statSync(path.join(distPath, 'index.html')).size, 'bytes');
