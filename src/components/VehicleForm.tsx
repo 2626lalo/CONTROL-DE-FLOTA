@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useApp } from '../App';
 import { Vehicle, VehicleStatus, OwnershipType, Document as VehicleDocument, ServiceHistory } from '../types';
 import { analyzeVehicleImage, analyzeDocumentImage } from '../services/geminiService';
-import { Save, ArrowLeft, Upload, Trash2, Loader, Camera, FileText, Image, ScanLine, AlertCircle, Check, RefreshCw, Plus, X, FileUp, Car, Eye, CameraFront, CameraRear } from 'lucide-react';
+import { Save, ArrowLeft, Upload, Trash2, Loader, Camera, FileText, Image, ScanLine, AlertCircle, Check, RefreshCw, Plus, X, FileUp, Car, Eye } from 'lucide-react';
 
 // Utility functions for image handling
 const fileToBase64 = (file: File): Promise<string> => {
@@ -409,7 +409,7 @@ const VehicleForm: React.FC = () => {
             {/* Imagen Frontal */}
             <div className="space-y-3">
               <div className="flex items-center gap-2">
-                <CameraFront size={18} className="text-blue-600" />
+                <Camera size={18} className="text-blue-600" />
                 <label className="block text-sm font-medium text-slate-700">
                   Foto Frontal del Vehículo
                 </label>
@@ -480,7 +480,7 @@ const VehicleForm: React.FC = () => {
             {/* Imagen Posterior (Cédula) */}
             <div className="space-y-3">
               <div className="flex items-center gap-2">
-                <CameraRear size={18} className="text-blue-600" />
+                <FileText size={18} className="text-blue-600" />
                 <label className="block text-sm font-medium text-slate-700">
                   Foto Posterior de la Cédula
                 </label>
