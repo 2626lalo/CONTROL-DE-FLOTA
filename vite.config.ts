@@ -8,14 +8,20 @@ export default defineConfig({
     outDir: 'dist',
     rollupOptions: {
       input: './index.html',
+      output: {
+        entryFileNames: 'assets/[name].[hash].js',
+        chunkFileNames: 'assets/[name].[hash].js',
+        assetFileNames: 'assets/[name].[hash][extname]'
+      }
     }
   },
   server: {
     port: 3000,
     host: true,
   },
-  // Esto asegura que las variables de entorno estén disponibles
+  // Hacer que las variables de entorno estén disponibles en el cliente
   define: {
+    'process.env': {},
     'import.meta.env.VITE_GOOGLE_AI_API_KEY': JSON.stringify(process.env.VITE_GOOGLE_AI_API_KEY || '')
   }
 });
