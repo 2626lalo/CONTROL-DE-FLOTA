@@ -1,32 +1,63 @@
-// scripts/fix-html.js
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 console.log('🔧 Arreglando index.html...');
 
 const distPath = path.join(__dirname, '../dist');
 const assetsPath = path.join(distPath, 'assets');
 
-// Buscar archivos generados
-const jsFiles = fs.readdirSync(assetsPath).filter(f => 
-  f.endsWith('.js') && f.startsWith('index-') && !f.includes('.map')
-);
-const cssFiles = fs.readdirSync(assetsPath).filter(f => 
-  f.endsWith('.css') && f.startsWith('index-')
-);
+// Verificar que existe la carpeta dist
+if (!fs.existsSync(distPath)) {
+  console.error('❌ No existe la carpeta dist');
+  process.exit(1);
+}
 
-if (jsFiles.length === 0 || cssFiles.length === 0) {
-  console.error('❌ No se encontraron archivos generados');
-  console.log('Archivos en assets:', fs.readdirSync(assetsPath));
+// Si no existe assets, buscar archivos directamente en dist
+let jsFiles, cssFiles;
+if (fs.existsSync(assetsPath)) {
+  jsFiles = fs.readdirSync(assetsPath).filter(f => 
+    f.endsWith('.js') && f.includes('index') && !f.includes('.map')
+  );
+  cssFiles = fs.readdirSync(assetsPath).filter(f => 
+    f.endsWith('.css') && f.includes('index')
+  );
+} else {
+  // Buscar en dist directamente
+  jsFiles = fs.readdirSync(distPath).filter(f => 
+    f.endsWith('.js') && f.includes('index') && !f.includes('.map')
+  );
+  cssFiles = fs.readdirSync(distPath).filter(f => 
+    f.endsWith('.css') && f.includes('index')
+  );
+}
+
+console.log('Archivos encontrados:');
+console.log('- JS:', jsFiles);
+console.log('- CSS:', cssFiles);
+
+if (jsFiles.length === 0) {
+  console.error('❌ No se encontraron archivos JS generados');
   process.exit(1);
 }
 
 const jsFile = jsFiles[0];
-const cssFile = cssFiles[0];
+const cssFile = cssFiles.length > 0 ? cssFiles[0] : '';
 
 console.log(`📦 Usando: JS=${jsFile}, CSS=${cssFile}`);
 
 // Crear HTML MANUALMENTE
+let cssLink = '';
+if (cssFile) {
+  const cssPath = assetsPath ? `/assets/${cssFile}` : `/${cssFile}`;
+  cssLink = `<link rel="stylesheet" href="${cssPath}">`;
+}
+
+const jsPath = assetsPath ? `/assets/${jsFile}` : `/${jsFile}`;
+
 const html = `<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -69,7 +100,7 @@ const html = `<!DOCTYPE html>
     </script>
     
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="/assets/${cssFile}">
+    ${cssLink}
     
     <style>
         ::-webkit-scrollbar {
@@ -90,7 +121,7 @@ const html = `<!DOCTYPE html>
 </head>
 <body class="bg-slate-50 text-slate-900 antialiased">
     <div id="root"></div>
-    <script type="module" crossorigin src="/assets/${jsFile}"></script>
+    <script type="module" crossorigin src="${jsPath}"></script>
 </body>
 </html>`;
 
