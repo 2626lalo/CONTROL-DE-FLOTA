@@ -1,10 +1,19 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import { TestComponent } from './test'  // ← Importar componente de prueba
-import './index.css'
+import App from './App'  // Importa App.tsx de la misma carpeta
+import './index.css'     // Importa los estilos
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
+// Esto es importante: encuentra el div con id="root"
+const rootElement = document.getElementById('root')
+
+// Si no encuentra el elemento, muestra error
+if (!rootElement) {
+  throw new Error('No se encontró el elemento con id="root" en index.html')
+}
+
+// Monta la aplicación React
+ReactDOM.createRoot(rootElement).render(
   <React.StrictMode>
-    <TestComponent />
+    <App />
   </React.StrictMode>
 )
