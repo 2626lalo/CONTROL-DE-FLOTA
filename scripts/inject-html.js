@@ -22,19 +22,21 @@ let cssFiles = [];
 
 // Buscar en assets si existe
 if (fs.existsSync(assetsPath)) {
-  jsFiles = fs.readdirSync(assetsPath).filter(f => 
-    f.endsWith('.js') && f.includes('index') && !f.includes('.map')
+  const allFiles = fs.readdirSync(assetsPath);
+  jsFiles = allFiles.filter(f => 
+    f.endsWith('.js') && !f.includes('.map')
   );
-  cssFiles = fs.readdirSync(assetsPath).filter(f => 
-    f.endsWith('.css') && f.includes('index')
+  cssFiles = allFiles.filter(f => 
+    f.endsWith('.css')
   );
 } else {
   // Buscar directamente en dist
-  jsFiles = fs.readdirSync(distPath).filter(f => 
-    f.endsWith('.js') && f.includes('index') && !f.includes('.map')
+  const allFiles = fs.readdirSync(distPath);
+  jsFiles = allFiles.filter(f => 
+    f.endsWith('.js') && !f.includes('.map')
   );
-  cssFiles = fs.readdirSync(distPath).filter(f => 
-    f.endsWith('.css') && f.includes('index')
+  cssFiles = allFiles.filter(f => 
+    f.endsWith('.css')
   );
 }
 
@@ -44,23 +46,42 @@ console.log('  CSS:', cssFiles);
 
 if (jsFiles.length === 0) {
   console.error('❌ No se encontraron archivos JS generados por Vite');
-  console.log('  Contenido de dist:', fs.readdirSync(distPath));
-  if (fs.existsSync(assetsPath)) {
-    console.log('  Contenido de assets:', fs.readdirSync(assetsPath));
-  }
   process.exit(1);
 }
 
-const jsFile = jsFiles[0];
-const cssFile = cssFiles.length > 0 ? cssFiles[0] : '';
+// BUSCAR EL ARCHIVO JS CORRECTO (el más grande o que contenga "index" sin prefijo)
+let mainJsFile = null;
+
+// Opción 1: Buscar el más grande (normalmente el bundle principal)
+const jsFilesWithSize = jsFiles.map(file => {
+  const filePath = path.join(assetsPath || distPath, file);
+  return { file, size: fs.statSync(filePath).size };
+});
+
+jsFilesWithSize.sort((a, b) => b.size - a.size);
+console.log('📊 Archivos JS ordenados por tamaño:');
+jsFilesWithSize.forEach((f, i) => {
+  console.log(`  ${i+1}. ${f.file} - ${(f.size / 1024).toFixed(2)} kB`);
+});
+
+// Seleccionar el más grande
+mainJsFile = jsFilesWithSize[0].file;
+
+// Buscar archivo CSS principal (el que empiece con "index" o el primero)
+let mainCssFile = null;
+if (cssFiles.length > 0) {
+  // Buscar CSS que empiece con "index"
+  const indexCss = cssFiles.find(f => f.startsWith('index-') || f.startsWith('index.'));
+  mainCssFile = indexCss || cssFiles[0];
+}
 
 console.log(`📦 Archivos seleccionados:`);
-console.log(`  JS: ${jsFile}`);
-console.log(`  CSS: ${cssFile}`);
+console.log(`  JS: ${mainJsFile} (${(jsFilesWithSize[0].size / 1024).toFixed(2)} kB)`);
+console.log(`  CSS: ${mainCssFile || 'ninguno'}`);
 
 // Determinar rutas correctas
-const jsPath = assetsPath && fs.existsSync(assetsPath) ? `/assets/${jsFile}` : `/${jsFile}`;
-const cssPath = cssFile ? (assetsPath && fs.existsSync(assetsPath) ? `/assets/${cssFile}` : `/${cssFile}`) : '';
+const jsPath = (assetsPath && fs.existsSync(assetsPath)) ? `/assets/${mainJsFile}` : `/${mainJsFile}`;
+const cssPath = mainCssFile ? ((assetsPath && fs.existsSync(assetsPath)) ? `/assets/${mainCssFile}` : `/${mainCssFile}`) : '';
 
 // Leer el HTML original para mantener polyfills
 const originalHtmlPath = path.join(__dirname, '../index.html');
@@ -145,11 +166,42 @@ ${polyfills}
         ::-webkit-scrollbar-thumb:hover {
             background: #94a3b8;
         }
+        
+        /* Estilos de carga */
+        #root {
+            min-height: 100vh;
+        }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-900 antialiased">
-    <div id="root"></div>
+    <div id="root">
+        <div style="display: flex; justify-content: center; align-items: center; height: 100vh;">
+            <div style="text-align: center;">
+                <div style="font-size: 24px; margin-bottom: 20px; color: #3b82f6;">Cargando CONTROL DE FLOTA...</div>
+                <div style="width: 50px; height: 50px; border: 5px solid #e5e7eb; border-top-color: #3b82f6; border-radius: 50%; margin: 0 auto; animation: spin 1s linear infinite;"></div>
+            </div>
+        </div>
+    </div>
     <script type="module" crossorigin src="${jsPath}"></script>
+    
+    <style>
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+    
+    <script>
+        // Script para manejar errores de carga
+        window.addEventListener('error', function(e) {
+            console.error('Error global:', e.error);
+            document.getElementById('root').innerHTML = 
+                '<div style="padding: 40px; text-align: center; color: #ef4444;">' +
+                '<h2 style="font-size: 24px; margin-bottom: 20px;">❌ Error al cargar la aplicación</h2>' +
+                '<p style="margin-bottom: 10px;">Detalles: ' + (e.error?.message || 'Error desconocido') + '</p>' +
+                '<button onclick="window.location.reload()" style="background: #3b82f6; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">Reintentar</button>' +
+                '</div>';
+        });
+    </script>
 </body>
 </html>`;
 
