@@ -1,5 +1,4 @@
-
-iimport { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/genai";
 
 // Initialize Gemini with environment variable
 let ai: GoogleGenAI | null = null;
