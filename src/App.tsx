@@ -529,12 +529,13 @@ export default function App() {
         
         if (apiKey && apiKey !== 'your_api_key_here') {
           try {
-            const { GoogleGenerativeAI } = await import('@google/generative-ai');
+            // CAMBIO: Cambiado de '@google/generative-ai' a '@google/genai' para coincidir con package.json
+            const { GoogleGenerativeAI } = await import('@google/genai');
             const genAI = new GoogleGenerativeAI(apiKey);
             setGoogleAI(genAI);
             console.log('✅ Google AI inicializado correctamente');
           } catch (error: any) {
-            console.error('❌ Error cargando @google/generative-ai:', error);
+            console.error('❌ Error cargando @google/genai:', error);
             setGeminiStatus('disconnected');
             setGeminiMessage('Error al cargar la biblioteca de Google AI');
           }
