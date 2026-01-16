@@ -3,7 +3,7 @@ import { HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-d
 import { Layout } from './components/Layout';
 import { Dashboard } from './components/Dashboard';
 import { VehicleList } from './components/VehicleList';
-import VehicleForm from './components/VehicleForm';  // Importación por defecto
+import VehicleForm from './components/VehicleForm';
 import { Checklist as ChecklistComp } from './components/Checklist';
 import { ServiceManager } from './components/ServiceManager';
 import { AdminUsers } from './components/AdminUsers';
@@ -79,8 +79,47 @@ interface AppContextType {
   checkGeminiConnection: () => Promise<void>;
 }
 
-const AppContext = createContext<AppContextType>({} as AppContextType);
-export const useApp = () => useContext(AppContext);
+// Contexto inicial seguro
+const defaultContextValue: AppContextType = {
+  user: null,
+  registeredUsers: [],
+  login: async () => ({ success: false, message: 'Contexto no inicializado' }),
+  register: async () => false,
+  googleLogin: async () => {},
+  logout: () => {},
+  updateUser: () => {},
+  deleteUser: () => {},
+  vehicles: [],
+  addVehicle: () => {},
+  updateVehicle: () => {},
+  deleteVehicle: () => {},
+  serviceRequests: [],
+  addServiceRequest: () => {},
+  updateServiceRequest: () => {},
+  deleteServiceRequest: () => {},
+  checklists: [],
+  addChecklist: () => {},
+  isOnline: true,
+  isSyncing: false,
+  refreshData: async () => {},
+  isDataLoading: false,
+  notifyError: () => {},
+  globalError: null,
+  clearGlobalError: () => {},
+  googleAI: null,
+  geminiStatus: 'checking',
+  geminiMessage: '',
+  checkGeminiConnection: async () => {}
+};
+
+const AppContext = createContext<AppContextType>(defaultContextValue);
+export const useApp = () => {
+  const context = useContext(AppContext);
+  if (!context) {
+    throw new Error('useApp debe usarse dentro de AppProvider');
+  }
+  return context;
+};
 
 // --- SAFE PARSE HELPER (Prevents crashes on corrupted LocalStorage) ---
 const safeJSONParse = <T,>(key: string, fallback: T): T => {
@@ -490,18 +529,18 @@ export default function App() {
         
         if (apiKey && apiKey !== 'your_api_key_here') {
           try {
-            const { GoogleGenerativeAI } = await import('@google/genai');
+            const { GoogleGenerativeAI } = await import('@google/generative-ai');
             const genAI = new GoogleGenerativeAI(apiKey);
             setGoogleAI(genAI);
             console.log('✅ Google AI inicializado correctamente');
           } catch (error: any) {
-            console.error('❌ Error cargando @google/genai:', error);
+            console.error('❌ Error cargando @google/generative-ai:', error);
             setGeminiStatus('disconnected');
             setGeminiMessage('Error al cargar la biblioteca de Google AI');
           }
         } else {
           setGeminiStatus('disconnected');
-          setGeminiMessage('API key no configurada');
+          setGeminiMessage('API key no configurada. Configura VITE_GOOGLE_AI_API_KEY en .env');
         }
       } else {
         setGeminiStatus('disconnected');
