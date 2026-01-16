@@ -5,6 +5,9 @@ WORKDIR /app
 COPY package.json .
 RUN npm install --legacy-peer-deps
 
+# INSTALA LA BIBLIOTECA CORRECTA Y MANTÉN LA ANTERIOR POR COMPATIBILIDAD
+RUN npm install @google/generative-ai@0.13.0 --legacy-peer-deps
+
 COPY . .
 
 # Build con inyección de scripts
