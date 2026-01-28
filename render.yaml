@@ -1,8 +1,9 @@
+
 services:
   - type: web
-    name: control-de-flota
+    name: control-flota-pro
     env: static
-    buildCommand: npm run build
+    buildCommand: npm install && npm run build
     staticPublishPath: ./dist
     routes:
       - type: rewrite

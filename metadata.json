@@ -1,7 +1,8 @@
 {
-  "name": "CONTROL DE FLOTA",
-  "description": "Professional enterprise fleet management system with intelligent OCR, checklist tracking, and maintenance workflows.",
+  "name": "Gestión de Flota Corporativa Pro",
+  "description": "Sistema profesional de gestión de flota con OCR inteligente, seguimiento de checklists y flujos de mantenimiento.",
   "requestFramePermissions": [
-    "camera"
+    "camera",
+    "geolocation"
   ]
 }

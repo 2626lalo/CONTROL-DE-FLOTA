@@ -1,8 +1,0 @@
-
-{
-  "name": "CONTROL DE FLOTA",
-  "description": "Professional enterprise fleet management system with intelligent OCR, checklist tracking, and maintenance workflows.",
-  "requestFramePermissions": [
-    "camera"
-  ]
-}

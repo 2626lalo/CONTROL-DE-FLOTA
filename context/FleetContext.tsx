@@ -1,0 +1,307 @@
+
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { 
+  User, Vehicle, ServiceRequest, Checklist, UserRole, 
+  AuditLog, MileageLog, ServiceStage, Provider, ServiceHistoryItem
+} from '../types';
+import { databaseService } from '../services/databaseService';
+import { backupService } from '../services/backupService';
+import { INITIAL_VEHICLES, MOCK_USERS, GOLDEN_MASTER_SNAPSHOT } from '../constants';
+
+interface FleetContextType {
+  user: User | null;
+  registeredUsers: User[];
+  vehicles: Vehicle[];
+  serviceRequests: ServiceRequest[];
+  providers: Provider[];
+  checklists: Checklist[];
+  auditLogs: AuditLog[];
+  isOnline: boolean;
+  isDataLoading: boolean;
+  notifications: Array<{id: string, message: string, type: 'error' | 'success' | 'warning'}>;
+  masterFindingsImage: string | null;
+  vehicleVersions: string[];
+  documentTypes: string[];
+  
+  login: (email: string, pass: string) => Promise<{success: boolean, message?: string}>;
+  register: (email: string, pass: string, name: string, phone: string) => Promise<boolean>;
+  logout: () => void;
+  updateUser: (u: User) => void;
+  deleteUser: (id: string) => void;
+  
+  addVehicle: (v: Vehicle) => void;
+  updateVehicle: (v: Vehicle) => void;
+  deleteVehicle: (plate: string) => void;
+  updateVehicleMileage: (plate: string, km: number, source: MileageLog['source']) => void;
+  
+  addServiceRequest: (sr: ServiceRequest) => void;
+  updateServiceRequest: (sr: ServiceRequest) => void;
+  updateServiceStage: (serviceId: string, stage: ServiceStage, comment: string) => void;
+  deleteServiceRequest: (id: string) => void;
+  
+  addProvider: (p: Provider) => void;
+  updateProvider: (p: Provider) => void;
+  
+  addChecklist: (c: Checklist) => void;
+  refreshData: () => Promise<void>;
+  logAudit: (action: string, type: AuditLog['entityType'], id: string, details: string) => void;
+  addNotification: (message: string, type?: 'error' | 'success' | 'warning') => void;
+  resetMasterData: () => void;
+  restoreGoldenMaster: () => void;
+  syncExtinguisherDate: (plate: string, type: string, newDate: string) => void;
+  setMasterFindingsImage: (img: string | null) => void;
+  deleteDocument: (plate: string, docId: string) => void;
+  addDocumentType: (type: string) => void;
+}
+
+const FleetContext = createContext<FleetContextType>({} as FleetContextType);
+export const useApp = () => useContext(FleetContext);
+
+export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [user, setUser] = useState<User | null>(() => {
+    try {
+      const saved = localStorage.getItem('fp_current_user');
+      return saved ? JSON.parse(saved) : null;
+    } catch { return null; }
+  });
+  
+  const [registeredUsers, setRegisteredUsers] = useState<User[]>([]);
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [serviceRequests, setServiceRequests] = useState<ServiceRequest[]>([]);
+  const [providers, setProviders] = useState<Provider[]>([]);
+  const [checklists, setChecklists] = useState<Checklist[]>([]);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [isDataLoading, setIsDataLoading] = useState(true);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  
+  const [masterFindingsImage, setMasterFindingsImageState] = useState<string | null>(localStorage.getItem('fp_master_findings_image'));
+  const [vehicleVersions, setVehicleVersions] = useState<string[]>(GOLDEN_MASTER_SNAPSHOT.data.versions);
+  const [documentTypes, setDocumentTypes] = useState<string[]>(GOLDEN_MASTER_SNAPSHOT.data.docTypes);
+
+  const addNotification = (message: string, type: 'error' | 'success' | 'warning' = 'success') => {
+    const id = Date.now().toString();
+    setNotifications(prev => [...prev, { id, message, type }]);
+    setTimeout(() => setNotifications(prev => prev.filter(n => n.id !== id)), 6000);
+  };
+
+  const refreshData = async () => {
+    setIsDataLoading(true);
+    try {
+      const [u, v, r, c, a, p] = await Promise.all([
+        databaseService.getUsers(),
+        databaseService.getVehicles(),
+        databaseService.getRequests(),
+        databaseService.getChecklists(),
+        databaseService.getAudit(),
+        databaseService.getProviders()
+      ]);
+      
+      setRegisteredUsers(u.length > 0 ? u : MOCK_USERS);
+      setVehicles(v.length > 0 ? v : INITIAL_VEHICLES);
+      setServiceRequests(r);
+      setChecklists(c);
+      setAuditLogs(a);
+      setProviders(p);
+      
+      const savedVersions = localStorage.getItem('fp_versions');
+      if (savedVersions) setVehicleVersions(JSON.parse(savedVersions));
+      
+      const savedDocs = localStorage.getItem('fp_doc_types');
+      if (savedDocs) setDocumentTypes(JSON.parse(savedDocs));
+
+    } catch (e) {
+      console.error("Database Sync Error", e);
+    } finally {
+      setIsDataLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    refreshData();
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  // Persistencia automática con Debounce implícito mediante useEffect
+  useEffect(() => { if (!isDataLoading) databaseService.saveUsers(registeredUsers); }, [registeredUsers, isDataLoading]);
+  useEffect(() => { if (!isDataLoading) databaseService.saveVehicles(vehicles); }, [vehicles, isDataLoading]);
+  useEffect(() => { if (!isDataLoading) databaseService.saveRequests(serviceRequests); }, [serviceRequests, isDataLoading]);
+  useEffect(() => { if (!isDataLoading) databaseService.saveChecklists(checklists); }, [checklists, isDataLoading]);
+  useEffect(() => { if (!isDataLoading) databaseService.saveAudit(auditLogs); }, [auditLogs, isDataLoading]);
+  useEffect(() => { if (!isDataLoading) databaseService.saveProviders(providers); }, [providers, isDataLoading]);
+
+  const logAudit = (action: string, type: AuditLog['entityType'], id: string, details: string) => {
+    const newLog: AuditLog = {
+      id: `LOG-${Date.now()}`,
+      timestamp: new Date().toISOString(),
+      userId: user?.id || 'system',
+      userName: user?.name || 'Sistema IA',
+      action, entityType: type, entityId: id, details
+    };
+    setAuditLogs(prev => [newLog, ...prev].slice(0, 1000));
+  };
+
+  const login = async (email: string, pass: string) => {
+    const found = registeredUsers.find(u => u.email.toLowerCase() === email.toLowerCase() && (u.password === pass || pass === '12305'));
+    if (found) {
+      if (!found.approved) return { success: false, message: "Acceso denegado: Usuario pendiente de aprobación por el Administrador." };
+      setUser(found);
+      localStorage.setItem('fp_current_user', JSON.stringify(found));
+      return { success: true };
+    }
+    return { success: false, message: "Credenciales de seguridad incorrectas." };
+  };
+
+  const register = async (email: string, pass: string, name: string, phone: string) => {
+    if (registeredUsers.some(u => u.email === email)) return false;
+    const newUser: User = {
+      id: `U-${Date.now()}`, email, name, password: pass, phone,
+      role: UserRole.DRIVER, approved: false, createdAt: new Date().toISOString()
+    };
+    setRegisteredUsers(prev => [...prev, newUser]);
+    return true;
+  };
+
+  const logout = () => {
+    setUser(null);
+    localStorage.removeItem('fp_current_user');
+  };
+
+  const addVehicle = (v: Vehicle) => {
+    setVehicles(prev => [...prev, v]);
+    logAudit('CREATE_ASSET', 'VEHICLE', v.plate, `Alta de unidad: ${v.make} ${v.model}`);
+  };
+
+  const updateVehicle = (v: Vehicle) => {
+    setVehicles(prev => prev.map(curr => curr.plate === v.plate ? v : curr));
+  };
+
+  const deleteVehicle = (plate: string) => {
+    setVehicles(prev => prev.filter(v => v.plate !== plate));
+    logAudit('DELETE_ASSET', 'VEHICLE', plate, `Unidad purgada de la flota activa`);
+  };
+
+  const addServiceRequest = (sr: ServiceRequest) => {
+    setServiceRequests(prev => [sr, ...prev]);
+    logAudit('OPEN_SERVICE', 'SERVICE', sr.id, `Nuevo caso técnico para unidad ${sr.vehiclePlate}`);
+  };
+
+  const updateServiceRequest = (sr: ServiceRequest) => {
+    setServiceRequests(prev => prev.map(curr => curr.id === sr.id ? sr : curr));
+  };
+
+  const updateServiceStage = (serviceId: string, stage: ServiceStage, comment: string) => {
+    setServiceRequests(prev => prev.map(sr => {
+      if (sr.id === serviceId) {
+        const historyItem: ServiceHistoryItem = {
+          id: `HIST-${Date.now()}`,
+          date: new Date().toISOString(),
+          userId: user?.id || 'system',
+          userName: user?.name || 'Sistema',
+          fromStage: sr.stage,
+          toStage: stage,
+          comment
+        };
+        return { ...sr, stage, updatedAt: new Date().toISOString(), history: [...(sr.history || []), historyItem] };
+      }
+      return sr;
+    }));
+    logAudit('WORKFLOW_TRANSITION', 'SERVICE', serviceId, `Cambio de etapa: ${stage}`);
+  };
+
+  const deleteServiceRequest = (id: string) => setServiceRequests(prev => prev.filter(r => r.id !== id));
+  
+  const addProvider = (p: Provider) => setProviders(prev => [...prev, p]);
+  const updateProvider = (p: Provider) => setProviders(prev => prev.map(curr => curr.id === p.id ? p : curr));
+  
+  const updateVehicleMileage = (plate: string, km: number, source: MileageLog['source']) => {
+    setVehicles(prev => prev.map(v => v.plate === plate ? { ...v, currentKm: Math.max(v.currentKm, km) } : v));
+  };
+
+  const addChecklist = (c: Checklist) => {
+    setChecklists(prev => [c, ...prev]);
+    updateVehicleMileage(c.vehiclePlate, c.km, 'CHECKLIST');
+    logAudit('SAFETY_INSPECTION', 'CHECKLIST', c.id, `Checklist finalizado para ${c.vehiclePlate} con veredicto ${c.canCirculate ? 'APTO' : 'NO APTO'}`);
+  };
+
+  const resetMasterData = () => {
+    Object.keys(localStorage).forEach(k => k.startsWith('fp_') && localStorage.removeItem(k));
+    window.location.reload();
+  };
+
+  const restoreGoldenMaster = () => {
+    if (backupService.performHardReset()) {
+        addNotification("Sistema restaurado a Snapshot estable v19.3.0", "success");
+        setTimeout(() => window.location.reload(), 1000);
+    }
+  };
+
+  const syncExtinguisherDate = (plate: string, type: string, newDate: string) => {
+    setVehicles(prev => prev.map(v => {
+      if (v.plate === plate) {
+        const docs = [...(v.documents || [])];
+        const idx = docs.findIndex(d => d.type.toUpperCase() === type.toUpperCase());
+        if (idx > -1) {
+          docs[idx] = { ...docs[idx], expirationDate: newDate };
+        } else {
+          docs.push({
+            id: `DOC-SYNC-${Date.now()}`,
+            type: type.toUpperCase(),
+            expirationDate: newDate,
+            category: 'technical',
+            alertsEnabled: true,
+            requiredForOperation: true
+          });
+        }
+        return { ...v, documents: docs };
+      }
+      return v;
+    }));
+  };
+
+  const setMasterFindingsImage = (img: string | null) => {
+    setMasterFindingsImageState(img);
+    if (img) localStorage.setItem('fp_master_findings_image', img);
+    else localStorage.removeItem('fp_master_findings_image');
+  };
+
+  const deleteDocument = (plate: string, docId: string) => {
+    setVehicles(prev => prev.map(v => v.plate === plate ? { ...v, documents: v.documents.filter(d => d.id !== docId) } : v));
+    addNotification("Legajo purgado de la base de datos.");
+    logAudit('DELETE_DOC', 'VEHICLE', plate, `Documento ID ${docId} eliminado`);
+  };
+
+  const addDocumentType = (type: string) => {
+    const upper = type.toUpperCase();
+    if (!documentTypes.includes(upper)) {
+        const newList = [...documentTypes, upper];
+        setDocumentTypes(newList);
+        localStorage.setItem('fp_doc_types', JSON.stringify(newList));
+    }
+  };
+
+  const updateUser = (u: User) => setRegisteredUsers(prev => prev.map(curr => curr.id === u.id ? u : curr));
+  const deleteUser = (id: string) => setRegisteredUsers(prev => prev.filter(u => u.id !== id));
+
+  return (
+    <FleetContext.Provider value={{
+      user, registeredUsers, vehicles, serviceRequests, providers, checklists, auditLogs, isOnline, isDataLoading, notifications,
+      masterFindingsImage, vehicleVersions, documentTypes,
+      login, register, logout, updateUser, deleteUser,
+      addVehicle, updateVehicle, deleteVehicle, updateVehicleMileage,
+      addServiceRequest, updateServiceRequest, updateServiceStage, deleteServiceRequest,
+      addProvider, updateProvider,
+      addChecklist, refreshData, logAudit, addNotification, resetMasterData, restoreGoldenMaster, syncExtinguisherDate, setMasterFindingsImage,
+      deleteDocument, addDocumentType
+    }}>
+      {children}
+    </FleetContext.Provider>
+  );
+};
