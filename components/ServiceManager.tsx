@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/FleetContext';
@@ -20,9 +19,11 @@ import {
   LucideCalendar, LucidePhone, LucideMapPinHouse, LucideRotateCcw,
   LucideCalendarDays, LucideCheck, LucideUserPlus, LucideClipboardList,
   LucideBrain, LucideMaximize, LucideDownload, LucideLoader2, LucideCamera,
-  LucidePenTool, LucideBan, LucideRefreshCcw, LucideCheckCircle, LucideSparkles
+  LucidePenTool, LucideBan, LucideRefreshCcw, LucideCheckCircle, LucideSparkles,
+  LucideZap
 } from 'lucide-react';
 import { format, parseISO, differenceInHours, isBefore, startOfDay } from 'date-fns';
+import { es } from 'date-fns/locale';
 import { analyzeBudgetImage, isAiAvailable, getTechnicalAdvice } from '../services/geminiService';
 import { compressImage } from '../utils/imageCompressor';
 import { ImageZoomModal } from './ImageZoomModal';
@@ -232,7 +233,7 @@ const BudgetingCenter = ({ sr, onUpdate }: { sr: ServiceRequest, onUpdate: (sr: 
 
     const handleAiAnalyze = async () => {
         if (!newBudget.imageUrl) return; setIsProcessing(true); addNotification("Analizando presupuesto con IA...", "warning");
-        try { const result = await analyzeBudgetImage(newBudget.imageUrl, 'image/jpeg'); if (result) { setNewBudget(prev => ({ ...prev, providerName: result.provider?.toUpperCase(), totalAmount: result.totalCost, details: result.details })); addNotification("Datos técnicos extraídos"); } } finally { setIsProcessing(false); }
+        try { const result = await analyzeBudgetImage(newBudget.imageUrl, 'image/jpeg'); if (result) { setNewBudget(prev => ({ ...prev, providerName: result.provider?.toUpperCase(), totalCost: result.totalCost, details: result.details })); addNotification("Datos técnicos extraídos"); } } finally { setIsProcessing(false); }
     };
 
     const handleSaveBudget = () => {
@@ -244,7 +245,7 @@ const BudgetingCenter = ({ sr, onUpdate }: { sr: ServiceRequest, onUpdate: (sr: 
         } else {
             const budget: Estimate = { id: `EST-${Date.now()}`, version: (sr.budgets?.length || 0) + 1, providerId: 'manual', providerName: newBudget.providerName, items: [], totalAmount: Number(newBudget.totalAmount), status: 'PENDING', createdAt: new Date().toISOString(), imageUrl: newBudget.imageUrl, details: newBudget.details };
             updatedBudgets = [...(sr.budgets || []), budget];
-            addNotification("Cotización registrada");
+            addNotification("Presupuesto registrado");
         }
         onUpdate({ ...sr, budgets: updatedBudgets }); setShowAdd(false); setEditingBudgetId(null);
         setNewBudget({ providerName: '', totalAmount: 0, status: 'PENDING', imageUrl: '', details: '' });
@@ -268,7 +269,7 @@ const BudgetingCenter = ({ sr, onUpdate }: { sr: ServiceRequest, onUpdate: (sr: 
                         <div className="space-y-8">
                             <div className="space-y-2"><label className="text-[9px] font-black text-slate-400 uppercase ml-4">Taller / Proveedor</label><input className="w-full px-8 py-5 rounded-2xl bg-white border border-slate-200 font-black text-xl outline-none uppercase text-slate-800 shadow-sm focus:ring-4 focus:ring-blue-100" value={newBudget.providerName} onChange={e => setNewBudget({...newBudget, providerName: e.target.value.toUpperCase()})} placeholder="NOMBRE DEL ESTABLECIMIENTO..." /></div>
                             <div className="space-y-2"><label className="text-[9px] font-black text-slate-400 uppercase ml-4">Importe Total ($)</label><input type="number" className="w-full px-8 py-5 rounded-2xl bg-white border border-slate-200 font-black text-3xl outline-none text-blue-600 shadow-sm focus:ring-4 focus:ring-blue-100" value={newBudget.totalAmount || ''} onChange={e => setNewBudget({...newBudget, totalAmount: Number(e.target.value)})} placeholder="0.00" /></div>
-                            <div className="space-y-2"><label className="text-[9px] font-black text-slate-400 uppercase ml-4">Detalles Técnicos</label><textarea className="w-full px-8 py-5 rounded-2xl bg-white border border-slate-200 font-bold text-xs outline-none resize-none shadow-sm h-32 focus:ring-4 focus:ring-blue-100" value={newBudget.details} onChange={e => setNewBudget({...newBudget, details: e.target.value})} placeholder="Resumen de tareas presupuestadas..." /></div>
+                            <div className="space-y-2"><label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-4">Detalles Técnicos</label><textarea className="w-full px-8 py-5 rounded-2xl bg-white border border-slate-200 font-bold text-xs outline-none resize-none shadow-sm h-32 focus:ring-4 focus:ring-blue-100" value={newBudget.details} onChange={e => setNewBudget({...newBudget, details: e.target.value})} placeholder="Resumen de tareas presupuestadas..." /></div>
                         </div>
                     </div>
                     <div className="flex gap-6 pt-10 border-t border-slate-200"><button onClick={() => { setShowAdd(false); setEditingBudgetId(null); }} className="flex-1 py-6 font-black uppercase text-[11px] text-slate-400 tracking-widest">Descartar</button><button onClick={handleSaveBudget} className="flex-[2] bg-blue-600 text-white py-6 rounded-[2rem] font-black uppercase text-xs tracking-widest shadow-2xl shadow-blue-500/30 hover:bg-blue-700 active:scale-95 transition-all">{editingBudgetId ? 'Guardar Cambios' : 'Confirmar Registro de Propuesta'}</button></div>
@@ -281,7 +282,7 @@ const BudgetingCenter = ({ sr, onUpdate }: { sr: ServiceRequest, onUpdate: (sr: 
                             <button onClick={() => { setNewBudget(b); setEditingBudgetId(b.id); setShowAdd(true); }} className="p-3 bg-slate-900 text-white rounded-xl shadow-lg hover:bg-blue-600 transition-colors"><LucidePencil size={18}/></button>
                             <button onClick={() => handleDeleteBudget(b.id)} className="p-3 bg-rose-600 text-white rounded-xl shadow-lg hover:bg-rose-700 transition-colors"><LucideTrash2 size={18}/></button>
                         </div>
-                        <div className="flex justify-between items-start mb-8"><div className="flex items-center gap-6">{b.imageUrl && (<div className="w-20 h-20 rounded-2xl border border-slate-100 overflow-hidden cursor-zoom-in group relative shadow-md" onClick={() => setZoomedImage({url: b.imageUrl!, label: b.providerName})}><img src={b.imageUrl} className="w-full h-full object-cover group-hover:scale-110 transition-transform" /><div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 flex items-center justify-center"><LucideMaximize size={24} className="text-white"/></div></div>)}<div><p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] leading-none mb-2">Alternativa #{b.version}</p><h5 className="text-2xl font-black text-slate-800 uppercase italic leading-none">{b.providerName}</h5></div></div><span className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest ${b.status === 'APPROVED' ? 'bg-emerald-600 text-white shadow-emerald-200' : b.status === 'REQUOTE' ? 'bg-amber-600 text-white shadow-amber-200' : 'bg-blue-50 text-blue-600 shadow-blue-50'} shadow-lg`}>{b.status}</span></div>
+                        <div className="flex justify-between items-start mb-8"><div className="flex items-center gap-6">{b.imageUrl && (<div className="w-20 h-20 rounded-2xl border border-slate-100 overflow-hidden cursor-zoom-in group relative shadow-md" onClick={() => setZoomedImage({url: b.imageUrl!, label: b.providerName})}><img src={b.imageUrl} className="w-full h-full object-cover group-hover:scale-110 transition-transform" /><div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center"><LucideMaximize size={24} className="text-white"/></div></div>)}<div><p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] leading-none mb-2">Alternativa #{b.version}</p><h5 className="text-2xl font-black text-slate-800 uppercase italic leading-none">{b.providerName}</h5></div></div><span className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest ${b.status === 'APPROVED' ? 'bg-emerald-600 text-white shadow-emerald-200' : b.status === 'REQUOTE' ? 'bg-amber-600 text-white shadow-amber-200' : 'bg-blue-50 text-blue-600 shadow-blue-50'} shadow-lg`}>{b.status}</span></div>
                         <div className="mt-auto flex justify-between items-end"><div><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Importe Estimado</p><p className="text-4xl font-black text-slate-800 tracking-tighter italic">${b.totalAmount.toLocaleString()}</p></div><button onClick={() => { const a = document.createElement('a'); a.href = b.imageUrl!; a.download = `Presupuesto_${b.providerName}.jpg`; a.click(); }} className="p-4 bg-slate-100 text-slate-400 rounded-2xl hover:bg-slate-900 hover:text-white transition-all shadow-sm"><LucideDownload size={24}/></button></div>
                     </div>
                 ))}
@@ -308,7 +309,7 @@ const SchedulingCenter = ({ sr, onUpdate, isAdmin }: { sr: ServiceRequest, onUpd
         const dateInput = fd.get('date') as string;
         
         if (isBefore(parseISO(dateInput), startOfDay(new Date()))) {
-            addNotification("Error: La fecha de ingreso debe ser hoy o futura.", "error");
+            addNotification("Error: El ingreso no puede ser en una fecha pasada.", "error");
             return;
         }
 
@@ -327,7 +328,7 @@ const SchedulingCenter = ({ sr, onUpdate, isAdmin }: { sr: ServiceRequest, onUpd
     };
 
     const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setPhoneVal(e.target.value.replace(/[^0-9+]/g, '')); 
+        setPhoneVal(e.target.value.replace(/[^0-9]/g, '')); 
     };
 
     const todayStr = format(new Date(), 'yyyy-MM-dd');
@@ -337,11 +338,11 @@ const SchedulingCenter = ({ sr, onUpdate, isAdmin }: { sr: ServiceRequest, onUpd
             {isAdmin && editScheduling ? (
                 <form onSubmit={handleAdminSave} className="bg-slate-50 p-12 rounded-[4rem] border-2 border-slate-200 space-y-10 shadow-inner">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                        <div className="space-y-3"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Fecha de Ingreso</label><input name="date" type="date" required min={todayStr} className="w-full px-6 py-5 rounded-2xl border bg-white font-black text-xl outline-none focus:ring-4 focus:ring-blue-100" defaultValue={sr.scheduledDate || todayStr} /></div>
+                        <div className="space-y-3"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Fecha de Ingreso (Mín: Hoy)</label><input name="date" type="date" required min={todayStr} className="w-full px-6 py-5 rounded-2xl border bg-white font-black text-xl outline-none focus:ring-4 focus:ring-blue-100" defaultValue={sr.scheduledDate || todayStr} /></div>
                         <div className="space-y-3"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Hora Pactada</label><input name="time" type="time" required className="w-full px-6 py-5 rounded-2xl border bg-white font-black text-xl outline-none" defaultValue={sr.scheduledTime} /></div>
                         <div className="space-y-3"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Establecimiento / Taller</label><input name="provider" required className="w-full px-6 py-5 rounded-2xl border bg-white font-black uppercase text-lg outline-none" placeholder="INDIQUE TALLER..." defaultValue={sr.scheduledProvider} /></div>
-                        <div className="space-y-3"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Contacto Taller</label><div className="relative"><LucidePhone className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400" size={20}/><input type="tel" required className="w-full pl-16 pr-6 py-5 rounded-2xl border bg-white font-black outline-none focus:ring-4 focus:ring-blue-100" value={phoneVal} onChange={handlePhoneChange} placeholder="WHATSAPP / TEL..." /></div></div>
-                        <div className="md:col-span-2 space-y-3"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Comentarios Administrativos</label><textarea name="adminComments" rows={3} className="w-full px-8 py-6 rounded-3xl border bg-white font-bold outline-none focus:ring-4 focus:ring-blue-100 resize-none text-slate-700 shadow-sm" placeholder="AGREGAR INDICACIONES PARA EL CONDUCTOR O TALLER..." defaultValue={sr.scheduledAdminComments} /></div>
+                        <div className="space-y-3"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Teléfono Taller (Solo Números)</label><div className="relative"><LucidePhone className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400" size={20}/><input type="tel" required className="w-full pl-16 pr-6 py-5 rounded-2xl border bg-white font-black outline-none focus:ring-4 focus:ring-blue-100" value={phoneVal} onChange={handlePhoneChange} placeholder="NRO TELEFÓNICO..." /></div></div>
+                        <div className="md:col-span-2 space-y-3"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Comentarios de Gestión / Turno</label><textarea name="adminComments" rows={3} className="w-full px-8 py-6 rounded-3xl border bg-white font-bold outline-none focus:ring-4 focus:ring-blue-100 resize-none text-slate-700 shadow-sm" placeholder="INDICACIONES ADICIONALES PARA LA RECEPCIÓN..." defaultValue={sr.scheduledAdminComments} /></div>
                     </div>
                     <button type="submit" className="w-full bg-blue-600 text-white py-6 rounded-[2rem] font-black uppercase text-xs tracking-widest shadow-2xl shadow-blue-500/20 hover:bg-blue-700 active:scale-95 transition-all">Sincronizar Programación de Turno</button>
                 </form>
@@ -354,13 +355,100 @@ const SchedulingCenter = ({ sr, onUpdate, isAdmin }: { sr: ServiceRequest, onUpd
                         </div>
                         <div className="grid grid-cols-2 gap-8 relative z-10">
                             <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100"><p className="text-[9px] font-black text-slate-400 uppercase mb-2">Hora de Recepción</p><p className="text-2xl font-black text-slate-800 uppercase italic">{sr.scheduledTime || 'S/D'}</p></div>
-                            <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100"><p className="text-[9px] font-black text-slate-400 uppercase mb-2">Establecimiento</p><p className="text-xl font-black text-slate-800 uppercase truncate italic">{sr.scheduledProvider || 'S/D'}</p></div>
+                            <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100"><p className="text-[9px] font-black text-slate-400 uppercase mb-2">Contacto Taller</p><p className="text-xl font-black text-slate-800 uppercase truncate italic">{sr.scheduledContact || 'S/D'}</p></div>
                         </div>
                         {sr.scheduledAdminComments && (<div className="p-8 bg-blue-50 rounded-[2.5rem] border border-blue-100 italic text-xs font-bold text-blue-800 relative z-10 shadow-inner">"{sr.scheduledAdminComments}"</div>)}
                         <LucideCalendar className="absolute -right-16 -top-16 text-slate-50 opacity-40 group-hover:scale-110 transition-transform duration-1000" size={320}/>
                     </div>
                 </div>
             )}
+        </div>
+    );
+};
+
+// --- SUB-COMPONENTE: CHAT DE SERVICIO ---
+const ServiceChat = ({ sr, onClose, currentUser, onSendMessage, onFinalize }: { sr: ServiceRequest, onClose: () => void, currentUser: any, onSendMessage: (text: string, isAi?: boolean) => void, onFinalize: (resolution: string) => void }) => {
+    const [msg, setMsg] = useState('');
+    const [isAiThinking, setIsAiThinking] = useState(false);
+    const scrollRef = useRef<HTMLDivElement>(null);
+    const isAdmin = currentUser?.role === UserRole.ADMIN || currentUser?.role === UserRole.ADMIN_L2 || currentUser?.role === UserRole.MANAGER;
+
+    useEffect(() => {
+        if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }, [sr.messages]);
+
+    const handleSend = () => {
+        if (!msg.trim()) return;
+        onSendMessage(msg);
+        setMsg('');
+    };
+
+    const handleAiAdvise = async () => {
+        setIsAiThinking(true);
+        try {
+            const advice = await getTechnicalAdvice(sr.description, `Unidad ${sr.vehiclePlate} (${sr.category})`);
+            onSendMessage(advice || "No se pudo generar consejo técnico en este momento.", true);
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setIsAiThinking(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-[3000] bg-slate-950/90 backdrop-blur-xl flex items-center justify-center p-4">
+            <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col h-[85vh] animate-fadeIn">
+                <div className="bg-slate-900 p-8 text-white flex justify-between items-center shrink-0">
+                    <div className="flex items-center gap-4">
+                        <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-500/20"><LucideMessageSquare size={24}/></div>
+                        <div>
+                            <h3 className="text-xl font-black uppercase italic tracking-tighter">Mesa de Ayuda Técnica</h3>
+                            <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Caso: {sr.code} • {sr.vehiclePlate}</p>
+                        </div>
+                    </div>
+                    <button onClick={onClose} className="text-white hover:text-rose-500 transition-colors p-2"><LucideX size={24}/></button>
+                </div>
+
+                <div ref={scrollRef} className="flex-1 overflow-y-auto p-10 space-y-6 custom-scrollbar bg-slate-50/50">
+                    {sr.messages?.map(m => (
+                        <div key={m.id} className={`flex ${m.userId === currentUser?.id ? 'justify-end' : 'justify-start'} animate-fadeIn`}>
+                            <div className={`max-w-[80%] p-6 rounded-[2rem] shadow-sm border ${m.userId === currentUser?.id ? 'bg-blue-600 text-white border-blue-500 rounded-tr-none' : m.isAi ? 'bg-indigo-50 border-indigo-100 text-indigo-900 rounded-tl-none' : 'bg-white border-slate-200 text-slate-700 rounded-tl-none'}`}>
+                                <div className="flex justify-between items-center gap-4 mb-2">
+                                    <span className={`text-[8px] font-black uppercase tracking-widest ${m.userId === currentUser?.id ? 'text-blue-100' : 'text-slate-400'}`}>{m.userName}</span>
+                                    <span className={`text-[8px] font-bold ${m.userId === currentUser?.id ? 'text-blue-200' : 'text-slate-300'}`}>{format(parseISO(m.timestamp), 'HH:mm')}</span>
+                                </div>
+                                <p className="text-sm font-bold leading-relaxed whitespace-pre-wrap">{m.text}</p>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+
+                <div className="p-8 bg-white border-t space-y-4 shrink-0 shadow-inner">
+                    <div className="flex gap-4">
+                        <textarea 
+                            className="flex-1 p-5 bg-slate-50 border border-slate-200 rounded-3xl font-bold text-slate-700 outline-none focus:ring-4 focus:ring-blue-100 resize-none custom-scrollbar"
+                            placeholder="Escriba su mensaje..."
+                            rows={2}
+                            value={msg}
+                            onChange={e => setMsg(e.target.value)}
+                            onKeyDown={e => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+                        />
+                        <div className="flex flex-col gap-2">
+                            <button onClick={handleSend} className="p-5 bg-blue-600 text-white rounded-2xl hover:bg-blue-700 transition-all shadow-xl active:scale-95"><LucideSend size={24}/></button>
+                            {isAdmin && isAiAvailable() && (
+                                <button onClick={handleAiAdvise} disabled={isAiThinking} className="p-5 bg-indigo-600 text-white rounded-2xl hover:bg-indigo-700 transition-all shadow-xl disabled:opacity-50 active:scale-95">
+                                    {isAiThinking ? <LucideLoader2 className="animate-spin" size={24}/> : <LucideSparkles size={24}/>}
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                    {isAdmin && (
+                        <div className="flex gap-3 pt-2">
+                            <button onClick={() => { const r = prompt("Ingrese resumen de resolución:"); if(r) onFinalize(r); }} className="flex-1 py-3 bg-emerald-50 text-emerald-600 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-emerald-600 hover:text-white transition-all border border-emerald-200">Finalizar Caso</button>
+                        </div>
+                    )}
+                </div>
+            </div>
         </div>
     );
 };
@@ -429,9 +517,8 @@ export const ServiceManager = () => {
   const handleStageTransition = (nextStage: ServiceStage) => {
     if (!selectedRequest) return;
     
-    // REGLA DE NEGOCIO: Blindaje de Auditoría Técnica
     if (nextStage === ServiceStage.AUDITING && selectedRequest.budgets.length === 0) {
-        addNotification("Flujo bloqueado: No se puede auditar sin propuestas de costos.", "error");
+        addNotification("Flujo bloqueado: Se requiere al menos una cotización para auditar.", "error");
         return;
     }
     
@@ -482,7 +569,7 @@ export const ServiceManager = () => {
                     </div>
                   ))}
                   {stageRequests.length === 0 && (
-                      <div className="h-full flex flex-col items-center justify-center opacity-10 border-2 border-dashed border-slate-300 rounded-[2.5rem]"><LucideBox size={48}/><p className="text-[10px] font-black uppercase mt-4">Sector Vacío</p></div>
+                      <div className="h-full flex flex-col items-center justify-center opacity-10 border-2 border-dashed border-slate-300 rounded-[2.5rem]"><LucidePackage size={48}/><p className="text-[10px] font-black uppercase mt-4">Sector Vacío</p></div>
                   )}
                 </div>
               </div>
@@ -497,7 +584,7 @@ export const ServiceManager = () => {
               <h2 className="text-4xl font-black uppercase italic tracking-tighter text-slate-800 flex items-center gap-5">{isEditing ? <LucidePencil className="text-blue-600" size={36}/> : <LucidePlus className="text-blue-600" size={36}/>} {isEditing ? 'Actualizar Novedad' : 'Reporte Técnico de Unidad'}</h2>
               <form onSubmit={handleCreateOrUpdate} className="space-y-10">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                  <div className="space-y-3 relative"><label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-6">Unidad (Patente)</label><input disabled={!!isEditing} type="text" className="w-full px-8 py-5 bg-slate-50 border border-slate-200 rounded-[2rem] font-black text-2xl uppercase outline-none focus:ring-8 focus:ring-blue-100 shadow-sm transition-all" placeholder="BUSCAR UNIDAD..." value={plateSearch} onChange={e => { setPlateSearch(e.target.value.toUpperCase()); setShowSuggestions(true); }} onFocus={() => setShowSuggestions(true)}/>{showSuggestions && !isEditing && (<div className="absolute z-[100] w-full mt-3 bg-white rounded-3xl shadow-2xl border border-slate-200 max-h-60 overflow-y-auto custom-scrollbar">{filteredVehicles.map(v => (<div key={v.plate} className="p-6 hover:bg-blue-50 cursor-pointer flex justify-between items-center border-b border-slate-50 transition-colors" onClick={() => { setPlateSearch(v.plate); setKmActual(v.currentKm); setShowSuggestions(false); }}><div className="text-left"><span className="text-slate-900 font-black text-2xl italic tracking-tighter leading-none">{v.plate}</span><p className="text-[9px] font-black text-blue-600 uppercase mt-1 tracking-widest">{v.costCenter}</p></div><div className="text-right"><p className="text-slate-400 font-bold text-[10px] uppercase tracking-tighter">{v.make} {v.model}</p><p className="text-[8px] font-black text-slate-300 mt-1 uppercase italic">{v.currentKm.toLocaleString()} KM REGISTRADOS</p></div></div>))}</div>)}</div>
+                  <div className="space-y-3 relative"><label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-6">Unidad (Patente)</label><input disabled={!!isEditing} type="text" className="w-full px-8 py-5 bg-slate-50 border border-slate-200 rounded-[2rem] font-black text-2xl uppercase outline-none focus:ring-8 focus:ring-blue-100 shadow-sm transition-all" placeholder="BUSCAR UNIDAD..." value={plateSearch} onChange={e => { setPlateSearch(e.target.value.toUpperCase()); setShowSuggestions(true); }} onFocus={() => setShowSuggestions(true)}/>{showSuggestions && !isEditing && (<div className="absolute z-[110] w-full mt-3 bg-white rounded-3xl shadow-2xl border border-slate-200 max-h-60 overflow-y-auto custom-scrollbar">{filteredVehicles.map(v => (<div key={v.plate} className="p-6 hover:bg-blue-50 cursor-pointer flex justify-between items-center border-b border-slate-50 transition-colors" onClick={() => { setPlateSearch(v.plate); setKmActual(v.currentKm); setShowSuggestions(false); }}><div className="text-left"><span className="text-slate-900 font-black text-2xl italic tracking-tighter leading-none">{v.plate}</span><p className="text-[9px] font-black text-blue-600 uppercase mt-1 tracking-widest">{v.costCenter}</p></div><div className="text-right"><p className="text-slate-400 font-bold text-[10px] uppercase tracking-tighter">{v.make} {v.model}</p><p className="text-[8px] font-black text-slate-300 mt-1 uppercase italic">{v.currentKm.toLocaleString()} KM REGISTRADOS</p></div></div>))}</div>)}</div>
                   <div className="space-y-3"><label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-6">Tipo de Reporte</label><select name="category" required className="w-full px-8 py-6 bg-slate-50 border border-slate-200 rounded-[2rem] font-black uppercase text-xs outline-none focus:ring-8 focus:ring-blue-100 shadow-sm appearance-none cursor-pointer">{Object.values(ServiceCategory).map(cat => <option key={cat} value={cat}>{cat}</option>)}</select></div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
@@ -551,112 +638,17 @@ export const ServiceManager = () => {
                       <h4 className="text-3xl font-black text-emerald-600 uppercase italic border-b border-slate-100 pb-8 mb-12 flex items-center gap-5"><LucideCheckCircle2 className="text-emerald-500" size={32}/> Historial de Resolución Técnica</h4>
                       <div className="p-12 bg-emerald-50 rounded-[3.5rem] border-2 border-emerald-100 shadow-inner">
                          <p className="text-[10px] font-black text-emerald-600 uppercase tracking-[0.4em] mb-4">Dictamen de Cierre</p>
-                         <p className="text-2xl font-black text-emerald-950 italic tracking-tighter leading-tight">"{selectedRequest.resolutionSummary || 'Caso cerrado sin dictamen formal.'}"</p>
+                         <p className="text-2xl font-black text-emerald-950 italic tracking-tighter leading-tight">"{selectedRequest.resolutionSummary || 'Caso cerrado satisfactoriamente.'}"</p>
                       </div>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-6 pt-10 border-t border-slate-50">
-                         <div className="space-y-1"><p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Costo Final Auditado</p><p className="text-2xl font-black text-slate-800 italic">${(selectedRequest.totalCost || 0).toLocaleString()}</p></div>
-                         <div className="space-y-1"><p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Fecha de Cierre</p><p className="text-sm font-black text-slate-800 uppercase">{format(parseISO(selectedRequest.updatedAt), 'dd/MM/yyyy HH:mm')}</p></div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                          <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm"><p className="text-[10px] font-black text-slate-400 uppercase mb-4">Costos Consolidados</p><p className="text-4xl font-black text-slate-800 tracking-tighter italic">${selectedRequest.totalCost?.toLocaleString()}</p></div>
+                          <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm"><p className="text-[10px] font-black text-slate-400 uppercase mb-4">Fecha de Cierre</p><p className="text-2xl font-black text-slate-800 italic uppercase">{format(parseISO(selectedRequest.updatedAt), 'dd MMMM yyyy', {locale: es})}</p></div>
                       </div>
                    </div>
                 )}
-                <LucideHistory className="absolute -right-20 -bottom-20 opacity-5 text-slate-200 group-hover:rotate-12 transition-transform duration-[3000ms]" size={500}/>
             </div>
         </div>
       )}
     </div>
   );
-};
-
-// --- SUB-COMPONENTE: CHAT DE RESOLUCIÓN CON IA ---
-const ServiceChat = ({ sr, onClose, onSendMessage, onFinalize, currentUser }: { sr: ServiceRequest, onClose: () => void, onSendMessage: (t: string, isAi?: boolean) => void, onFinalize: (s: string) => void, currentUser: any }) => {
-    const { vehicles } = useApp();
-    const [msg, setMsg] = useState(''); 
-    const [res, setRes] = useState(''); 
-    const [showFin, setShowFin] = useState(false);
-    const [isAiConsulting, setIsAiConsulting] = useState(false);
-    const isAdmin = currentUser?.role === UserRole.ADMIN || currentUser?.role === UserRole.ADMIN_L2 || currentUser?.role === UserRole.MANAGER;
-    const scroll = useRef<HTMLDivElement>(null); 
-    
-    useEffect(() => { if (scroll.current) scroll.current.scrollTop = scroll.current.scrollHeight; }, [sr.messages]);
-    
-    const handleAiAdvice = async () => {
-        setIsAiConsulting(true);
-        try {
-          const v = vehicles.find(veh => veh.plate === sr.vehiclePlate);
-          const vehicleInfo = v ? `${v.make} ${v.model} (${v.year}) - ${v.currentKm} KM - Centro de Costo: ${v.costCenter}` : 'Unidad no identificada en base de datos central';
-          const advice = await getTechnicalAdvice(sr.description, vehicleInfo);
-          onSendMessage(advice, true);
-        } catch (e) {
-          console.error(e);
-        } finally {
-          setIsAiConsulting(false);
-        }
-    };
-
-    return (
-        <div className="fixed inset-0 z-[4000] bg-slate-950/90 backdrop-blur-xl flex items-center justify-center p-4">
-          <div className="bg-white rounded-[4rem] w-full max-w-2xl shadow-2xl flex flex-col max-h-[88vh] overflow-hidden border-t-[12px] border-blue-600 animate-fadeIn">
-            <div className="bg-slate-900 p-10 text-white flex justify-between items-center shrink-0 shadow-lg">
-                <div className="flex items-center gap-6">
-                    <div className="p-4 bg-blue-600 rounded-2xl shadow-xl shadow-blue-500/20"><LucideMessageSquare size={28} className="text-white"/></div>
-                    <div>
-                        <h3 className="text-2xl font-black uppercase italic tracking-tighter leading-none">Canal Técnico Pro</h3>
-                        <p className="text-[10px] text-slate-500 uppercase tracking-widest mt-2">{sr.vehiclePlate} • {sr.code}</p>
-                    </div>
-                </div>
-                <div className="flex items-center gap-4">
-                    {isAiAvailable() && (
-                        <button 
-                            onClick={handleAiAdvice}
-                            disabled={isAiConsulting}
-                            className="bg-indigo-600 text-white px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center gap-3 hover:bg-indigo-500 transition-all disabled:opacity-50 shadow-xl shadow-indigo-600/20 active:scale-95"
-                        >
-                            {isAiConsulting ? <LucideLoader2 className="animate-spin" size={16}/> : <LucideSparkles size={16}/>}
-                            AI Advisor
-                        </button>
-                    )}
-                    <button onClick={onClose} className="p-3 bg-white/5 hover:bg-rose-600 text-slate-400 hover:text-white rounded-2xl transition-all shadow-md"><LucideX size={24}/></button>
-                </div>
-            </div>
-            <div ref={scroll} className="flex-1 p-10 overflow-y-auto space-y-8 bg-slate-50 custom-scrollbar shadow-inner">
-                {sr.messages?.length === 0 && (
-                    <div className="h-full flex flex-col items-center justify-center py-20 opacity-20"><LucideMessageSquare size={48}/><p className="text-[10px] font-black uppercase mt-4">Inicie la conversación técnica aquí</p></div>
-                )}
-                {sr.messages?.map(m => (
-                    <div key={m.id} className={`flex flex-col ${m.userId === currentUser?.id ? 'items-end' : 'items-start'} animate-fadeIn`}>
-                        <div className={`max-w-[85%] p-6 rounded-[2rem] shadow-sm relative ${m.isAi ? 'bg-indigo-900 text-indigo-100 border border-indigo-700 shadow-indigo-200' : m.userId === currentUser?.id ? 'bg-blue-600 text-white shadow-blue-100' : 'bg-white border border-slate-200 text-slate-800'}`}>
-                            {m.isAi && <div className="flex items-center gap-2 mb-3 text-[9px] font-black uppercase text-indigo-400 border-b border-indigo-800 pb-2 tracking-[0.2em]"><LucideSparkles size={12}/> Recomendación de Diagnóstico IA</div>}
-                            <p className="text-sm font-bold leading-relaxed whitespace-pre-wrap">{m.text}</p>
-                        </div>
-                        <p className="text-[8px] font-black text-slate-400 uppercase mt-3 px-4 tracking-widest">{m.userName} • {format(parseISO(m.timestamp), 'HH:mm')}</p>
-                    </div>
-                ))}
-            </div>
-            {showFin ? (
-                <div className="p-10 bg-emerald-50 border-t border-emerald-100 space-y-6 animate-fadeIn">
-                    <div className="space-y-2">
-                        <label className="text-[10px] font-black text-emerald-600 uppercase tracking-widest ml-4">Reporte Técnico de Cierre</label>
-                        <textarea className="w-full p-6 bg-white border border-emerald-200 rounded-[2rem] text-sm font-bold outline-none focus:ring-8 focus:ring-emerald-100 shadow-inner resize-none h-32" placeholder="Describa la resolución técnica para el archivo histórico..." value={res} onChange={e => setRes(e.target.value)} />
-                    </div>
-                    <div className="flex gap-4">
-                        <button onClick={() => setShowFin(false)} className="flex-1 py-5 font-black uppercase text-[11px] text-slate-400 tracking-widest hover:text-slate-600 transition-colors">Volver</button>
-                        <button onClick={() => onFinalize(res)} disabled={!res.trim()} className="flex-[2] bg-emerald-600 text-white py-5 rounded-[1.8rem] font-black uppercase text-xs shadow-2xl shadow-emerald-500/30 hover:bg-emerald-700 transition-all active:scale-95 disabled:opacity-50">Archivar y Finalizar Caso</button>
-                    </div>
-                </div>
-            ) : (
-                <div className="p-8 bg-white border-t space-y-6 shrink-0 shadow-2xl">
-                    <div className="flex gap-4">
-                        <input className="flex-1 px-8 py-5 bg-slate-100 rounded-[1.8rem] font-bold text-sm outline-none focus:ring-8 focus:ring-blue-100 shadow-inner transition-all border border-slate-200" placeholder="Escriba su mensaje aquí..." value={msg} onChange={e => setMsg(e.target.value)} onKeyDown={e => e.key === 'Enter' && msg.trim() && (onSendMessage(msg), setMsg(''))} />
-                        <button onClick={() => { if(msg.trim()) { onSendMessage(msg); setMsg(''); } }} className="p-6 bg-blue-600 text-white rounded-2xl shadow-2xl shadow-blue-500/30 hover:bg-blue-700 transition-all active:scale-95"><LucideSend size={24}/></button>
-                    </div>
-                    {isAdmin && sr.stage !== ServiceStage.FINISHED && (
-                        <button onClick={() => setShowFin(true)} className="w-full py-5 bg-slate-950 text-white rounded-[1.8rem] font-black uppercase text-[10px] tracking-[0.3em] hover:bg-blue-600 transition-all shadow-xl active:scale-95">
-                            Cerrar Ticket con Dictamen Técnico
-                        </button>
-                    )}
-                </div>
-            )}
-          </div>
-        </div>
-    );
 };

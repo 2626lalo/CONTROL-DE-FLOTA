@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../context/FleetContext';
 import { useSearchParams } from 'react-router-dom';
@@ -10,7 +9,7 @@ import {
   LucidePencil, LucideBellRing, LucideBellOff, LucideTags, 
   LucideInfo, LucideTrash2, LucideShieldCheck, LucideX,
   LucideCheckSquare, LucideSquare, LucideImage,
-  LucideDownload, LucideEye, LucideFileCheck, LucideCheck, LucideMinus
+  LucideDownload, LucideEye, LucideFileCheck, LucideCheck, LucideMinus, LucideAlertTriangle
 } from 'lucide-react';
 import { Document, Vehicle } from '../types';
 import { differenceInDays, parseISO, startOfDay, format } from 'date-fns';
@@ -48,7 +47,6 @@ export const DocumentationManager: React.FC<Props> = ({ vehiclePlate }) => {
     return vehicles.find(v => v.plate === selectedPlate);
   }, [vehicles, selectedPlate]);
 
-  // Inicializar selecciones al abrir el modal
   useEffect(() => {
     if (isReportModalOpen && selectedVehicle) {
       setReportSelections(selectedVehicle.documents.map(d => ({
@@ -82,18 +80,6 @@ export const DocumentationManager: React.FC<Props> = ({ vehiclePlate }) => {
     if (window.confirm(`¿Desea eliminar permanentemente el legajo: ${type.toUpperCase()}?`)) {
       deleteDocument(selectedVehicle.plate, id);
     }
-  };
-
-  const toggleDocSelection = (id: string) => {
-    setReportSelections(prev => prev.map(s => s.docId === id ? { ...s, selected: !s.selected } : s));
-  };
-
-  const toggleImageSelection = (id: string) => {
-    setReportSelections(prev => prev.map(s => s.docId === id ? { ...s, includeImages: !s.includeImages } : s));
-  };
-
-  const selectAll = (all: boolean) => {
-    setReportSelections(prev => prev.map(s => ({ ...s, selected: all, includeImages: all })));
   };
 
   const getExpirationStatus = (dateStr: string) => {
@@ -180,7 +166,7 @@ export const DocumentationManager: React.FC<Props> = ({ vehiclePlate }) => {
       currentY += 10;
 
       if (d.customFields && d.customFields.length > 0) {
-        doc.setFont('helvetica', 'bold'); doc.text("Metadata Adicional:", 15, currentY); currentY += 7;
+        doc.setFontSize(10); doc.setFont('helvetica', 'bold'); doc.text("Metadata Adicional:", 15, currentY); currentY += 7;
         d.customFields.forEach(f => { 
             doc.setFont('helvetica', 'normal'); doc.text(`• ${f.name}: ${f.value}`, 20, currentY); currentY += 5; 
         });
@@ -188,7 +174,7 @@ export const DocumentationManager: React.FC<Props> = ({ vehiclePlate }) => {
       }
 
       if (selection?.includeImages && d.files && d.files.length > 0) {
-        doc.setFont('helvetica', 'bold'); doc.text("Evidencia Fotográfica:", 15, currentY); currentY += 10;
+        doc.setFontSize(10); doc.setFont('helvetica', 'bold'); doc.text("Evidencia Fotográfica:", 15, currentY); currentY += 10;
         let imgX = 15;
         for (const file of d.files) {
           if (currentY > 220) { doc.addPage(); currentY = 20; }
@@ -208,9 +194,10 @@ export const DocumentationManager: React.FC<Props> = ({ vehiclePlate }) => {
       currentY += 15;
     }
 
-    // Fix: Cast URL object to unknown before string to avoid TS intersection error
-    window.open(doc.output('bloburl') as unknown as string, '_blank');
+    // FIX: Usar doc.save() en lugar de window.open(blob) para evitar errores de seguridad de Location.assign en sandboxes
+    doc.save(`Dossier_${selectedVehicle.plate}_${Date.now()}.pdf`);
     setIsReportModalOpen(false);
+    addNotification("Reporte PDF generado correctamente.", "success");
   };
 
   return (
@@ -229,7 +216,6 @@ export const DocumentationManager: React.FC<Props> = ({ vehiclePlate }) => {
         </div>
       )}
 
-      {/* MODAL REPORTE SELECTIVO */}
       {isReportModalOpen && selectedVehicle && (
         <div className="fixed inset-0 z-[2000] bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4">
             <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-4xl overflow-hidden animate-fadeIn border-t-[12px] border-blue-600 flex flex-col max-h-[90vh]">
@@ -246,10 +232,10 @@ export const DocumentationManager: React.FC<Props> = ({ vehiclePlate }) => {
 
                 <div className="p-8 bg-slate-50 border-b flex justify-between items-center shrink-0">
                     <div className="flex gap-4">
-                        <button onClick={() => selectAll(true)} className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-slate-100 transition-all">
+                        <button onClick={() => setReportSelections(prev => prev.map(s => ({...s, selected: true})))} className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-slate-100 transition-all">
                             <LucideCheckSquare size={14} className="text-blue-600"/> Seleccionar Todo
                         </button>
-                        <button onClick={() => selectAll(false)} className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-slate-100 transition-all">
+                        <button onClick={() => setReportSelections(prev => prev.map(s => ({...s, selected: false})))} className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-slate-100 transition-all">
                             <LucideSquare size={14} className="text-slate-400"/> Desmarcar Todo
                         </button>
                     </div>
@@ -266,7 +252,7 @@ export const DocumentationManager: React.FC<Props> = ({ vehiclePlate }) => {
                         return (
                             <div key={doc.id} className={`p-5 rounded-3xl border transition-all flex items-center justify-between ${selection.selected ? 'bg-blue-50 border-blue-200' : 'bg-white border-slate-100 opacity-60'}`}>
                                 <div className="flex items-center gap-5">
-                                    <button onClick={() => toggleDocSelection(doc.id)} className="transition-transform active:scale-90">
+                                    <button onClick={() => setReportSelections(prev => prev.map(s => s.docId === doc.id ? {...s, selected: !s.selected} : s))} className="transition-transform active:scale-90">
                                         {selection.selected ? 
                                             <LucideCheckSquare size={24} className="text-blue-600"/> : 
                                             <LucideSquare size={24} className="text-slate-300"/>
@@ -279,25 +265,15 @@ export const DocumentationManager: React.FC<Props> = ({ vehiclePlate }) => {
                                 </div>
 
                                 <div className="flex items-center gap-8">
-                                    {doc.files && doc.files.length > 0 ? (
+                                    {doc.files && doc.files.length > 0 && (
                                         <button 
-                                            onClick={() => selection.selected && toggleImageSelection(doc.id)}
+                                            onClick={() => selection.selected && setReportSelections(prev => prev.map(s => s.docId === doc.id ? {...s, includeImages: !s.includeImages} : s))}
                                             className={`flex items-center gap-3 px-4 py-2 rounded-2xl border transition-all ${!selection.selected ? 'cursor-not-allowed opacity-20' : selection.includeImages ? 'bg-emerald-50 border-emerald-600 text-white shadow-lg' : 'bg-white border-slate-200 text-slate-400'}`}
                                         >
                                             <LucideImage size={16}/>
                                             <span className="text-[9px] font-black uppercase">{selection.includeImages ? 'Imágenes Incluidas' : 'Sin Imágenes'}</span>
                                         </button>
-                                    ) : (
-                                        <div className="flex items-center gap-2 text-slate-300">
-                                            <LucideMinus size={14}/>
-                                            <span className="text-[8px] font-black uppercase">Sin Archivos</span>
-                                        </div>
                                     )}
-                                    <div className="w-px h-8 bg-slate-200 hidden md:block"></div>
-                                    <div className="text-right hidden sm:block">
-                                        <p className="text-[9px] font-black text-slate-400 uppercase">Vencimiento</p>
-                                        <p className="text-[10px] font-bold text-slate-700 uppercase">{doc.expirationDate || 'PERMANENTE'}</p>
-                                    </div>
                                 </div>
                             </div>
                         );
@@ -309,7 +285,7 @@ export const DocumentationManager: React.FC<Props> = ({ vehiclePlate }) => {
                     <button 
                         onClick={generateAdvancedPDF} 
                         disabled={!reportSelections.some(s => s.selected)}
-                        className="flex-[2] bg-blue-600 text-white py-5 rounded-[2rem] font-black uppercase text-xs shadow-2xl flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-blue-700 transition-all"
+                        className="flex-[2] bg-blue-600 text-white py-5 rounded-[2rem] font-black uppercase text-xs shadow-2xl flex items-center justify-center gap-3 hover:bg-blue-700 transition-all"
                     >
                         <LucideDownload size={20}/> Procesar y Descargar Reporte
                     </button>
@@ -318,7 +294,6 @@ export const DocumentationManager: React.FC<Props> = ({ vehiclePlate }) => {
         </div>
       )}
 
-      {/* CABECERA PRINCIPAL */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
           <h1 className="text-3xl font-black text-slate-800 tracking-tight flex items-center gap-3 italic uppercase leading-none">
@@ -365,7 +340,6 @@ export const DocumentationManager: React.FC<Props> = ({ vehiclePlate }) => {
                           </div>
                       </div>
                       
-                      {/* FIX: Lógica de Alertas ON condicionada estrictamente a doc.alertsEnabled */}
                       {doc.alertsEnabled === true ? (
                         <div className="flex items-center gap-2 bg-blue-600/20 text-blue-400 px-3 py-1.5 rounded-xl border border-blue-500/30 animate-pulse">
                           <LucideBellRing size={12}/>
@@ -426,7 +400,7 @@ export const DocumentationManager: React.FC<Props> = ({ vehiclePlate }) => {
                           onClick={(e) => { e.stopPropagation(); setEditingDoc(doc); setIsUploading(true); }} 
                           className="flex-[2] bg-white text-slate-800 py-3.5 rounded-2xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-900 hover:text-white transition-all border border-slate-200 shadow-sm flex items-center justify-center gap-2"
                       >
-                          <LucidePencil size={14}/> Editar Legajo
+                          <LucidePencil size={14}/> Editar
                       </button>
                       
                       <button 
@@ -436,7 +410,7 @@ export const DocumentationManager: React.FC<Props> = ({ vehiclePlate }) => {
                           }} 
                           className="flex-1 bg-rose-50 text-rose-600 py-3.5 rounded-2xl text-[9px] font-black uppercase tracking-widest hover:bg-rose-600 hover:text-white transition-all border border-rose-100 shadow-sm flex items-center justify-center gap-2"
                       >
-                          <LucideTrash2 size={14}/> Borrar
+                          <LucideTrash2 size={14}/>
                       </button>
                     </div>
                 </div>

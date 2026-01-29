@@ -6,11 +6,16 @@ import { GoogleGenAI, Type } from "@google/genai";
  * Cliente centralizado para servicios de IA generativa.
  */
 const getAiClient = () => {
-  return new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const apiKey = typeof process !== 'undefined' ? process.env.API_KEY : '';
+  return new GoogleGenAI({ apiKey: apiKey || '' });
 };
 
 export const isAiAvailable = () => {
-  return !!process.env.API_KEY;
+  try {
+    return typeof process !== 'undefined' && !!process.env.API_KEY;
+  } catch {
+    return false;
+  }
 };
 
 export const analyzeDocumentImage = async (base64: string, side: 'Frente' | 'Dorso') => {
@@ -114,4 +119,4 @@ export const getFleetHealthReport = async (vehiclesData: string) => {
     console.error("AI Fleet Health Error:", error);
     return null;
   }
-}
+};

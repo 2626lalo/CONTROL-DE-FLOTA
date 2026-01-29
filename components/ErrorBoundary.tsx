@@ -1,6 +1,6 @@
 
 import React, { Component, ErrorInfo, ReactNode } from 'react';
-import { LucideShieldAlert, LucideRefreshCcw, LucideDatabase, LucideTrash2 } from 'lucide-react';
+import { LucideShieldAlert, LucideRefreshCcw, LucideTrash2 } from 'lucide-react';
 
 interface ErrorBoundaryProps {
   children?: ReactNode;
@@ -11,16 +11,12 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
-// Fix: Explicitly declare the state property on the class to ensure it's recognized by the TypeScript type system, 
-// and extend from Component directly for cleaner named usage.
 export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  // Fix: Explicit state initialization at class level resolves property existence errors.
   public state: ErrorBoundaryState = {
     hasError: false,
     error: null
   };
 
-  // Fix: Explicitly declare the props property to resolve property existence errors in some environments where inheritance is not correctly mapped.
   public props!: ErrorBoundaryProps;
 
   constructor(props: ErrorBoundaryProps) {
@@ -36,7 +32,8 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   }
 
   private handleReload = () => {
-    window.location.href = window.location.origin + window.location.pathname + '?reload=' + Date.now();
+    // Usar reload() es más seguro que asignar href en sandboxes
+    window.location.reload();
   };
 
   private handleResetApp = () => {
@@ -49,7 +46,6 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   };
 
   public render(): React.ReactNode {
-    // Fix: Access state and props via this. to ensure members are correctly retrieved from the class instance.
     const { hasError, error } = this.state;
     const { children } = this.props;
 

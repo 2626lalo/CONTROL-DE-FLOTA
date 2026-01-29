@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { FleetProvider, useApp } from './context/FleetContext';
@@ -8,7 +7,6 @@ import { VehicleList } from './components/VehicleList';
 import { VehicleForm } from './components/VehicleForm';
 import { VehicleDetail } from './components/VehicleDetail';
 import { Checklist } from './components/Checklist';
-import { ServiceManager } from './components/ServiceManager';
 import { AdminUsers } from './components/AdminUsers';
 import { Reports } from './components/Reports';
 import { DocumentationManager } from './components/DocumentationManager';
@@ -40,7 +38,6 @@ export default function App() {
             <Route path="/vehicles/detail/:plate" element={<VehicleDetail />} />
             <Route path="/vehicles/:plate/edit" element={<VehicleForm />} />
             <Route path="/checklist" element={<Checklist />} />
-            <Route path="/service" element={<ServiceManager />} />
             <Route path="/documentation" element={<DocumentationManager />} />
             <Route path="/users" element={<AdminUsers />} />
             <Route path="/reports" element={<Reports />} />

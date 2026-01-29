@@ -1,9 +1,8 @@
-
 import React, { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { 
   LucideLayoutDashboard, LucideCar, LucideClipboardCheck, 
-  LucideWrench, LucideLogOut, LucideUsers, LucideWifiOff,
+  LucideLogOut, LucideUsers, LucideWifiOff,
   LucideBarChart3, LucideSearch, LucideFileText, LucideFlaskConical
 } from 'lucide-react';
 import { useApp } from '../context/FleetContext';
@@ -28,14 +27,13 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
     { to: '/', icon: LucideLayoutDashboard, label: 'Dashboard' },
     { to: '/vehicles', icon: LucideCar, label: 'Flota' },
     { to: '/checklist', icon: LucideClipboardCheck, label: 'Inspecciones' },
-    { to: '/service', icon: LucideWrench, label: 'Servicios' },
     { to: '/documentation', icon: LucideFileText, label: 'Documentación' },
     { to: '/reports', icon: LucideBarChart3, label: 'Reportes' },
   ];
 
   if (user?.role === UserRole.ADMIN || user?.role === UserRole.ADMIN_L2) {
     navItems.push({ to: '/users', icon: LucideUsers, label: 'Administración' });
-    navItems.push({ to: '/test-sector', icon: LucideFlaskConical, label: 'Sector de Pruebas' });
+    navItems.push({ to: '/test-sector', icon: LucideFlaskConical, label: 'Laboratorio Técnico' });
   }
 
   return (
@@ -62,7 +60,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
           </form>
         </div>
 
-        <nav className="flex-1 p-4 space-y-1 mt-4 overflow-y-auto custom-scrollbar">
+        <nav className="flex-1 p-4 space-y-1 mt-4 overflow-y-auto custom-scrollbar text-slate-400">
           {navItems.map((item) => (
             <NavLink
               key={item.to}
