@@ -9,13 +9,15 @@ import {
 } from 'lucide-react';
 import { 
   Vehicle, AdministrativeData, PeriodoAlquiler, 
-  RentalPriceHistory, VehicleStatus, RentalPago, RentalReplacementEntry, OwnershipType 
+  // FIX: Removed unused RentalReplacementEntry from import
+  RentalPriceHistory, VehicleStatus, RentalPago, OwnershipType 
 } from '../types';
 import { 
   format, parseISO, endOfMonth, eachMonthOfInterval, 
   getDaysInMonth, differenceInDays, addDays, isAfter, isBefore, isSameDay, startOfDay
 } from 'date-fns';
-import { es } from 'date-fns/locale';
+// FIX: Correctly import 'es' locale from date-fns
+import { es } from 'date-fns/locale/es';
 import { jsPDF } from "jspdf";
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';

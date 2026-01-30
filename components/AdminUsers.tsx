@@ -14,7 +14,8 @@ import { compressImage } from '../utils/imageCompressor';
 import * as XLSX from 'xlsx';
 import { databaseService } from '../services/databaseService';
 import { format, parseISO } from 'date-fns';
-import { es } from 'date-fns/locale';
+// FIX: Correctly import 'es' locale from date-fns
+import { es } from 'date-fns/locale/es';
 
 export const AdminUsers = () => {
     const { registeredUsers, updateUser, vehicles, bulkUpsertVehicles, user, restoreGoldenMaster, addNotification, masterFindingsImage, setMasterFindingsImage, lastBulkLoadDate } = useApp();
@@ -98,7 +99,7 @@ export const AdminUsers = () => {
                         images: { list: [] },
                         documents: [],
                         mileageHistory: [],
-                        equipment: [],
+                        // FIX: Removed non-existent property 'equipment' to match Vehicle interface
                         adminData: {
                             regimen: (row['VALOR LEASING'] ? OwnershipType.LEASING : row['OPERANDO P'] ? OwnershipType.RENTED : OwnershipType.OWNED),
                             anio: Number(row.AÑO || new Date().getFullYear()),

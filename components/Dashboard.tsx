@@ -21,7 +21,8 @@ export const Dashboard = () => {
   const [aiReport, setAiReport] = useState<string | null>(null);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
 
-  const isAdmin = user?.role === UserRole.ADMIN || user?.role === UserRole.ADMIN_L2 || user?.role === UserRole.MANAGER;
+  // FIX: Replaced non-existent UserRole properties (ADMIN_L2, MANAGER) with SUPERVISOR
+  const isAdmin = user?.role === UserRole.ADMIN || user?.role === UserRole.SUPERVISOR;
 
   const metrics = useMemo(() => {
     const totalInvestment = vehicles.reduce((acc, v) => acc + (v.purchaseValue || 0), 0);

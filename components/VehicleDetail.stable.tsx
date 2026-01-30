@@ -1,4 +1,3 @@
-
 /**
  * BACKUP DE SEGURIDAD - VERSION ESTABLE 3.8 (DEEP_AUDIT)
  * Fecha de Backup: 2024-05-23
@@ -25,11 +24,12 @@ import {
   LucideBriefcase, LucideFileBarChart, LucidePrinter, LucidePalette, LucideBoxSelect, LucideTimerReset,
   LucideCalendarDays, LucideUserCheck
 } from 'lucide-react';
-// Fix: Replaced PriceHistoryEntry with RentalPriceHistory as it is the correct exported member from types.ts
+// FIX: Replaced PriceHistoryEntry with RentalPriceHistory as it is the correct exported member from types.ts
 import { VehicleStatus, UserRole, AccessoryItem, Vehicle, OwnershipType, Document, RentalPriceHistory, FuelType, TransmissionType } from '../types';
 import { CHECKLIST_SECTIONS } from '../constants';
 import { differenceInDays, parseISO, format, addMonths, isBefore, isAfter, startOfDay, addDays, setDate, getDaysInMonth } from 'date-fns';
-import { es } from 'date-fns/locale';
+// FIX: Correctly import 'es' locale from date-fns
+import { es } from 'date-fns/locale/es';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 

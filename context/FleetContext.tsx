@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { 
   User, Vehicle, ServiceRequest, Checklist, UserRole, 
-  AuditLog, MileageLog, ServiceStage, Provider, ServiceHistoryItem
+  AuditLog, MileageLog, ServiceStage, ServiceHistoryItem
 } from '../types';
 import { databaseService } from '../services/databaseService';
 import { backupService } from '../services/backupService';
@@ -12,7 +12,6 @@ interface FleetContextType {
   registeredUsers: User[];
   vehicles: Vehicle[];
   serviceRequests: ServiceRequest[];
-  providers: Provider[];
   checklists: Checklist[];
   auditLogs: AuditLog[];
   isOnline: boolean;
@@ -40,16 +39,12 @@ interface FleetContextType {
   updateServiceStage: (serviceId: string, stage: ServiceStage, comment: string) => void;
   deleteServiceRequest: (id: string) => void;
   
-  addProvider: (p: Provider) => void;
-  updateProvider: (p: Provider) => void;
-  
   addChecklist: (c: Checklist) => void;
   refreshData: () => Promise<void>;
   logAudit: (action: string, type: AuditLog['entityType'], id: string, details: string) => void;
   addNotification: (message: string, type?: 'error' | 'success' | 'warning') => void;
   resetMasterData: () => void;
   restoreGoldenMaster: () => void;
-  syncExtinguisherDate: (plate: string, type: string, newDate: string) => void;
   setMasterFindingsImage: (img: string | null) => void;
   deleteDocument: (plate: string, docId: string) => void;
   addDocumentType: (type: string) => void;
@@ -69,7 +64,6 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [registeredUsers, setRegisteredUsers] = useState<User[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [serviceRequests, setServiceRequests] = useState<ServiceRequest[]>([]);
-  const [providers, setProviders] = useState<Provider[]>([]);
   const [checklists, setChecklists] = useState<Checklist[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [notifications, setNotifications] = useState<any[]>([]);
@@ -90,13 +84,12 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const refreshData = async () => {
     setIsDataLoading(true);
     try {
-      const [u, v, r, c, a, p] = await Promise.all([
+      const [u, v, r, c, a] = await Promise.all([
         databaseService.getUsers(),
         databaseService.getVehicles(),
         databaseService.getRequests(),
         databaseService.getChecklists(),
-        databaseService.getAudit(),
-        databaseService.getProviders()
+        databaseService.getAudit()
       ]);
       
       setRegisteredUsers(u.length > 0 ? u : MOCK_USERS);
@@ -104,7 +97,6 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setServiceRequests(r);
       setChecklists(c);
       setAuditLogs(a);
-      setProviders(p);
       
       const savedVersions = localStorage.getItem('fp_versions');
       if (savedVersions) setVehicleVersions(JSON.parse(savedVersions));
@@ -136,14 +128,13 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   useEffect(() => { if (!isDataLoading) databaseService.saveRequests(serviceRequests); }, [serviceRequests, isDataLoading]);
   useEffect(() => { if (!isDataLoading) databaseService.saveChecklists(checklists); }, [checklists, isDataLoading]);
   useEffect(() => { if (!isDataLoading) databaseService.saveAudit(auditLogs); }, [auditLogs, isDataLoading]);
-  useEffect(() => { if (!isDataLoading) databaseService.saveProviders(providers); }, [providers, isDataLoading]);
 
   const logAudit = (action: string, type: AuditLog['entityType'], id: string, details: string) => {
     const newLog: AuditLog = {
       id: `LOG-${Date.now()}`,
       timestamp: new Date().toISOString(),
       userId: user?.id || 'system',
-      userName: user?.name || 'Sistema IA',
+      userName: user?.nombre || 'Sistema IA',
       action, entityType: type, entityId: id, details
     };
     setAuditLogs(prev => [newLog, ...prev].slice(0, 1000));
@@ -152,9 +143,13 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const login = async (email: string, pass: string) => {
     const found = registeredUsers.find(u => u.email.toLowerCase() === email.toLowerCase() && (u.password === pass || pass === '12305'));
     if (found) {
-      if (!found.approved) return { success: false, message: "Pendiente de aprobación." };
-      setUser(found);
-      localStorage.setItem('fp_current_user', JSON.stringify(found));
+      if (found.estado !== 'activo' && !found.approved) return { success: false, message: "Cuenta pendiente de aprobación o inactiva." };
+      if (found.estado === 'suspendido' || found.estado === 'bloqueado') return { success: false, message: "Acceso denegado. Contacte a soporte." };
+      
+      const updatedUser = { ...found, ultimoAcceso: new Date().toISOString() };
+      setUser(updatedUser);
+      updateUser(updatedUser);
+      localStorage.setItem('fp_current_user', JSON.stringify(updatedUser));
       return { success: true };
     }
     return { success: false, message: "Credenciales incorrectas." };
@@ -163,8 +158,26 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const register = async (email: string, pass: string, name: string, phone: string) => {
     if (registeredUsers.some(u => u.email === email)) return false;
     const newUser: User = {
-      id: `U-${Date.now()}`, email, name, password: pass, phone,
-      role: UserRole.DRIVER, approved: false, createdAt: new Date().toISOString()
+      id: `U-${Date.now()}`, 
+      email, 
+      nombre: name, 
+      apellido: '',
+      password: pass, 
+      telefono: phone,
+      estado: 'pendiente',
+      role: UserRole.USER, 
+      rolesSecundarios: [],
+      permisos: [],
+      approved: false, 
+      fechaRegistro: new Date().toISOString(),
+      fechaCreacion: new Date().toISOString(),
+      creadoPor: 'autoservicio',
+      actualizadoPor: 'autoservicio',
+      fechaActualizacion: new Date().toISOString(),
+      intentosFallidos: 0,
+      eliminado: false,
+      notificaciones: { email: true, push: false, whatsapp: false },
+      centroCosto: { id: 'cc-default', nombre: 'SIN ASIGNAR', codigo: 'S/A' }
     };
     setRegisteredUsers(prev => [...prev, newUser]);
     return true;
@@ -190,18 +203,7 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       newVehicles.forEach(nv => {
         const idx = updated.findIndex(v => v.plate === nv.plate);
         if (idx > -1) {
-          updated[idx] = { 
-            ...updated[idx], 
-            ...nv,
-            adminData: {
-                ...updated[idx].adminData,
-                ...nv.adminData,
-                tarjetaCombustible: {
-                    ...updated[idx].adminData?.tarjetaCombustible,
-                    ...nv.adminData?.tarjetaCombustible
-                }
-            }
-          };
+          updated[idx] = { ...updated[idx], ...nv };
         } else {
           updated.push(nv);
         }
@@ -211,7 +213,7 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const now = new Date().toISOString();
     setLastBulkLoadDate(now);
     localStorage.setItem('fp_last_bulk_load', now);
-    logAudit('BULK_LOAD', 'VEHICLE', 'BATCH', `Procesadas ${newVehicles.length} unidades via Excel (Upsert)`);
+    logAudit('BULK_LOAD', 'VEHICLE', 'BATCH', `Procesadas ${newVehicles.length} unidades`);
   };
 
   const deleteVehicle = (plate: string) => {
@@ -235,7 +237,7 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           id: `HIST-${Date.now()}`,
           date: new Date().toISOString(),
           userId: user?.id || 'system',
-          userName: user?.name || 'Sistema',
+          userName: user?.nombre || 'Sistema',
           fromStage: sr.stage,
           toStage: stage,
           comment
@@ -247,9 +249,6 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const deleteServiceRequest = (id: string) => setServiceRequests(prev => prev.filter(r => r.id !== id));
-  
-  const addProvider = (p: Provider) => setProviders(prev => [...prev, p]);
-  const updateProvider = (p: Provider) => setProviders(prev => prev.map(curr => curr.id === p.id ? p : curr));
   
   const updateVehicleMileage = (plate: string, km: number, source: MileageLog['source']) => {
     setVehicles(prev => prev.map(v => v.plate === plate ? { ...v, currentKm: Math.max(v.currentKm, km) } : v));
@@ -271,29 +270,6 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         addNotification("Sistema restaurado a Baseline v19.3.0", "success");
         setTimeout(() => window.location.reload(), 1000);
     }
-  };
-
-  const syncExtinguisherDate = (plate: string, type: string, newDate: string) => {
-    setVehicles(prev => prev.map(v => {
-      if (v.plate === plate) {
-        const docs = [...(v.documents || [])];
-        const idx = docs.findIndex(d => d.type.toUpperCase() === type.toUpperCase());
-        if (idx > -1) {
-          docs[idx] = { ...docs[idx], expirationDate: newDate };
-        } else {
-          docs.push({
-            id: `DOC-SYNC-${Date.now()}`,
-            type: type.toUpperCase(),
-            expirationDate: newDate,
-            category: 'technical',
-            alertsEnabled: true,
-            requiredForOperation: true
-          });
-        }
-        return { ...v, documents: docs };
-      }
-      return v;
-    }));
   };
 
   const setMasterFindingsImage = (img: string | null) => {
@@ -321,13 +297,12 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   return (
     <FleetContext.Provider value={{
-      user, registeredUsers, vehicles, serviceRequests, providers, checklists, auditLogs, isOnline, isDataLoading, notifications,
+      user, registeredUsers, vehicles, serviceRequests, checklists, auditLogs, isOnline, isDataLoading, notifications,
       masterFindingsImage, vehicleVersions, documentTypes, lastBulkLoadDate,
       login, register, logout, updateUser, deleteUser,
       addVehicle, updateVehicle, bulkUpsertVehicles, deleteVehicle, updateVehicleMileage,
       addServiceRequest, updateServiceRequest, updateServiceStage, deleteServiceRequest,
-      addProvider, updateProvider,
-      addChecklist, refreshData, logAudit, addNotification, resetMasterData, restoreGoldenMaster, syncExtinguisherDate, setMasterFindingsImage,
+      addChecklist, refreshData, logAudit, addNotification, resetMasterData, restoreGoldenMaster, setMasterFindingsImage,
       deleteDocument, addDocumentType
     }}>
       {children}

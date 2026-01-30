@@ -3,7 +3,8 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { 
   LucideLayoutDashboard, LucideCar, LucideClipboardCheck, 
   LucideLogOut, LucideUsers, LucideWifiOff,
-  LucideBarChart3, LucideSearch, LucideFileText, LucideFlaskConical
+  LucideBarChart3, LucideSearch, LucideFileText, LucideFlaskConical,
+  LucideShieldCheck
 } from 'lucide-react';
 import { useApp } from '../context/FleetContext';
 import { UserRole } from '../types';
@@ -31,7 +32,8 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
     { to: '/reports', icon: LucideBarChart3, label: 'Reportes' },
   ];
 
-  if (user?.role === UserRole.ADMIN || user?.role === UserRole.ADMIN_L2 || user?.role === UserRole.MANAGER) {
+  if (user?.role === UserRole.ADMIN) {
+    navItems.push({ to: '/users-management', icon: LucideShieldCheck, label: 'Usuarios' });
     navItems.push({ to: '/users', icon: LucideUsers, label: 'Administración' });
     navItems.push({ to: '/test-sector', icon: LucideFlaskConical, label: 'Gestión de Servicios' });
   }
@@ -79,11 +81,11 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
           <div className="bg-slate-800/50 p-4 rounded-2xl">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white font-black text-lg">
-                {user?.name.charAt(0)}
+                {user?.nombre ? user.nombre.charAt(0) : '?'}
               </div>
               <div className="flex-1 overflow-hidden">
-                <p className="text-sm font-black truncate text-white">{user?.name}</p>
-                <p className="text-[10px] text-slate-500 truncate font-bold">{user?.role}</p>
+                <p className="text-sm font-black truncate text-white">{user?.nombre} {user?.apellido}</p>
+                <p className="text-[10px] text-slate-500 truncate font-bold uppercase">{user?.role}</p>
               </div>
             </div>
             <button onClick={logout} className="flex items-center justify-center gap-2 text-red-400 hover:bg-red-500/10 w-full py-2 rounded-lg transition-colors text-[10px] font-black uppercase tracking-wider border border-red-500/20">

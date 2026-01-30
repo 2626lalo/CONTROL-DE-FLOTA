@@ -1,439 +1,761 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
-  LucideFlaskConical, LucideChevronDown, LucidePlusCircle, 
-  LucideFileText, LucideSearch, LucideChevronRight, LucideCar,
-  LucideArrowLeft, LucideTrash2, LucideUser, LucideCheck, 
-  LucideInfo, LucideRotateCcw, LucidePlus, LucideSend, 
-  LucideMessageSquare, LucideZap, LucideShield, LucideArrowRightCircle, 
-  LucideCheckCircle2, LucideBuilding2, LucideLayoutDashboard, 
-  LucideBellRing, LucideTarget, LucideLock, LucideUnlock,
-  LucideGauge, LucideAlertTriangle, LucideSettings, LucideMessageCircle
+  LucidePlusCircle, LucideCar, LucideSearch, LucideChevronRight, 
+  LucideArrowLeft, LucideTrash2, LucideMessageCircle, 
+  LucideMapPin, LucideCamera, LucideSend, LucideInfo, 
+  LucideAlertTriangle, LucideZap, LucideShield, 
+  LucideTimer, LucideChevronDown, LucideX, LucideDatabase, LucideEye, 
+  LucideLock, LucideBuilding2, LucideUser, LucideFileText,
+  LucidePaperclip, LucideCheckCircle2, 
+  LucideMail, LucideSmartphone, LucideWrench, LucideShoppingBag,
+  LucideArrowRight, LucideRefreshCcw, LucideFileUp,
+  LucideHistory, LucideDownload, LucideCalendarDays, LucideLockKeyhole,
+  LucideCheck, LucideMessageSquare, LucideShieldAlert, LucideShieldCheck,
+  LucideChevronUp, LucideChevronsUpDown, LucideListFilter
 } from 'lucide-react';
 import { useApp } from '../context/FleetContext';
-import { ServiceStage, ServiceRequest, UserRole } from '../types';
+import { 
+    ServiceStage, ServiceRequest, UserRole, MainServiceCategory, 
+    SuggestedDate, ServiceMessage
+} from '../types';
 import { format, parseISO } from 'date-fns';
+import { es } from 'date-fns/locale/es';
+import { ImageZoomModal } from './ImageZoomModal';
 
-type LabModule = 'OVERVIEW' | 'NEW_REQ' | 'REQ_LIST';
-type ReqStep = 'SELECT_VEHICLE' | 'CONFIRM_DETAILS' | 'SERVICE_SPEC';
+type ViewMode = 'DASHBOARD' | 'NEW_REQUEST' | 'DETAIL';
 
 export const TestSector = () => {
-  const { vehicles, user, serviceRequests, addServiceRequest, updateServiceRequest, updateServiceStage, addNotification, updateVehicleMileage } = useApp();
+  const { vehicles, user, serviceRequests, addServiceRequest, updateServiceRequest, addNotification, updateServiceStage } = useApp();
   
-  const [activeModule, setActiveModule] = useState<LabModule>('OVERVIEW');
-  const [currentStep, setCurrentStep] = useState<ReqStep>('SELECT_VEHICLE');
-  const [isModuleMenuOpen, setIsModuleMenuOpen] = useState(false);
-  
-  const [searchQuery, setSearchQuery] = useState('');
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [selectedVehicle, setSelectedVehicle] = useState<any | null>(null);
-  const [driverData, setDriverData] = useState({ name: '', phone: '' });
+  const [activeRole, setActiveRole] = useState<UserRole>(user?.role || UserRole.USER);
+  const [activeView, setActiveView] = useState<ViewMode>('DASHBOARD');
+  const [selectedReqId, setSelectedReqId] = useState<string | null>(null);
+  const [zoomedImage, setZoomedImage] = useState<{url: string, label: string} | null>(null);
 
-  const [category, setCategory] = useState<string>('');
-  const [serviceType, setServiceType] = useState('');
+  const isMasterAdmin = user?.email === 'alewilczek@gmail.com';
+  const isAdminSession = user?.role === UserRole.ADMIN;
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedVehicle, setSelectedVehicle] = useState<any | null>(null);
+  const [requestStep, setRequestStep] = useState(1);
+  const [mainCategory, setMainCategory] = useState<MainServiceCategory | null>(null);
+  const [specificType, setSpecificType] = useState('');
   const [description, setDescription] = useState('');
-  const [odometer, setOdometer] = useState<number>(0);
-  
-  const [selectedRequestDetail, setSelectedRequestDetail] = useState<ServiceRequest | null>(null);
-  const [isChatViewActive, setIsChatViewActive] = useState(false);
+  const [location, setLocation] = useState('');
+  const [odometer, setOdometer] = useState(0);
+  const [suggestedDates, setSuggestedDates] = useState<SuggestedDate[]>([]);
+  const [attachments, setAttachments] = useState<any[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errors, setErrors] = useState<Record<string, boolean>>({});
   const [chatMessage, setChatMessage] = useState('');
 
-  const moduleMenuRef = useRef<HTMLDivElement>(null);
-  const searchRef = useRef<HTMLDivElement>(null);
+  const [pendingStage, setPendingStage] = useState<ServiceStage | null>(null);
+  const [isFinishing, setIsFinishing] = useState(false);
+  const [finishComment, setFinishComment] = useState('');
 
-  const isAdmin = user?.role === UserRole.ADMIN || user?.role === UserRole.ADMIN_L2 || user?.role === UserRole.MANAGER;
+  const currentRequest = useMemo(() => 
+    serviceRequests.find(r => r.id === selectedReqId), [serviceRequests, selectedReqId]
+  );
 
-  const accessibleVehicles = useMemo(() => {
-    if (isAdmin) return vehicles;
-    return vehicles.filter(v => v.costCenter === user?.costCenter);
-  }, [vehicles, user, isAdmin]);
-
-  const userRequests = useMemo(() => {
-    if (isAdmin) return serviceRequests;
-    return serviceRequests.filter(r => r.costCenter === user?.costCenter || r.userId === user?.id);
-  }, [serviceRequests, user, isAdmin]);
-
-  const activeUserRequests = useMemo(() => {
-    return userRequests.filter(r => r.stage !== ServiceStage.FINISHED && r.stage !== ServiceStage.CANCELLED);
-  }, [userRequests]);
-
-  const serviceOptions: Record<string, string[]> = {
-    'MANTENIMIENTO PREVENTIVO': ['Service de 10k', 'Service de 20k', 'Revisión General', 'Frenos', 'Distribución'],
-    'REPARACIÓN CORRECTIVA': ['Motor', 'Caja de Cambios', 'Suspensión', 'Electricidad', 'Embrague'],
-    'NEUMÁTICOS': ['Alineación y Balanceo', 'Cambio de Cubiertas', 'Reparación de Llanta'],
-    'OTROS': ['Lavado', 'VTV', 'GNC', 'Carrocería']
-  };
-
-  const filteredFleet = useMemo(() => {
-    if (!searchQuery) return accessibleVehicles;
-    const term = searchQuery.toLowerCase();
-    return accessibleVehicles.filter(v => v.plate.toLowerCase().includes(term) || v.model.toLowerCase().includes(term));
-  }, [accessibleVehicles, searchQuery]);
+  const closingObservation = useMemo(() => {
+    if (!currentRequest) return null;
+    if (currentRequest.stage !== ServiceStage.FINISHED && currentRequest.stage !== ServiceStage.CANCELLED) return null;
+    const finishEvent = [...(currentRequest.history || [])].reverse().find(h => h.toStage === ServiceStage.FINISHED || h.toStage === ServiceStage.CANCELLED);
+    return finishEvent?.comment || null;
+  }, [currentRequest]);
 
   useEffect(() => {
-    if (user && !driverData.name) {
-      setDriverData({ name: user.name, phone: user.phone || '' });
+    if (currentRequest) {
+      setPendingStage(currentRequest.stage);
+      setIsFinishing(false);
+      setFinishComment('');
     }
-  }, [user]);
+  }, [currentRequest?.id]);
 
-  const handleVehicleSelect = (v: any) => {
-    setSelectedVehicle(v);
-    setOdometer(v.currentKm);
-    setSearchQuery(v.plate);
-    setIsSearchOpen(false);
-    setCurrentStep('CONFIRM_DETAILS');
+  const userRequests = useMemo(() => {
+    return serviceRequests.filter(r => {
+        if (isMasterAdmin) return true;
+        if (activeRole === UserRole.USER) {
+            const userCC = (user?.centroCosto?.nombre || user?.costCenter || '').toUpperCase();
+            return (r.costCenter || '').toUpperCase() === userCC;
+        }
+        return true; 
+    });
+  }, [serviceRequests, activeRole, user, isMasterAdmin]);
+
+  const filteredVehicles = useMemo(() => {
+    const query = searchQuery.trim().toUpperCase();
+    if (query.length < 1) return [];
+    
+    return vehicles.filter(v => {
+        const matchesQuery = (v.plate || '').toUpperCase().includes(query) || (v.model || '').toUpperCase().includes(query);
+        if (isMasterAdmin) return matchesQuery;
+        
+        if (activeRole === UserRole.USER) {
+            const userCC = (user?.centroCosto?.nombre || user?.costCenter || '').toUpperCase();
+            return matchesQuery && (v.costCenter || '').toUpperCase() === userCC;
+        }
+        return matchesQuery;
+    }).slice(0, 8);
+  }, [vehicles, searchQuery, activeRole, user, isMasterAdmin]);
+
+  const specificOptions = useMemo(() => {
+    if (mainCategory === 'MANTENIMIENTO') return ['CORRECTIVO', 'PREVENTIVO', 'CORRECTIVO-CONCESIONARIO OFICIAL'];
+    if (mainCategory === 'SERVICIO') return ['ALQUILER DE VEHÍCULOS', 'ASISTENCIA MÓVIL', 'DESINFECCIÓN', 'GESTORA', 'GOMERÍA', 'GPS', 'LAVADO', 'LOGÍSTICA', 'SEGURO', 'SINIESTRO', 'VTV', 'INFRACCIONES', 'TRASLADO'];
+    if (mainCategory === 'COMPRAS') return ['COMPRA DE ACCESORIOS', 'COMPRA DE COMPONENTES'];
+    return [];
+  }, [mainCategory]);
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files) return;
+    const files = Array.from(e.target.files) as File[];
+    files.forEach(file => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            setAttachments(prev => [...prev, { 
+                id: `ATT-${Date.now()}-${Math.random()}`,
+                name: file.name, 
+                url: reader.result as string, 
+                type: file.type 
+            }]);
+        };
+        reader.readAsDataURL(file);
+    });
   };
 
-  const handleSendRequest = () => {
-    if (!selectedVehicle || !category || !serviceType) return;
-    const newRequest: ServiceRequest = {
-      id: `REQ-${Date.now()}`,
-      code: `SR-${Math.floor(1000 + Math.random() * 9000)}`,
-      vehiclePlate: selectedVehicle.plate,
-      userId: user?.id || 'guest',
-      userName: driverData.name,
-      costCenter: selectedVehicle.costCenter || 'S/A',
-      stage: ServiceStage.REQUESTED,
-      category: category as any,
-      description: description,
-      priority: 'MEDIA' as any,
-      odometerAtRequest: odometer,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      budgets: [], invoices: [], history: [], messages: [],
-      images: [],
-      isDialogueOpen: false,
-      unreadAdminCount: 1, unreadUserCount: 0
+  const submitRequest = () => {
+    const newErrors: Record<string, boolean> = {};
+    if (!mainCategory) newErrors.mainCategory = true;
+    if (!specificType) newErrors.specificType = true;
+    if (!description || description.trim().length < 10) newErrors.description = true;
+    if (!location || !location.trim()) newErrors.location = true;
+    if (!odometer || odometer < (selectedVehicle?.currentKm || 0)) newErrors.odometer = true;
+
+    if (Object.keys(newErrors).length > 0) {
+        setErrors(newErrors);
+        addNotification("Campos obligatorios incompletos", "error");
+        return;
+    }
+
+    setIsSubmitting(true);
+    const eventCode = `EV-${Math.floor(10000 + Math.random() * 90000)}`;
+    const newReq: ServiceRequest = {
+        id: `SR-${Date.now()}`,
+        code: eventCode,
+        vehiclePlate: selectedVehicle.plate,
+        userId: user?.id || 'sys',
+        userName: `${user?.nombre || 'Solicitante'} ${user?.apellido || ''}`,
+        userEmail: user?.email || '',
+        userPhone: user?.telefono || '',
+        costCenter: selectedVehicle.costCenter,
+        stage: ServiceStage.REQUESTED,
+        mainCategory: mainCategory!,
+        specificType,
+        description,
+        location,
+        odometerAtRequest: odometer,
+        suggestedDates,
+        attachments,
+        priority: 'MEDIA',
+        isDialogueOpen: false,
+        messages: [],
+        budgets: [],
+        history: [{ 
+            id: `HIST-${Date.now()}`, 
+            date: new Date().toISOString(), 
+            toStage: ServiceStage.REQUESTED, 
+            comment: 'Solicitud creada en sistema.',
+            userId: user?.id || 'sys',
+            userName: user?.nombre || 'Sistema'
+        }],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
     };
-    addServiceRequest(newRequest);
-    updateVehicleMileage(selectedVehicle.plate, odometer, 'SERVICE');
-    addNotification("Solicitud técnica sincronizada con éxito", "success");
-    handleReset();
-    setActiveModule('OVERVIEW');
+
+    setTimeout(() => {
+        addServiceRequest(newReq);
+        addNotification(`Gestión ${eventCode} enviada`, "success");
+        setActiveView('DASHBOARD');
+        setIsSubmitting(false);
+        resetForm();
+    }, 1000);
+  };
+
+  const resetForm = () => {
+    setSelectedVehicle(null);
+    setRequestStep(1);
+    setMainCategory(null);
+    setSpecificType('');
+    setDescription('');
+    setLocation('');
+    setOdometer(0);
+    setSuggestedDates([]);
+    setAttachments([]);
+    setSearchQuery('');
+    setErrors({});
   };
 
   const handleSendMessage = () => {
-    if (!selectedRequestDetail || !chatMessage.trim()) return;
-    const newMsg = {
-      id: Date.now().toString(),
-      userId: user?.id || 'guest',
-      userName: user?.name || 'Usuario',
-      text: chatMessage,
-      timestamp: new Date().toISOString(),
-      role: user?.role || UserRole.DRIVER
+    if (!chatMessage.trim() || !currentRequest) return;
+    const msg: ServiceMessage = {
+        id: Date.now().toString(),
+        userId: user?.id || 'sys',
+        userName: user?.nombre || 'Usuario',
+        text: chatMessage,
+        timestamp: new Date().toISOString(),
+        role: activeRole
     };
-    const updated = {
-      ...selectedRequestDetail,
-      messages: [...(selectedRequestDetail.messages || []), newMsg],
-      unreadAdminCount: !isAdmin ? (selectedRequestDetail.unreadAdminCount || 0) + 1 : 0,
-      unreadUserCount: isAdmin ? (selectedRequestDetail.unreadUserCount || 0) + 1 : 0,
-      updatedAt: new Date().toISOString()
-    };
-    updateServiceRequest(updated);
-    setSelectedRequestDetail(updated);
+    updateServiceRequest({
+        ...currentRequest,
+        messages: [...(currentRequest.messages || []), msg]
+    });
     setChatMessage('');
   };
 
-  const handleOpenAlert = (req: ServiceRequest) => {
-    const updated = { ...req, unreadUserCount: 0 };
-    updateServiceRequest(updated);
-    setSelectedRequestDetail(updated);
-    setIsChatViewActive(true);
+  const downloadFile = (url: string, name: string) => {
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    a.click();
   };
 
-  const handleReset = () => {
-    setSelectedVehicle(null);
-    setCurrentStep('SELECT_VEHICLE');
-    setSearchQuery('');
-    setCategory('');
-    setServiceType('');
-    setDescription('');
-    setOdometer(0);
-    setSelectedRequestDetail(null);
-    setIsChatViewActive(false);
+  const handleConfirmStageUpdate = () => {
+    if (!currentRequest || !pendingStage || pendingStage === currentRequest.stage) return;
+    updateServiceStage(currentRequest.id, pendingStage, `Actualización manual de etapa: de ${currentRequest.stage} a ${pendingStage}`);
+    addNotification(`Etapa actualizada a ${pendingStage}`, "success");
   };
 
-  const isStepDisabled = useMemo(() => {
-    if (currentStep === 'SELECT_VEHICLE') return !selectedVehicle;
-    if (currentStep === 'CONFIRM_DETAILS') return !driverData.name || !driverData.phone;
-    if (currentStep === 'SERVICE_SPEC') return !category || !serviceType || description.trim().length < 3 || odometer <= 0;
-    return false;
-  }, [currentStep, selectedVehicle, driverData, category, serviceType, description, odometer]);
+  const handleConfirmFinish = () => {
+    if (!currentRequest || !finishComment.trim()) {
+        addNotification("Debe ingresar un comentario para finalizar", "error");
+        return;
+    }
+    updateServiceStage(currentRequest.id, ServiceStage.FINISHED, finishComment);
+    updateServiceRequest({
+        ...currentRequest,
+        stage: ServiceStage.FINISHED,
+        isDialogueOpen: false,
+        updatedAt: new Date().toISOString()
+    });
+    addNotification("Gestión finalizada exitosamente", "success");
+    setIsFinishing(false);
+    setFinishComment('');
+  };
+
+  const getStageBadgeStyles = (stage: ServiceStage) => {
+    switch (stage) {
+      case ServiceStage.FINISHED:
+        return 'bg-emerald-50 text-emerald-600 border-emerald-100';
+      case ServiceStage.CANCELLED:
+        return 'bg-rose-50 text-rose-600 border-rose-100';
+      case ServiceStage.SCHEDULING:
+      case ServiceStage.APPOINTMENT_REQUESTED:
+        return 'bg-amber-50 text-amber-600 border-amber-100';
+      case ServiceStage.REQUESTED:
+        return 'bg-blue-50 text-blue-600 border-blue-100';
+      default:
+        return 'bg-slate-50 text-slate-600 border-slate-200';
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-[#f8f9fa] flex flex-col animate-fadeIn">
-      <header className="bg-white border-b border-slate-200 px-10 py-5 flex justify-between items-center z-[100] sticky top-0 shadow-sm">
-        <div className="flex items-center gap-4 cursor-pointer" onClick={() => { setActiveModule('OVERVIEW'); handleReset(); }}>
-           <div className="p-2 bg-slate-900 rounded-lg text-white"><LucideFlaskConical size={18}/></div>
-           <h1 className="text-xl font-black text-slate-900 tracking-tighter uppercase italic leading-none">Gestión de Servicios</h1>
-        </div>
-        <div className="relative" ref={moduleMenuRef}>
-          <button onClick={() => setIsModuleMenuOpen(!isModuleMenuOpen)} className="bg-slate-900 text-white px-6 py-3 rounded-xl flex items-center gap-3 font-black uppercase text-[9px] tracking-widest shadow-xl hover:bg-slate-800 transition-all">
-            <LucideSettings size={16} className="text-blue-400"/>
-            <span>{activeModule === 'OVERVIEW' ? 'Panel Principal' : activeModule === 'NEW_REQ' ? 'Nueva Solicitud' : 'Mis Gestiones'}</span>
-            <LucideChevronDown size={14}/>
-          </button>
-          {isModuleMenuOpen && (
-            <div className="absolute top-full right-0 mt-2 bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden animate-fadeIn w-[280px]">
-              <div className="p-2">
-                 <button onClick={() => { setActiveModule('OVERVIEW'); handleReset(); setIsModuleMenuOpen(false); }} className={`w-full flex items-center gap-3 p-4 rounded-xl text-left transition-all ${activeModule === 'OVERVIEW' ? 'bg-blue-50 text-blue-600' : 'hover:bg-slate-50 text-slate-500'}`}>
-                    <LucideLayoutDashboard size={14}/>
-                    <span className="font-black text-[9px] uppercase">Vista General</span>
-                 </button>
-                 <button onClick={() => { setActiveModule('NEW_REQ'); handleReset(); setIsModuleMenuOpen(false); }} className={`w-full flex items-center gap-3 p-4 rounded-xl text-left transition-all ${activeModule === 'NEW_REQ' ? 'bg-blue-50 text-blue-600' : 'hover:bg-slate-50 text-slate-500'}`}>
-                    <LucidePlusCircle size={14}/>
-                    <span className="font-black text-[9px] uppercase">Nueva Solicitud</span>
-                 </button>
-                 <button onClick={() => { setActiveModule('REQ_LIST'); handleReset(); setIsModuleMenuOpen(false); }} className={`w-full flex items-center gap-3 p-4 rounded-xl text-left transition-all ${activeModule === 'REQ_LIST' ? 'bg-blue-50 text-blue-600' : 'hover:bg-slate-50 text-slate-500'}`}>
-                    <LucideFileText size={14}/>
-                    <span className="font-black text-[9px] uppercase">Histórico de Gestiones</span>
-                 </button>
-              </div>
-            </div>
-          )}
-        </div>
-      </header>
+    <div className="min-h-screen bg-[#fcfdfe] flex flex-col animate-fadeIn">
+      {zoomedImage && <ImageZoomModal url={zoomedImage.url} label={zoomedImage.label} onClose={() => setZoomedImage(null)} />}
 
-      <main className="flex-1 overflow-y-auto pb-32">
-        <div className="px-10 pt-8 max-w-[1400px] mx-auto">
-          {activeModule === 'OVERVIEW' ? (
-            <div className="space-y-10 animate-fadeIn">
-               {isChatViewActive && selectedRequestDetail ? (
-                 <div className="space-y-8 animate-fadeIn max-w-4xl mx-auto">
-                    <div className="flex items-center justify-between border-b border-slate-200 pb-6">
-                        <div className="flex items-center gap-6">
-                           <button onClick={() => setIsChatViewActive(false)} className="p-4 bg-white border border-slate-200 rounded-2xl text-slate-400 hover:text-slate-800 transition-all shadow-sm active:scale-95"><LucideArrowLeft size={20}/></button>
-                           <div>
-                              <p className="text-[10px] font-black text-blue-600 uppercase tracking-[0.3em] mb-1">CENTRO DE RESPUESTA</p>
-                              <h3 className="text-3xl font-black text-slate-900 uppercase italic tracking-tighter leading-none">Mesa de Diálogo Técnica</h3>
-                           </div>
+      {isAdminSession && (
+        <div className="bg-slate-900 px-8 py-3 flex items-center justify-between border-b border-white/5 sticky top-0 z-[100] shadow-2xl">
+            <div className="flex items-center gap-4">
+                <LucideShield className="text-blue-500" size={18}/>
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                    {isMasterAdmin ? 'CONSOLA MAESTRA (ADMINISTRADOR PRINCIPAL)' : 'CONTROL DE VISTA'}
+                </span>
+            </div>
+            <div className="flex gap-2">
+                {[UserRole.USER, UserRole.SUPERVISOR, UserRole.ADMIN].map(role => (
+                    <button 
+                        key={role} 
+                        onClick={() => { setActiveRole(role); setActiveView('DASHBOARD'); }}
+                        className={`px-4 py-1.5 rounded-lg text-[8px] font-black uppercase transition-all ${activeRole === role ? 'bg-blue-600 text-white shadow-lg' : 'bg-white/5 text-slate-500 hover:text-white'}`}
+                    >
+                        {role === UserRole.USER ? 'VISTA CHOFER' : role.toUpperCase()}
+                    </button>
+                ))}
+            </div>
+        </div>
+      )}
+
+      <main className="flex-1 p-8 max-w-7xl mx-auto w-full space-y-12">
+        {/* DASHBOARD LINEAL (TABLA) */}
+        {activeView === 'DASHBOARD' && (
+          <div className="space-y-12 animate-fadeIn">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8 border-b border-slate-200 pb-8">
+               <div className="flex items-center gap-6">
+                  <div className="w-20 h-20 bg-slate-900 rounded-[2.5rem] flex items-center justify-center text-white shadow-2xl border-4 border-white overflow-hidden">
+                    {user?.avatar ? <img src={user.avatar} className="w-full h-full object-cover" /> : <LucideUser size={40}/>}
+                  </div>
+                  <div>
+                    <h1 className="text-4xl font-black text-slate-900 tracking-tighter uppercase italic leading-none">{user?.nombre} {user?.apellido}</h1>
+                    <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-2 flex items-center gap-2">
+                        <LucideBuilding2 size={14} className="text-blue-600"/> {user?.centroCosto?.nombre || user?.costCenter || 'DIRECCIÓN GENERAL'}
+                    </p>
+                  </div>
+               </div>
+               {activeRole === UserRole.USER && (
+                 <button onClick={() => { resetForm(); setActiveView('NEW_REQUEST'); }} className="px-10 py-5 bg-blue-600 text-white rounded-[2rem] font-black uppercase text-[11px] tracking-widest shadow-2xl hover:bg-blue-700 transition-all active:scale-95 flex items-center justify-center gap-3">
+                    <LucidePlusCircle size={22}/> Nueva Gestión de Unidad
+                 </button>
+               )}
+            </div>
+
+            <div className="space-y-6">
+                <div className="flex justify-between items-center bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+                   <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 bg-blue-600 text-white rounded-2xl flex items-center justify-center font-black">2</div>
+                      <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest italic">Filtros</h3>
+                      <div className="flex gap-2">
+                         <span className="bg-blue-100 text-blue-700 px-4 py-1.5 rounded-full text-[10px] font-black uppercase flex items-center gap-2">Desde 31/12/2025 <LucideX size={12}/></span>
+                         <span className="bg-blue-100 text-blue-700 px-4 py-1.5 rounded-full text-[10px] font-black uppercase flex items-center gap-2">Hasta 30/01/2026 <LucideX size={12}/></span>
+                      </div>
+                   </div>
+                   <LucideChevronDown className="text-slate-400" />
+                </div>
+
+                <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-xl overflow-hidden">
+                    <div className="p-8 border-b border-slate-50 flex justify-between items-center bg-white/50">
+                        <div className="flex items-center gap-4">
+                            <h3 className="text-sm font-black text-slate-800 uppercase italic tracking-[0.2em]">Resultados encontrados</h3>
+                            <span className="bg-slate-900 text-white px-3 py-1 rounded-full text-[10px] font-black">{userRequests.length}</span>
                         </div>
-                        <div className="text-right">
-                           <p className="text-[9px] font-black text-slate-400 uppercase">Gestión #{selectedRequestDetail.code}</p>
-                           <p className="text-xl font-black text-slate-800 italic uppercase">{selectedRequestDetail.vehiclePlate}</p>
-                        </div>
+                        <button className="p-3 text-slate-400 hover:text-blue-600 transition-colors"><LucideListFilter size={20}/></button>
                     </div>
-                    <div className="bg-white rounded-[3.5rem] border border-slate-200 shadow-2xl flex flex-col h-[650px] overflow-hidden">
-                        <div className="flex-1 overflow-y-auto p-10 space-y-6 bg-slate-50/30 custom-scrollbar">
-                            {(!selectedRequestDetail.messages || selectedRequestDetail.messages.length === 0) ? (
-                                <div className="h-full flex flex-col items-center justify-center opacity-10 text-center">
-                                    <LucideRotateCcw size={64} className="animate-spin-slow mb-6"/>
-                                    <p className="text-xs font-black uppercase tracking-widest">Esperando comunicación...</p>
-                                </div>
-                            ) : (
-                                selectedRequestDetail.messages?.map(m => (
-                                    <div key={m.id} className={`flex ${m.userId === user?.id ? 'justify-end' : 'justify-start'} animate-fadeIn`}>
-                                        <div className={`max-w-[75%] p-6 rounded-[2.2rem] shadow-sm border ${m.userId === user?.id ? 'bg-indigo-600 text-white border-indigo-500 rounded-tr-none' : 'bg-white text-slate-700 border-slate-200 rounded-tl-none'}`}>
-                                            <p className="text-[8px] font-black uppercase opacity-60 mb-2 flex justify-between gap-4">
-                                                <span>{m.userName}</span>
-                                                <span className="italic">{format(parseISO(m.timestamp), 'HH:mm')}</span>
-                                            </p>
-                                            <p className="text-[13px] font-bold leading-relaxed">"{m.text}"</p>
+
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                            <thead>
+                                <tr className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 bg-slate-50/30">
+                                    <th className="px-8 py-6 flex items-center gap-2">Evento <LucideChevronsUpDown size={14}/></th>
+                                    <th className="px-8 py-6">Vehículo o equipo <LucideChevronsUpDown size={14}/></th>
+                                    <th className="px-8 py-6">Fecha de solicitud <LucideChevronsUpDown size={14}/></th>
+                                    <th className="px-8 py-6">Tipo de servicio <LucideChevronsUpDown size={14}/></th>
+                                    <th className="px-8 py-6">Núm. Flota <LucideChevronsUpDown size={14}/></th>
+                                    <th className="px-8 py-6">Localidad <LucideChevronsUpDown size={14}/></th>
+                                    <th className="px-8 py-6">Situación <LucideChevronsUpDown size={14}/></th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-50">
+                                {userRequests.map(req => (
+                                    <tr 
+                                        key={req.id} 
+                                        onClick={() => { setSelectedReqId(req.id); setActiveView('DETAIL'); }}
+                                        className="group hover:bg-blue-50/50 transition-all cursor-pointer"
+                                    >
+                                        <td className="px-8 py-6">
+                                            <div className="flex items-center gap-3">
+                                                <LucideRefreshCcw size={16} className="text-slate-400 group-hover:text-blue-500 transition-colors"/>
+                                                <span className="text-sm font-black text-slate-700 italic">{req.code.replace('EV-', '')}</span>
+                                            </div>
+                                        </td>
+                                        <td className="px-8 py-6">
+                                            <span className="text-sm font-black text-slate-700 uppercase">{req.vehiclePlate}</span>
+                                        </td>
+                                        <td className="px-8 py-6">
+                                            <span className="text-xs font-bold text-slate-500 uppercase">{format(parseISO(req.createdAt), 'dd/MM/yyyy')}</span>
+                                        </td>
+                                        <td className="px-8 py-6">
+                                            <span className="text-xs font-bold text-slate-600 uppercase truncate max-w-[200px] block">{req.specificType}</span>
+                                        </td>
+                                        <td className="px-8 py-6">
+                                            <span className="text-xs font-bold text-slate-400 uppercase italic">{(req as any).fleetNumber || ''}</span>
+                                        </td>
+                                        <td className="px-8 py-6">
+                                            <span className="text-xs font-bold text-slate-600 uppercase">{req.location}</span>
+                                        </td>
+                                        <td className="px-8 py-6">
+                                            <div className="flex items-center justify-between">
+                                                <span className={`px-5 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border ${getStageBadgeStyles(req.stage)}`}>
+                                                    {req.stage.includes('TURNO') ? 'Asignada' : req.stage === ServiceStage.FINISHED ? 'Finalizada' : req.stage === ServiceStage.CANCELLED ? 'Cancelada' : req.stage}
+                                                </span>
+                                                <LucideChevronRight size={18} className="text-slate-200 group-hover:text-blue-600 group-hover:translate-x-1 transition-all"/>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                                {userRequests.length === 0 && (
+                                    <tr>
+                                        <td colSpan={7} className="py-20 text-center">
+                                            <div className="opacity-10 grayscale flex flex-col items-center">
+                                                <LucideDatabase size={64} className="mb-4"/>
+                                                <p className="text-sm font-black uppercase tracking-widest">Sin registros encontrados</p>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+          </div>
+        )}
+
+        {/* NUEVA SOLICITUD */}
+        {activeView === 'NEW_REQUEST' && (
+          <div className="max-w-6xl mx-auto space-y-10 animate-fadeIn">
+             <div className="flex items-center gap-6">
+                <button onClick={() => setActiveView('DASHBOARD')} className="p-5 bg-white rounded-3xl shadow-sm border border-slate-200 text-slate-400 hover:text-slate-800 transition-all"><LucideArrowLeft size={32}/></button>
+                <div>
+                   <h2 className="text-4xl font-black text-slate-900 uppercase italic tracking-tighter leading-none">Relevamiento Técnico</h2>
+                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-2">Paso {requestStep} de 2: Especificación Operativa</p>
+                </div>
+             </div>
+
+             {requestStep === 1 ? (
+                <div className="bg-white p-12 rounded-[4.5rem] shadow-2xl border border-slate-100 space-y-12 animate-fadeIn max-w-2xl mx-auto relative z-20">
+                    <div className="space-y-4 relative">
+                        <label className="text-xs font-black text-slate-500 uppercase tracking-[0.2em] ml-6 flex items-center gap-2">
+                           <LucideSearch size={16} className="text-blue-600"/> Buscador de Unidad o Equipo
+                        </label>
+                        <div className="relative">
+                            <input 
+                                type="text" 
+                                placeholder="Escriba patente..." 
+                                className="w-full px-8 py-8 bg-slate-50 border-2 border-slate-100 rounded-[3rem] font-black text-4xl uppercase outline-none focus:ring-8 focus:ring-blue-50 focus:border-blue-200 transition-all text-slate-800"
+                                value={searchQuery}
+                                onChange={e => {
+                                    setSearchQuery(e.target.value);
+                                    if (selectedVehicle) setSelectedVehicle(null);
+                                }}
+                            />
+                            {searchQuery.trim().length > 0 && !selectedVehicle && filteredVehicles.length > 0 && (
+                                <div className="absolute top-full left-0 right-0 mt-4 bg-white rounded-[3rem] shadow-[0_30px_60px_-15px_rgba(0,0,0,0.3)] border-2 border-slate-100 z-[500] overflow-hidden animate-fadeIn">
+                                    {filteredVehicles.map(v => (
+                                        <div key={v.plate} onClick={() => { setSelectedVehicle(v); setOdometer(v.currentKm); setSearchQuery(v.plate); }} className="p-8 hover:bg-blue-50 cursor-pointer flex justify-between items-center border-b last:border-0 border-slate-50 group transition-all">
+                                            <div className="flex items-center gap-6">
+                                                <div className="w-16 h-16 bg-slate-900 text-white rounded-2xl flex items-center justify-center font-black text-2xl group-hover:bg-blue-600 transition-colors">{v.plate.substring(0,2)}</div>
+                                                <div><p className="font-black text-3xl italic text-slate-800 uppercase leading-none">{v.plate}</p><p className="text-[10px] font-bold text-slate-400 uppercase mt-2">{v.make} {v.model}</p></div>
+                                            </div>
+                                            <LucideArrowRight size={32} className="text-slate-200 group-hover:text-blue-600 transition-all transform group-hover:translate-x-2"/>
                                         </div>
-                                    </div>
-                                ))
-                            )}
-                        </div>
-                        <div className="p-10 border-t bg-white relative">
-                            {(!isAdmin && !selectedRequestDetail.isDialogueOpen) ? (
-                                <div className="flex flex-col items-center justify-center py-4 space-y-3">
-                                    <LucideLock size={32} className="text-slate-300"/>
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-relaxed text-center px-10">Mesa de diálogo cerrada por el gestor técnico.</p>
-                                </div>
-                            ) : (
-                                <div className="relative">
-                                    <textarea rows={3} className="w-full p-6 bg-slate-50 border border-slate-200 rounded-[2.5rem] font-bold text-sm outline-none focus:ring-8 focus:ring-indigo-100 resize-none shadow-inner" placeholder="Escriba su mensaje al administrador..." value={chatMessage} onChange={e => setChatMessage(e.target.value)} />
-                                    <button onClick={handleSendMessage} className="absolute right-6 bottom-6 p-5 bg-indigo-600 text-white rounded-2xl shadow-2xl hover:bg-indigo-700 transition-all active:scale-90"><LucideSend size={24}/></button>
+                                    ))}
                                 </div>
                             )}
                         </div>
                     </div>
-                 </div>
-               ) : (
-                 <>
-                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                      <div className="lg:col-span-2 bg-white p-10 rounded-[3rem] border border-slate-200 shadow-sm flex items-center gap-10">
-                         <div className="w-24 h-24 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-600 shadow-inner"><LucideUser size={48}/></div>
-                         <div>
-                            <p className="text-[10px] font-black text-blue-600 uppercase tracking-[0.3em]">Gestor de Activos</p>
-                            <h2 className="text-4xl font-black text-slate-800 tracking-tighter uppercase italic">{user?.name}</h2>
-                            <div className="flex gap-4 mt-3">
-                               <div className="flex items-center gap-2 px-4 py-1.5 bg-slate-900 text-white rounded-full text-[9px] font-black uppercase tracking-widest"><LucideShield size={12} className="text-blue-400"/> {user?.role}</div>
-                               <div className="flex items-center gap-2 px-4 py-1.5 bg-blue-50 text-blue-600 rounded-full text-[9px] font-black uppercase tracking-widest border border-blue-100"><LucideBuilding2 size={12}/> {user?.costCenter || 'Corporativo'}</div>
+
+                    {selectedVehicle && (
+                      <div className="space-y-10 animate-fadeIn">
+                        <div className="p-10 bg-slate-950 rounded-[3.5rem] text-white flex justify-between items-center relative overflow-hidden group shadow-3xl">
+                           <div className="relative z-10">
+                                <p className="text-[9px] font-black text-blue-500 uppercase tracking-[0.4em] mb-3">Activo Vinculado</p>
+                                <h4 className="text-6xl font-black italic tracking-tighter uppercase leading-none mb-2">{selectedVehicle.plate}</h4>
+                                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">{selectedVehicle.make} {selectedVehicle.model}</p>
+                                
+                                <div className="mt-8 pt-6 border-t border-white/10 space-y-2">
+                                    <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">Solicitante Identificado</p>
+                                    <div className="flex items-center gap-4 text-blue-400 font-black uppercase text-[11px] tracking-widest"><LucideUser size={14}/> {user?.nombre} {user?.apellido}</div>
+                                    <div className="flex items-center gap-4 text-slate-400 font-bold text-[11px]"><LucideSmartphone size={14}/> {user?.telefono || 'N/A'}</div>
+                                    <div className="flex items-center gap-4 text-slate-400 font-bold text-[11px] lowercase"><LucideMail size={14}/> {user?.email}</div>
+                                </div>
+                           </div>
+                           <button onClick={() => setSelectedVehicle(null)} className="absolute top-10 right-10 z-10 p-5 bg-white/10 rounded-3xl hover:bg-rose-600 transition-all text-white border border-white/5"><LucideRefreshCcw size={20}/></button>
+                           <LucideCar className="absolute -right-16 -bottom-16 opacity-5 text-white scale-150 transform -rotate-12" size={320}/>
+                        </div>
+                        <button onClick={() => setRequestStep(2)} className="w-full py-8 bg-slate-900 text-white rounded-[2.5rem] font-black uppercase text-xs tracking-[0.4em] shadow-2xl hover:bg-blue-600 transition-all flex items-center justify-center gap-4 active:scale-95">Continuar <LucideChevronRight size={28}/></button>
+                      </div>
+                    )}
+                </div>
+             ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-12 animate-fadeIn pb-32">
+                   <div className="lg:col-span-2 space-y-12">
+                      <div className="bg-white p-12 rounded-[4rem] shadow-2xl border border-slate-100 space-y-12">
+                         <div className="border-b border-slate-100 pb-8 flex justify-between items-center">
+                            <h4 className="text-2xl font-black text-slate-800 uppercase italic flex items-center gap-4"><LucideWrench className="text-blue-600" size={36}/> Especificación Técnica</h4>
+                         </div>
+                         <div className="space-y-12">
+                            <div className="space-y-6">
+                               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-6">Categoría de Gestión *</label>
+                               <div className="grid grid-cols-3 gap-6">
+                                  {['MANTENIMIENTO', 'SERVICIO', 'COMPRAS'].map((cat: any) => (
+                                    <button key={cat} onClick={() => { setMainCategory(cat); setSpecificType(''); }} className={`py-8 rounded-[2rem] text-[10px] font-black uppercase tracking-widest transition-all shadow-sm flex flex-col items-center gap-4 border-2 ${mainCategory === cat ? 'bg-blue-600 text-white border-blue-500 shadow-blue-100 scale-105' : 'bg-slate-50 text-slate-400 hover:bg-white border-slate-100'}`}>
+                                      {cat === 'MANTENIMIENTO' ? <LucideWrench size={24}/> : cat === 'SERVICIO' ? <LucideSmartphone size={24}/> : <LucideShoppingBag size={24}/>} {cat}
+                                    </button>
+                                  ))}
+                               </div>
+                            </div>
+                            {mainCategory && (
+                                <div className="space-y-4 animate-fadeIn">
+                                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-6">Tipo Específico *</label>
+                                   <select className="w-full px-8 py-6 rounded-[2rem] bg-slate-50 border border-slate-200 font-black text-sm uppercase outline-none focus:ring-8 focus:ring-blue-50 focus:border-blue-200 appearance-none cursor-pointer" value={specificType} onChange={e => setSpecificType(e.target.value)}><option value="">Seleccione...</option>{specificOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}</select>
+                                </div>
+                            )}
+                            <div className="space-y-4">
+                               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-6">Descripción de Necesidad Técnica *</label>
+                               <textarea rows={5} className="w-full p-10 rounded-[3.5rem] bg-slate-50 border border-slate-200 font-bold text-base outline-none transition-all shadow-inner resize-none text-slate-700 focus:ring-8 focus:ring-blue-50" placeholder="Escriba aquí los detalles..." value={description} onChange={e => setDescription(e.target.value)}/>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                               <div className="space-y-4"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-6">Localidad / Obrador *</label><input className="w-full px-8 py-6 bg-slate-50 rounded-[2rem] border border-slate-200 font-black text-xs uppercase outline-none focus:bg-white focus:border-blue-200" placeholder="Lugar..." value={location} onChange={e => setLocation(e.target.value)} /></div>
+                               <div className="space-y-4"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-6">KM Auditoría *</label><input type="number" onFocus={(e) => e.target.select()} className="w-full px-8 py-6 bg-slate-50 rounded-[2rem] border border-slate-200 font-black text-3xl text-blue-600 outline-none focus:bg-white" value={odometer || ''} onChange={e => setOdometer(Number(e.target.value))} /></div>
                             </div>
                          </div>
                       </div>
-                      <div className="bg-slate-900 p-10 rounded-[3rem] text-white shadow-2xl relative overflow-hidden flex flex-col justify-center">
-                         <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">Unidades en Control</p>
-                         <div className="flex items-baseline gap-3"><span className="text-6xl font-black italic tracking-tighter">{accessibleVehicles.length}</span><span className="text-sm font-black text-blue-400 uppercase">Activos</span></div>
-                         <LucideCar className="absolute -right-10 -bottom-10 opacity-5" size={200}/>
+                      <div className="flex gap-8">
+                         <button onClick={() => setRequestStep(1)} className="flex-1 py-8 bg-white border-2 border-slate-200 rounded-[2.5rem] font-black uppercase text-xs text-slate-400 hover:bg-slate-50 transition-all shadow-md">Regresar</button>
+                         <button onClick={submitRequest} disabled={isSubmitting} className="flex-[2] py-8 bg-emerald-600 text-white rounded-[2.5rem] font-black uppercase text-sm tracking-[0.4em] shadow-3xl shadow-emerald-200 hover:bg-emerald-700 transition-all flex items-center justify-center gap-6 active:scale-95 disabled:opacity-50">{isSubmitting ? <LucideRefreshCcw className="animate-spin" size={32}/> : <LucideCheckCircle2 size={32}/>} Confirmar y Enviar</button>
                       </div>
                    </div>
-                   <div className="space-y-6">
-                      <h3 className="text-sm font-black text-slate-800 uppercase italic tracking-widest flex items-center gap-3"><LucideBellRing className="text-blue-600"/> Monitoreo de Casos Activos</h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                         {activeUserRequests.length > 0 ? activeUserRequests.map(sr => {
-                            const unread = (sr.unreadUserCount || 0);
-                            const hasUnread = unread > 0;
-                            return (
-                            <div key={sr.id} onClick={() => handleOpenAlert(sr)} className={`bg-white p-8 rounded-[2.5rem] border shadow-sm hover:shadow-xl transition-all cursor-pointer group relative overflow-hidden flex flex-col h-full ${hasUnread ? 'ring-4 ring-rose-500 border-rose-200' : 'border-slate-200'}`}>
-                               {hasUnread && (
-                                 <div className="absolute top-6 right-6 px-4 py-1.5 bg-rose-600 text-white rounded-full text-[9px] font-black uppercase flex items-center gap-2 shadow-xl animate-bounce z-10">
-                                   <LucideMessageSquare size={12}/> {unread} MENSAJE NUEVO
-                                 </div>
-                               )}
-                               <div className="flex justify-between items-start mb-6">
-                                  <span className="px-3 py-1 bg-slate-100 text-slate-500 rounded-lg text-[8px] font-black uppercase">{sr.code}</span>
-                                  <span className={`px-3 py-1 rounded-lg text-[8px] font-black uppercase ${sr.stage === ServiceStage.REQUESTED ? 'bg-blue-50 text-blue-600' : 'bg-amber-50 text-amber-600'}`}>{sr.stage}</span>
-                               </div>
-                               <h4 className="text-3xl font-black text-slate-800 italic uppercase leading-none mb-2 group-hover:text-blue-600 transition-colors">{sr.vehiclePlate}</h4>
-                               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-6 truncate">{sr.category}</p>
-                               <div className="mt-auto pt-6 border-t border-slate-50 flex justify-between items-center">
-                                  {hasUnread ? (
-                                    <div className="flex items-center gap-2 text-rose-600 animate-pulse">
-                                       <div className="w-8 h-8 rounded-full bg-rose-600 text-white flex items-center justify-center shadow-lg"><LucideAlertTriangle size={14}/></div>
-                                       <span className="text-[9px] font-black uppercase tracking-widest">¡ALERTA: MENSAJE RECIBIDO!</span>
-                                    </div>
-                                  ) : (
-                                    <div className="flex items-center gap-2 text-slate-300">
-                                       <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center"><LucideLock size={14}/></div>
-                                       <span className="text-[9px] font-black uppercase">En Revisión Técnica</span>
-                                    </div>
-                                  )}
-                                  <LucideChevronRight className="text-slate-300 group-hover:translate-x-2 transition-all"/>
-                               </div>
+
+                   <div className="lg:col-span-1 space-y-12">
+                      <div className="bg-white p-10 rounded-[4rem] shadow-2xl border border-slate-100 space-y-10 sticky top-28">
+                         <div className="space-y-6">
+                            <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-3 px-4"><LucideCar size={16} className="text-blue-500"/> Ficha Activo</h5>
+                            <div className="p-8 bg-slate-900 rounded-[2.5rem] text-white shadow-2xl"><p className="text-4xl font-black italic uppercase leading-none mb-3">{selectedVehicle?.plate}</p><p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{selectedVehicle?.make} {selectedVehicle?.model}</p></div>
+                         </div>
+                         <div className="space-y-6 pt-8 border-t border-slate-100">
+                            <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-3 px-4"><LucideUser size={16} className="text-blue-500"/> Datos Solicitante</h5>
+                            <div className="px-6 space-y-4">
+                                <div><p className="text-[8px] font-black text-slate-400 uppercase">Identidad</p><p className="text-[11px] font-black text-slate-800 uppercase">{user?.nombre} {user?.apellido}</p></div>
+                                <div><p className="text-[8px] font-black text-slate-400 uppercase">Contacto</p><p className="text-[11px] font-bold text-slate-600">{user?.telefono || 'S/T'}</p><p className="text-[10px] font-medium text-slate-400 lowercase">{user?.email}</p></div>
                             </div>
-                         )}) : (
-                            <div className="col-span-full py-16 text-center bg-white rounded-[3rem] border-2 border-dashed border-slate-200">
-                               <LucideTarget className="mx-auto text-slate-200 mb-4" size={48}/>
-                               <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest italic">No posee gestiones en curso</p>
-                               <button onClick={() => setActiveModule('NEW_REQ')} className="mt-6 px-8 py-3 bg-blue-600 text-white rounded-xl font-black text-[10px] uppercase shadow-lg hover:bg-blue-700 transition-all">Nueva Gestión</button>
-                            </div>
-                         )}
+                         </div>
+                         <div className="space-y-8 pt-8 border-t border-slate-100">
+                            <div className="flex justify-between items-center px-4"><h5 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-3"><LucidePaperclip size={16} className="text-blue-500"/> Adjuntos</h5><label className="p-3 bg-blue-600 text-white rounded-2xl cursor-pointer hover:bg-blue-700 shadow-xl active:scale-90"><LucideFileUp size={24}/><input type="file" multiple className="hidden" onChange={handleFileUpload} /></label></div>
+                            <div className="space-y-4">{attachments.map((att) => (<div key={att.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 group animate-fadeIn hover:bg-white"><div className="flex items-center gap-4 overflow-hidden"><LucideFileText className="text-blue-500 shrink-0" size={20}/><span className="text-[10px] font-black text-slate-600 truncate uppercase">{att.name}</span></div><div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity"><button onClick={() => downloadFile(att.url, att.name)} className="p-2 text-slate-400 hover:text-blue-600"><LucideDownload size={16}/></button><button onClick={() => setAttachments(attachments.filter(a => a.id !== att.id))} className="p-2 text-slate-400 hover:text-rose-500"><LucideTrash2 size={16}/></button></div></div>))}</div>
+                         </div>
                       </div>
                    </div>
-                 </>
-               )}
-            </div>
-          ) : activeModule === 'NEW_REQ' ? (
-            <div className="space-y-8 animate-fadeIn max-w-4xl mx-auto">
-              <div className="flex items-center gap-4 border-b border-slate-200 pb-6 mb-10">
-                 <div className="p-4 bg-blue-600 text-white rounded-2xl shadow-lg"><LucidePlusCircle size={24}/></div>
-                 <div><h2 className="text-3xl font-black text-slate-800 uppercase italic tracking-tighter leading-none">Solicitud de Mantenimiento</h2><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">PROTOCOLO DE SINCRONIZACIÓN</p></div>
+                </div>
+             )}
+          </div>
+        )}
+
+        {/* DETALLE FIEL AL REGISTRO */}
+        {activeView === 'DETAIL' && currentRequest && (
+           <div className="space-y-12 animate-fadeIn pb-32">
+              <div className="bg-white p-12 rounded-[4rem] shadow-2xl border border-slate-100 flex flex-col md:flex-row justify-between items-center gap-8">
+                 <div className="flex items-center gap-10">
+                    <button onClick={() => setActiveView('DASHBOARD')} className="p-8 bg-slate-50 rounded-[2rem] hover:bg-slate-100 text-slate-400 transition-all shadow-sm active:scale-95"><LucideArrowLeft size={40}/></button>
+                    <div><p className="text-[14px] font-black text-blue-600 uppercase tracking-[0.5em] mb-3">{currentRequest.code}</p><h3 className="text-6xl font-black text-slate-900 uppercase italic tracking-tighter leading-none">{currentRequest.vehiclePlate}</h3></div>
+                 </div>
+                 <div className="flex items-center gap-8"><span className={`px-14 py-8 rounded-[2.5rem] border-4 font-black uppercase text-sm tracking-[0.2em] shadow-3xl flex items-center gap-6 ${getStageBadgeStyles(currentRequest.stage)}`}>{currentRequest.stage}</span></div>
               </div>
 
-              {currentStep === 'SELECT_VEHICLE' && (
-                <div className="space-y-6 animate-fadeIn">
-                    <h3 className="text-lg font-black text-slate-800 flex items-center gap-3"><LucideCar className="text-blue-600"/> 1. Selección de Unidad</h3>
-                    <div className="relative" ref={searchRef}>
-                      <LucideSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20}/>
-                      <input type="text" placeholder="Ingrese Patente o Modelo..." className="w-full pl-14 pr-6 py-5 bg-white border border-slate-300 rounded-2xl text-lg font-black uppercase outline-none focus:ring-4 focus:ring-blue-100 shadow-sm" value={searchQuery} onChange={(e) => { setSearchQuery(e.target.value); setIsSearchOpen(true); }} onFocus={() => setIsSearchOpen(true)} />
-                      {isSearchOpen && (
-                        <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-200 rounded-2xl shadow-2xl z-[200] max-h-64 overflow-y-auto custom-scrollbar animate-fadeIn">
-                            {filteredFleet.map(v => (
-                              <button key={v.plate} onClick={() => handleVehicleSelect(v)} className="w-full flex items-center justify-between p-5 hover:bg-slate-50 transition-colors border-b border-slate-50 last:border-0 text-left">
-                                <div><p className="font-black text-slate-900 text-xl leading-none">{v.plate}</p><p className="text-[10px] font-bold text-slate-400 uppercase mt-1">{v.make} {v.model}</p></div>
-                                <span className="text-[8px] font-black uppercase px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full border border-emerald-100">{v.status}</span>
-                              </button>
-                            ))}
+              <div className="grid grid-cols-1 lg:grid-cols-4 gap-12">
+                 {/* SIDEBAR IZQUIERDO */}
+                 <div className="lg:col-span-1 space-y-8">
+                    <div className="bg-white p-10 rounded-[3.5rem] border border-slate-100 shadow-sm space-y-10">
+                        <div className="space-y-4">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 px-2"><LucideCar size={14} className="text-blue-500"/> Activo Vinculado</p>
+                            <div className="bg-slate-900 p-6 rounded-[2rem] text-white shadow-xl"><p className="text-2xl font-black italic uppercase leading-none mb-2">{currentRequest.vehiclePlate}</p><p className="text-[9px] font-bold text-slate-500 uppercase">{currentRequest.costCenter}</p></div>
                         </div>
-                      )}
-                    </div>
-                </div>
-              )}
-
-              {currentStep === 'CONFIRM_DETAILS' && selectedVehicle && (
-                <div className="space-y-8 animate-fadeIn">
-                    <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-8 flex items-center justify-between group">
-                        <div className="flex gap-8 items-center">
-                            <div className="w-16 h-16 bg-slate-900 rounded-2xl flex items-center justify-center text-white font-black text-2xl shadow-lg">{selectedVehicle.plate.substring(0,2)}</div>
-                            <div className="space-y-1">
-                                <h4 className="text-2xl font-black text-slate-900 leading-none uppercase italic">{selectedVehicle.plate} • {selectedVehicle.make}</h4>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{selectedVehicle.model} • CC: {selectedVehicle.costCenter}</p>
+                        <div className="space-y-6 pt-6 border-t border-slate-50">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 px-2"><LucideUser size={14} className="text-blue-500"/> Solicitante</p>
+                            <div className="px-2 space-y-4">
+                                <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Nombre Completo</p><p className="text-[11px] font-black text-slate-800 uppercase italic">{currentRequest.userName}</p></div>
+                                <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Contacto Registrado</p><p className="text-[10px] font-bold text-slate-600">{currentRequest.userPhone || 'N/R'}</p><p className="text-[9px] font-medium text-slate-400 lowercase">{currentRequest.userEmail}</p></div>
                             </div>
                         </div>
-                        <button onClick={() => setCurrentStep('SELECT_VEHICLE')} className="p-3 text-slate-300 hover:text-rose-500 transition-colors"><LucideTrash2 size={24}/></button>
-                    </div>
-                    <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-10 space-y-8">
-                        <h4 className="text-sm font-black text-slate-800 uppercase italic flex items-center gap-3 border-b pb-4"><LucideUser className="text-blue-600"/> Responsable Actual</h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                            <div className="space-y-2"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Nombre Completo</label><input className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-xl font-bold outline-none" value={driverData.name} onChange={e => setDriverData({...driverData, name: e.target.value})} /></div>
-                            <div className="space-y-2"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Teléfono Sincronizado</label><input className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-xl font-bold outline-none" value={driverData.phone} onChange={e => setDriverData({...driverData, phone: e.target.value})} /></div>
+                        <div className="space-y-6 pt-6 border-t border-slate-50">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 px-2"><LucidePaperclip size={14} className="text-blue-500"/> Adjuntos ({currentRequest.attachments?.length || 0})</p>
+                            <div className="space-y-2">{currentRequest.attachments?.map((att: any) => (<div key={att.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100 group"><div className="flex items-center gap-3 overflow-hidden cursor-pointer" onClick={() => att.type.includes('image') && setZoomedImage({url: att.url, label: att.name})}><LucideFileText size={14} className="text-blue-500 shrink-0"/><span className="text-[9px] font-black text-slate-600 truncate uppercase">{att.name}</span></div><button onClick={() => downloadFile(att.url, att.name)} className="p-1.5 text-slate-300 hover:text-blue-600"><LucideDownload size={14}/></button></div>))}</div>
                         </div>
                     </div>
-                </div>
-              )}
+                 </div>
 
-              {currentStep === 'SERVICE_SPEC' && selectedVehicle && (
-                <div className="space-y-8 animate-fadeIn">
-                  <div className="bg-white rounded-[3rem] border border-slate-200 p-10 space-y-10 shadow-sm">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Categoría del Evento</label>
-                        <select className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-black text-xs uppercase outline-none focus:ring-4 focus:ring-blue-50 shadow-sm" value={category} onChange={e => { setCategory(e.target.value); setServiceType(''); }} >
-                          <option value="">Seleccione Categoría</option>
-                          {Object.keys(serviceOptions).map(cat => <option key={cat} value={cat}>{cat}</option>)}
-                        </select>
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Tipo de Servicio</label>
-                        <select disabled={!category} className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-black text-xs uppercase outline-none focus:ring-4 focus:ring-blue-50 shadow-sm" value={serviceType} onChange={e => setServiceType(e.target.value)} >
-                          <option value="">Seleccione Tipo</option>
-                          {category && serviceOptions[category].map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                        </select>
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Descripción Técnica Detallada</label>
-                      <textarea rows={5} className="w-full p-8 bg-slate-50 border border-slate-200 rounded-[2.5rem] font-bold text-slate-700 outline-none resize-none shadow-inner transition-all focus:bg-white focus:ring-8 focus:ring-blue-50" placeholder="Describa el requerimiento, ruidos o fallas detectadas..." value={description} onChange={e => setDescription(e.target.value)} />
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-10 border-t border-slate-100 pt-10">
-                      <div className="space-y-3">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Kilometraje Actual Auditado</label>
-                        <div className="relative">
-                          <LucideGauge className="absolute left-6 top-1/2 -translate-y-1/2 text-blue-500" size={24}/>
-                          <input type="number" onFocus={(e) => e.target.select()} className="w-full pl-16 pr-6 py-5 bg-blue-50 border border-blue-200 rounded-2xl font-black text-3xl text-blue-700 outline-none shadow-inner" value={odometer || ''} onChange={e => setOdometer(Number(e.target.value))} />
+                 {/* COLUMNA CENTRAL */}
+                 <div className="lg:col-span-2 space-y-12">
+                    {/* 1. RELEVAMIENTO DEL EVENTO */}
+                    <div className="bg-white p-12 rounded-[4rem] border border-slate-100 shadow-sm space-y-12 relative overflow-hidden">
+                        <div className="flex justify-between items-center border-b border-slate-50 pb-10">
+                            <h4 className="text-3xl font-black text-slate-800 uppercase italic flex items-center gap-6"><LucideInfo className="text-blue-600" size={44}/> Relevamiento del Evento</h4>
+                            <span className="px-8 py-3 bg-slate-950 text-white rounded-2xl text-[11px] font-black uppercase tracking-widest italic">{currentRequest.specificType}</span>
                         </div>
-                      </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-16">
+                            <div className="space-y-10">
+                                <div className="space-y-3"><p className="text-[11px] font-black text-slate-400 uppercase tracking-widest px-4">Localidad / Establecimiento</p><div className="p-6 bg-slate-50 rounded-[2rem] font-black text-slate-800 uppercase text-base border border-slate-100 flex items-center gap-4"><LucideMapPin size={24} className="text-blue-500"/> {currentRequest.location || 'S/E'}</div></div>
+                                <div className="space-y-3"><p className="text-[11px] font-black text-slate-400 uppercase tracking-widest px-4">Fecha Propuesta de Turno</p><div className="p-6 bg-slate-50 rounded-[2rem] font-black text-slate-800 uppercase text-base border border-slate-100 flex items-center gap-4"><LucideCalendarDays size={24} className="text-blue-500"/> {currentRequest.suggestedDates && currentRequest.suggestedDates.length > 0 ? format(parseISO(currentRequest.suggestedDates[0].fecha), 'dd/MM/yyyy') : 'SIN ELECCIÓN'}</div></div>
+                            </div>
+                            <div className="space-y-10"><div className="space-y-3"><p className="text-[11px] font-black text-slate-400 uppercase tracking-widest px-4">Odómetro Registrado</p><div className="p-6 bg-slate-50 rounded-[2rem] font-black text-blue-600 text-3xl border border-slate-100 italic tracking-tighter">{currentRequest.odometerAtRequest.toLocaleString()} <span className="text-xs not-italic text-slate-400 font-bold uppercase ml-2">KM</span></div></div></div>
+                        </div>
+                        <div className="space-y-4">
+                            <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest px-4 italic">Descripción Técnica de la Necesidad:</p>
+                            <div className="p-16 bg-slate-900 text-white rounded-[4rem] italic font-bold text-2xl leading-relaxed shadow-3xl relative overflow-hidden"><span className="relative z-10">"{currentRequest.description}"</span><LucideMessageCircle className="absolute -right-12 -bottom-12 opacity-5 scale-[2]" size={320}/></div>
+                        </div>
                     </div>
-                  </div>
-                </div>
-              )}
 
-              <footer className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-10 py-6 flex justify-end gap-4 shadow-2xl z-[200]">
-                 <button onClick={() => { setActiveModule('OVERVIEW'); handleReset(); }} className="px-10 py-3 rounded-xl font-black text-slate-400 hover:text-slate-600 transition-all text-[10px] uppercase tracking-widest">Cancelar Proceso</button>
-                 {currentStep !== 'SELECT_VEHICLE' && (<button onClick={() => setCurrentStep(currentStep === 'SERVICE_SPEC' ? 'CONFIRM_DETAILS' : 'SELECT_VEHICLE')} className="px-10 py-3 rounded-xl border border-slate-300 font-black text-slate-700 hover:bg-slate-50 transition-all text-[10px] uppercase tracking-widest">Paso Anterior</button>)}
-                 <button 
-                    disabled={isStepDisabled} 
-                    onClick={() => currentStep === 'SERVICE_SPEC' ? handleSendRequest() : setCurrentStep(currentStep === 'SELECT_VEHICLE' ? 'CONFIRM_DETAILS' : 'SERVICE_SPEC')} 
-                    className={`px-12 py-3 rounded-full font-black text-[10px] transition-all uppercase tracking-widest flex items-center gap-3 ${ isStepDisabled ? 'bg-slate-100 text-slate-300 cursor-not-allowed' : 'bg-slate-900 text-white shadow-2xl hover:bg-blue-600 transform active:scale-95'}`}
-                 >
-                   {currentStep === 'SERVICE_SPEC' ? <><LucideCheck size={16}/> Sincronizar Envío</> : 'Continuar'}
-                 </button>
-              </footer>
-            </div>
-          ) : activeModule === 'REQ_LIST' ? (
-             <div className="bg-white rounded-[3rem] border border-slate-200 shadow-sm overflow-hidden animate-fadeIn">
-               <div className="p-8 border-b bg-slate-50 flex items-center justify-between"><h3 className="text-xs font-black text-slate-800 uppercase italic tracking-widest">Histórico de Gestiones Realizadas</h3><span className="bg-slate-900 text-white px-4 py-1 rounded-full text-[10px] font-black">{userRequests.length} Registros</span></div>
-               <div className="overflow-x-auto">
-                 <table className="w-full text-left">
-                   <thead className="bg-slate-100 text-[8px] font-black uppercase text-slate-400 tracking-widest border-b">
-                      <tr><th className="px-8 py-4">Evento</th><th className="px-8 py-4">Unidad</th><th className="px-8 py-4">Fecha</th><th className="px-8 py-4 text-center">Estado</th></tr>
-                   </thead>
-                   <tbody className="divide-y divide-slate-50">
-                      {userRequests.map(req => (
-                        <tr key={req.id} onClick={() => handleOpenAlert(req)} className="hover:bg-blue-50/50 transition-colors cursor-pointer group">
-                           <td className="px-8 py-6"><span className="text-xs font-black text-slate-800">{req.code}</span></td>
-                           <td className="px-8 py-6 text-xs font-black text-slate-600 group-hover:text-blue-600 uppercase italic"><div className="flex items-center gap-2">{req.vehiclePlate}{(req.unreadUserCount || 0) > 0 && <LucideZap size={10} className="text-rose-600 animate-bounce"/>}</div></td>
-                           <td className="px-8 py-6 text-[10px] font-bold text-slate-400">{format(parseISO(req.createdAt), 'dd/MM/yyyy')}</td>
-                           <td className="px-8 py-6 text-center"><span className={`px-4 py-1.5 rounded-full text-[8px] font-black uppercase ${req.stage === ServiceStage.FINISHED ? 'bg-emerald-50 text-emerald-600' : 'bg-blue-50 text-blue-600'}`}>{req.stage}</span></td>
-                        </tr>
-                      ))}
-                   </tbody>
-                 </table>
-               </div>
-             </div>
-          ) : null}
-        </div>
+                    {/* RESOLUCIÓN DE GESTIÓN */}
+                    {closingObservation && (
+                        <div className="bg-emerald-50 border-4 border-emerald-500 p-12 rounded-[4rem] shadow-2xl space-y-8 animate-fadeIn relative overflow-hidden">
+                            <div className="flex items-center gap-6 relative z-10">
+                                <div className="p-5 bg-emerald-600 text-white rounded-[2rem] shadow-lg"><LucideShieldCheck size={32}/></div>
+                                <div>
+                                    <h4 className="text-3xl font-black text-emerald-900 uppercase italic tracking-tighter">Resolución de Gestión</h4>
+                                    <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mt-1">Dictamen Técnico / Observación de Cierre</p>
+                                </div>
+                            </div>
+                            <div className="p-10 bg-white/80 backdrop-blur-sm rounded-[3rem] border border-emerald-200 shadow-inner relative z-10">
+                                <p className="text-xl font-black text-emerald-950 italic leading-relaxed">"{closingObservation}"</p>
+                            </div>
+                            <LucideDatabase size={300} className="absolute -right-20 -bottom-20 opacity-5 text-emerald-900 scale-125"/>
+                        </div>
+                    )}
+
+                    {/* 2. MESA DE DIALOGO */}
+                    <div className={`bg-white rounded-[4.5rem] border border-slate-100 shadow-3xl flex flex-col h-[600px] overflow-hidden transition-all duration-1000 ${!currentRequest.isDialogueOpen && activeRole === UserRole.USER ? 'opacity-30 grayscale pointer-events-none shadow-none scale-95 blur-md' : ''}`}>
+                       <div className="p-10 border-b border-slate-100 flex items-center justify-between bg-slate-50/80 backdrop-blur-md">
+                          <div className="flex items-center gap-6">
+                             <div className={`p-6 rounded-[2.2rem] shadow-2xl transition-all duration-700 ${currentRequest.isDialogueOpen ? 'bg-blue-600 text-white rotate-6' : 'bg-slate-300 text-slate-100'}`}><LucideMessageCircle size={32}/></div>
+                             <div>
+                                <h5 className="text-xl font-black text-slate-800 uppercase italic leading-none">Mesa de Diálogo</h5>
+                                <p className="text-[10px] font-black text-slate-400 uppercase mt-2 italic tracking-widest flex items-center gap-2">
+                                    {currentRequest.isDialogueOpen ? <><span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span> Canal Activo</> : (currentRequest.stage === ServiceStage.FINISHED || currentRequest.stage === ServiceStage.CANCELLED) ? 'Mesa Cerrada por Finalización' : 'Conexión Restringida'}
+                                </p>
+                             </div>
+                          </div>
+                       </div>
+                       
+                       <div className="flex-1 overflow-y-auto p-10 space-y-8 custom-scrollbar bg-[#f8f9fc]/50">
+                          {currentRequest.isDialogueOpen || activeRole !== UserRole.USER ? (
+                              currentRequest.messages.map(m => (
+                                <div key={m.id} className={`flex ${m.userId === user?.id ? 'justify-end' : 'justify-start'} animate-fadeIn`}>
+                                    <div className={`max-w-[80%] p-8 rounded-[3rem] shadow-xl border-2 transition-all ${m.userId === user?.id ? 'bg-blue-600 text-white border-blue-500 rounded-tr-none' : 'bg-white text-slate-700 border-slate-100 rounded-tl-none'}`}>
+                                       <p className="text-[9px] font-black uppercase opacity-60 mb-4 tracking-[0.2em] flex items-center gap-3">{m.userName} <span className="w-1 h-1 bg-current rounded-full opacity-30"></span> {format(parseISO(m.timestamp), 'HH:mm')}hs</p>
+                                       <p className="text-base font-bold italic leading-relaxed">"{m.text}"</p>
+                                    </div>
+                                 </div>
+                              ))
+                          ) : (
+                            <div className="h-full flex flex-col items-center justify-center text-center p-12 space-y-6">
+                                <div className="p-8 bg-slate-100 rounded-full text-slate-400"><LucideLockKeyhole size={64}/></div>
+                                <h4 className="text-xl font-black text-slate-400 uppercase italic">Canal Bloqueado</h4>
+                                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest leading-relaxed">
+                                    {currentRequest.stage === ServiceStage.FINISHED ? 'La mesa de diálogo ha sido clausurada al finalizar la gestión.' : 'La mesa de diálogo no ha sido habilitada por el sector operativo para este evento.'}
+                                </p>
+                            </div>
+                          )}
+                       </div>
+
+                       {(currentRequest.isDialogueOpen && (currentRequest.stage !== ServiceStage.FINISHED && currentRequest.stage !== ServiceStage.CANCELLED)) && (
+                         <div className="p-10 border-t bg-white">
+                            <div className="relative group"><textarea rows={2} className="w-full p-8 bg-slate-50 border-2 border-slate-100 rounded-[3rem] font-bold text-base outline-none focus:ring-12 focus:ring-blue-50 focus:border-blue-200 shadow-inner resize-none text-slate-700 transition-all pr-24" placeholder="Escribir mensaje..." value={chatMessage} onChange={e => setChatMessage(e.target.value)} onKeyDown={e => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }} /><button onClick={handleSendMessage} className="absolute right-4 bottom-4 w-16 h-16 bg-blue-600 text-white rounded-3xl shadow-3xl hover:bg-blue-700 transition-all active:scale-90 flex items-center justify-center"><LucideSend size={28}/></button></div>
+                         </div>
+                       )}
+                    </div>
+
+                    {/* 3. CONSOLA DE SUPERVISOR */}
+                    {(activeRole === UserRole.SUPERVISOR || activeRole === UserRole.ADMIN) && (currentRequest.stage !== ServiceStage.FINISHED && currentRequest.stage !== ServiceStage.CANCELLED) && (
+                      <div className="bg-slate-950 p-12 rounded-[4.5rem] text-white space-y-12 shadow-3xl border border-white/5 relative overflow-hidden animate-fadeIn">
+                         <div className="flex items-center gap-8 border-b border-white/10 pb-10 relative z-10">
+                            <div className="p-6 bg-blue-600 rounded-[2rem] shadow-2xl transform -rotate-3"><LucideShield size={40}/></div>
+                            <div><h4 className="text-4xl font-black uppercase italic tracking-tighter">Consola Regional de Flota</h4><p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] mt-2">Control Maestro de Etapas y Comunicaciones</p></div>
+                         </div>
+                         
+                         <div className="grid grid-cols-1 md:grid-cols-2 gap-10 relative z-10">
+                            <button onClick={() => updateServiceRequest({ ...currentRequest, isDialogueOpen: !currentRequest.isDialogueOpen })} className={`py-8 rounded-[2.5rem] font-black uppercase text-xs tracking-[0.3em] transition-all flex items-center justify-center gap-6 shadow-2xl ${currentRequest.isDialogueOpen ? 'bg-amber-600 shadow-amber-900/40 hover:bg-amber-700' : 'bg-blue-600 shadow-blue-900/40 hover:bg-blue-700'}`}>
+                               {currentRequest.isDialogueOpen ? <LucideLock size={28}/> : <LucideMessageCircle size={28}/>} {currentRequest.isDialogueOpen ? 'Cerrar Diálogo' : 'Habilitar Diálogo'}
+                            </button>
+                            
+                            <div className="relative">
+                               {!isFinishing ? (
+                                 <button onClick={() => setIsFinishing(true)} className="w-full h-full py-8 bg-emerald-600 rounded-[2.5rem] font-black uppercase text-xs tracking-[0.3em] shadow-2xl hover:bg-emerald-700 flex items-center justify-center gap-6 transition-all animate-fadeIn">
+                                    <LucideCheckCircle2 size={28}/> Finalizar Gestión
+                                 </button>
+                               ) : (
+                                 <div className="bg-slate-900 p-6 rounded-[2.5rem] border-2 border-emerald-500 shadow-2xl space-y-6 animate-fadeIn">
+                                    <div className="flex justify-between items-center">
+                                       <p className="text-[9px] font-black text-emerald-400 uppercase tracking-widest flex items-center gap-2"><LucideMessageSquare size={12}/> Comentario Técnico Obligatorio</p>
+                                       <button onClick={() => { setIsFinishing(false); setFinishComment(''); }} className="text-slate-500 hover:text-white"><LucideX size={16}/></button>
+                                    </div>
+                                    <textarea 
+                                        rows={2} 
+                                        className="w-full p-4 bg-white/5 border border-white/10 rounded-2xl text-xs font-bold text-white outline-none focus:border-emerald-500 resize-none" 
+                                        placeholder="Escriba la observación final..."
+                                        value={finishComment}
+                                        onChange={e => setFinishComment(e.target.value)}
+                                    />
+                                    <button 
+                                        onClick={handleConfirmFinish}
+                                        disabled={!finishComment.trim()}
+                                        className="w-full py-4 bg-emerald-600 text-white rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-emerald-500 transition-all disabled:opacity-30 flex items-center justify-center gap-2 shadow-lg"
+                                    >
+                                        <LucideCheck size={16}/> Confirmar Cierre
+                                    </button>
+                                 </div>
+                               )}
+                            </div>
+                         </div>
+
+                         <div className="pt-10 relative z-10 space-y-6">
+                            <label className="text-[11px] font-black text-slate-500 uppercase tracking-[0.4em] ml-8">Modificar Etapa Operativa</label>
+                            <div className="flex flex-col md:flex-row gap-4">
+                                <div className="relative flex-1">
+                                    <select 
+                                        className="w-full bg-white/5 border-2 border-white/10 p-8 rounded-[2.5rem] font-black uppercase text-sm tracking-[0.2em] outline-none focus:border-blue-500 appearance-none cursor-pointer text-blue-400 shadow-inner" 
+                                        value={pendingStage || currentRequest.stage} 
+                                        onChange={e => setPendingStage(e.target.value as ServiceStage)}
+                                    >
+                                        {Object.values(ServiceStage).map(s => <option key={s} value={s} className="bg-slate-900">{s}</option>)}
+                                    </select>
+                                    <LucideChevronDown className="absolute right-10 top-1/2 -translate-y-1/2 text-white opacity-20 pointer-events-none" size={32}/>
+                                </div>
+                                {pendingStage && pendingStage !== currentRequest.stage && (
+                                    <button 
+                                        onClick={handleConfirmStageUpdate}
+                                        className="px-10 py-8 bg-blue-600 text-white rounded-[2.5rem] font-black uppercase text-xs tracking-[0.2em] shadow-2xl hover:bg-blue-500 transition-all flex items-center justify-center gap-4 animate-fadeIn"
+                                    >
+                                        <LucideCheck size={24}/> Confirmar Cambio
+                                    </button>
+                                )}
+                            </div>
+                         </div>
+                      </div>
+                    )}
+
+                    {/* BLOQUE INFORMATIVO PARA GESTIÓN FINALIZADA */}
+                    {(currentRequest.stage === ServiceStage.FINISHED || currentRequest.stage === ServiceStage.CANCELLED) && (
+                        <div className="bg-white p-12 rounded-[4rem] border border-slate-200 shadow-sm flex flex-col items-center text-center space-y-6">
+                            <div className={`p-8 rounded-full ${currentRequest.stage === ServiceStage.FINISHED ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+                                {currentRequest.stage === ServiceStage.FINISHED ? <LucideCheckCircle2 size={64}/> : <LucideShieldAlert size={64}/>}
+                            </div>
+                            <h4 className="text-2xl font-black text-slate-800 uppercase italic">Registro Archivado</h4>
+                            <p className="text-sm font-medium text-slate-500 leading-relaxed max-w-md">Esta gestión ha concluido su ciclo operativo. La consola de control ha sido deshabilitada para preservar la integridad de los datos de auditoría.</p>
+                        </div>
+                    )}
+                 </div>
+
+                 {/* BARRA LATERAL DERECHA: HISTORIAL DE AUDITORIA */}
+                 <div className="lg:col-span-1 space-y-10">
+                    <div className="bg-white rounded-[4.5rem] border border-slate-100 shadow-3xl p-10 space-y-10 min-h-[850px]">
+                        <div className="flex items-center gap-6 border-b border-slate-50 pb-8">
+                             <div className="p-4 bg-blue-50 text-blue-600 rounded-2xl shadow-sm"><LucideHistory size={24}/></div>
+                             <div><h5 className="text-xl font-black text-slate-800 uppercase italic leading-none">Auditoría</h5><p className="text-[10px] font-black text-slate-400 uppercase mt-2 italic tracking-widest">Línea de Tiempo Operativa</p></div>
+                        </div>
+                        
+                        <div className="space-y-10">
+                            {currentRequest.history?.map((h: any) => (
+                                <div key={h.id} className="flex gap-6 group relative">
+                                    <div className="flex flex-col items-center">
+                                        <div className="w-1.5 bg-blue-100 flex-1 rounded-full group-hover:bg-blue-600 transition-all"></div>
+                                        <div className="w-4 h-4 rounded-full border-4 border-white bg-blue-600 shadow-md absolute -left-1.5 top-0 transition-transform group-hover:scale-125"></div>
+                                    </div>
+                                    <div className="pb-8">
+                                        <p className="text-[11px] font-black text-slate-800 uppercase italic leading-tight">{h.comment}</p>
+                                        <p className="text-[8px] font-bold text-slate-400 uppercase mt-2 tracking-widest flex items-center gap-2">
+                                            <LucideUser size={10}/> {h.userName} • {format(parseISO(h.date), 'dd/MM HH:mm')}hs
+                                        </p>
+                                        {h.toStage && (
+                                            <span className={`inline-block mt-3 px-3 py-1 rounded-lg text-[7px] font-black uppercase border transition-colors ${getStageBadgeStyles(h.toStage)}`}>
+                                                Etapa: {h.toStage}
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                 </div>
+              </div>
+           </div>
+        )}
       </main>
     </div>
   );

@@ -14,7 +14,8 @@ import {
   LucideImage
 } from 'lucide-react';
 import { format, parseISO, isBefore, startOfDay, addDays, differenceInDays } from 'date-fns';
-import { es } from 'date-fns/locale';
+// FIX: Correctly import 'es' locale from date-fns
+import { es } from 'date-fns/locale/es';
 import { compressImage } from '../utils/imageCompressor';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -108,7 +109,8 @@ const EvidencePanel = ({
 };
 
 export const Checklist = () => {
-    const { vehicles, addChecklist, user, checklists, addNotification, syncExtinguisherDate, logAudit, masterFindingsImage } = useApp();
+    // FIX: Removed syncExtinguisherDate as it does not exist in FleetContextType
+    const { vehicles, addChecklist, user, checklists, addNotification, logAudit, masterFindingsImage } = useApp();
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
     
@@ -527,7 +529,7 @@ export const Checklist = () => {
 
             <section className="bg-slate-950 p-12 rounded-[4rem] text-white space-y-12 shadow-2xl relative overflow-hidden">
                 <div className="pt-6 border-b border-white/5 pb-12"><h4 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] mb-6 flex items-center gap-2"><ShieldCheck size={16} className="text-emerald-500"/> VEREDICTO DE SEGURIDAD OPERATIVA</h4><div className="flex bg-slate-900/50 p-2 rounded-[2.5rem] border border-white/10 shadow-2xl"><button type="button" onClick={() => setCanCirculate(true)} className={`flex-1 py-6 rounded-[2rem] text-[11px] font-black uppercase transition-all flex items-center justify-center gap-3 ${canCirculate ? 'bg-emerald-600 text-white shadow-xl' : 'text-slate-500 hover:text-slate-300'}`}><ShieldCheck size={20}/> SÍ (APTA PARA CIRCULAR)</button><button type="button" onClick={() => setCanCirculate(false)} className={`flex-1 py-6 rounded-[2rem] text-[11px] font-black uppercase transition-all flex items-center justify-center gap-3 ${!canCirculate ? 'bg-rose-600 text-white shadow-xl' : 'text-slate-500 hover:text-slate-300'}`}><ShieldAlert size={20}/> NO (FUERA DE SERVICIO)</button></div></div>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 relative z-10"><div className="space-y-12 flex flex-col items-center"><SignaturePad id="signature_pad" label="Firma del Inspector" onEnd={setSignature} error={errors.signature_pad} /></div><div className="space-y-8 h-full flex flex-col"><div className="space-y-3"><label className="text-[10px] font-black text-slate-400 uppercase ml-4 tracking-widest">Aclaración Inspector</label><input className="w-full px-8 py-5 bg-white/5 border border-white/10 rounded-[2rem] font-black text-white outline-none focus:ring-4 focus:ring-blue-500/20" value={clarification} onChange={e => setClarification(e.target.value.toUpperCase())} /></div><div className="space-y-3 flex-1 flex flex-col"><label className="text-[10px] font-black text-slate-400 uppercase ml-4 tracking-widest">Observaciones Generales</label><textarea rows={6} className="w-full flex-1 px-8 py-6 bg-white/5 border border-white/10 rounded-[2.5rem] font-bold text-white outline-none resize-none custom-scrollbar focus:ring-4 focus:ring-indigo-500/20 shadow-inner" placeholder="NOTAS ADICIONALES PARA EL REPORTE..." value={generalObservations} onChange={e => setGeneralObservations(e.target.value)} /></div></div></div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 relative z-10"><div className="space-y-12 flex flex-col items-center"><SignaturePad id="signature_pad" label="Firma del Inspector" onEnd={setSignature} error={errors.signature_pad} /></div><div className="space-y-8 h-full flex flex-col"><div className="space-y-3"><label className="text-[10px] font-black text-slate-400 uppercase ml-4 tracking-widest">Aclaración Inspector</label><input className="w-full px-8 py-5 bg-white/5 border border-white/10 rounded-[2rem] font-black text-white outline-none focus:ring-4 focus:ring-blue-500/20" value={clarification} onChange={e => setClarification(e.target.value.toUpperCase())} /></div><div className="space-y-3 flex-1 flex flex-col"><label className="text-[10px] font-black text-slate-400 uppercase ml-4 tracking-widest">Observaciones Generales</label><textarea rows={6} className="w-full flex-1 px-8 py-6 bg-white/5 border border-white/10 rounded-[2.5rem] font-bold text-white outline-none resize-none custom-scrollbar focus:ring-4 focus:ring-indigo-50 shadow-inner" placeholder="NOTAS ADICIONALES PARA EL REPORTE..." value={generalObservations} onChange={e => setGeneralObservations(e.target.value)} /></div></div></div>
                 <div className="flex justify-end pt-10"><button onClick={handleSave} className="w-full md:w-auto px-20 py-8 bg-blue-600 hover:bg-blue-700 text-white rounded-[3rem] font-black uppercase text-xs shadow-2xl flex items-center justify-center gap-4 transition-all transform active:scale-95 group"><Save size={28}/> Generar Reporte v19.3.0</button></div>
             </section>
         </div>

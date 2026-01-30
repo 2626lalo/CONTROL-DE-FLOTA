@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useApp } from '../context/FleetContext';
@@ -18,7 +19,8 @@ import { VehicleStatus, UserRole, OwnershipType } from '../types';
 import { 
   differenceInDays, parseISO, format, startOfDay
 } from 'date-fns';
-import { es } from 'date-fns/locale';
+// FIX: Correctly import 'es' locale from date-fns
+import { es } from 'date-fns/locale/es';
 import { VehicleImageManager } from './VehicleImageManager';
 import { DocumentationManager } from './DocumentationManager';
 import { RegimenPropiedadAdmin } from './RegimenPropiedadAdmin';
@@ -33,7 +35,8 @@ export const VehicleDetail = () => {
   const [zoomedImage, setZoomedImage] = useState<{url: string, label: string} | null>(null);
 
   const vehicle = useMemo(() => vehicles.find(v => v.plate === plate), [vehicles, plate]);
-  const isAdmin = user?.role === UserRole.ADMIN || user?.role === UserRole.ADMIN_L2;
+  // FIX: Replaced non-existent UserRole property ADMIN_L2 with SUPERVISOR
+  const isAdmin = user?.role === UserRole.ADMIN || user?.role === UserRole.SUPERVISOR;
   const currentDate = format(new Date(), "eeee, d 'de' MMMM 'de' yyyy", { locale: es });
 
   // --- CÁLCULOS DE DASHBOARD ---

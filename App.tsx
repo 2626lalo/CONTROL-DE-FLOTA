@@ -12,6 +12,7 @@ import { Reports } from './components/Reports';
 import { DocumentationManager } from './components/DocumentationManager';
 import { LoginScreen } from './components/LoginScreen';
 import { TestSector } from './components/TestSector';
+import { UserManagement } from './components/UserManagement';
 import { LucideLoader } from 'lucide-react';
 
 const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -40,6 +41,7 @@ export default function App() {
             <Route path="/checklist" element={<Checklist />} />
             <Route path="/documentation" element={<DocumentationManager />} />
             <Route path="/users" element={<AdminUsers />} />
+            <Route path="/users-management" element={<UserManagement />} />
             <Route path="/reports" element={<Reports />} />
             <Route path="/test-sector" element={<TestSector />} />
             <Route path="*" element={<Navigate to="/" />} />

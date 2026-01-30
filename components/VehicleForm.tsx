@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/FleetContext';
@@ -37,7 +36,8 @@ export const VehicleForm = () => {
       excessMileageRate: 0, leaseTerm: 36
     },
     images: { front: '', rear: '', leftSide: '', rightSide: '' }, 
-    documents: [], mileageHistory: [], history: [], equipment: []
+    // FIX: Removed non-existent properties 'history' and 'equipment' to match Vehicle interface
+    documents: [], mileageHistory: []
   });
 
   useEffect(() => {

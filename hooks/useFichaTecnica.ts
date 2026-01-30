@@ -1,4 +1,3 @@
-
 import { useState, useCallback, useEffect } from 'react';
 import { Vehicle, FichaTecnica, AnalisisServicio } from '../types';
 import { CHECKLIST_SECTIONS } from '../constants';
@@ -67,17 +66,11 @@ export const useFichaTecnica = ({ vehiculo }: UseFichaTecnicaProps) => {
             alternador: { marca: '', amperaje: 120 }
           },
           equipamiento: {
+            // FIX: Removed invalid properties from equipamiento to match interface definition
             accesoriosEstandar: CHECKLIST_SECTIONS.accessories.map(name => ({
                 name, isEquipped: false, quantity: 1
             })),
-            ruedasAuxilio: 1, barraAntivuelco: true, slingas: 1, grilletes: 2, conos: 2,
-            cadenasDesatasco: 0, tablasDesatasco: 0, calzas: [], balizaEstroboscopica: 0,
-            pertigaMinera: false, balizasTriangulo: 2, spot: { activo: false },
-            starlink: false, radioBase: false, rastreoSatelital: { activo: false },
-            cuarta: false, mantas: 0, botiquin: true, matafuegos: [],
-            cajaHerramientas: { tiene: true, herramientas: [] }, baulHerramientas: false,
-            bidonCombustible: 0, criqueGato: 1, llaveRueda: 1, trabasSeguridadRuedas: 0,
-            handi: false, accesoriosAdicionales: [],
+            accesoriosAdicionales: [],
           },
           actualizadoPor: 'system',
           fechaActualizacion: new Date().toISOString(),

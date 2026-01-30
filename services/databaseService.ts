@@ -1,5 +1,4 @@
-
-import { User, Vehicle, ServiceRequest, Checklist, AuditLog, Provider } from '../types';
+import { User, Vehicle, ServiceRequest, Checklist, AuditLog } from '../types';
 import { MOCK_USERS } from '../constants';
 
 const DB_KEYS = {
@@ -55,8 +54,9 @@ export const databaseService = {
   getAudit: async (): Promise<AuditLog[]> => safeGet<AuditLog[]>(DB_KEYS.AUDIT, []),
   saveAudit: (audit: AuditLog[]) => safeSave(DB_KEYS.AUDIT, audit),
 
-  getProviders: async (): Promise<Provider[]> => safeGet<Provider[]>(DB_KEYS.PROVIDERS, []),
-  saveProviders: (providers: Provider[]) => safeSave(DB_KEYS.PROVIDERS, providers),
+  // FIX: Changed Provider[] to any[] as Provider type is not defined
+  getProviders: async (): Promise<any[]> => safeGet<any[]>(DB_KEYS.PROVIDERS, []),
+  saveProviders: (providers: any[]) => safeSave(DB_KEYS.PROVIDERS, providers),
 
   /**
    * Exporta un Snapshot completo de la base de datos para auditorías legales o backups.

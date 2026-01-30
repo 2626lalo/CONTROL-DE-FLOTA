@@ -1,23 +1,131 @@
 export enum UserRole {
-  ADMIN = 'ADMIN',
-  ADMIN_L2 = 'ADMIN_L2',
-  MANAGER = 'MANAGER',
-  DRIVER = 'DRIVER',
-  GUEST = 'GUEST'
+  ADMIN = 'administrador',
+  USER = 'usuario',
+  PROVIDER = 'proveedor',
+  AUDITOR = 'auditor',
+  SUPERVISOR = 'supervisor'
+}
+
+export type UserStatus = 'activo' | 'inactivo' | 'pendiente' | 'suspendido' | 'bloqueado';
+
+export interface Permission {
+  id: string;
+  seccion: string;
+  accion: 'ver' | 'crear' | 'editar' | 'eliminar' | 'aprobar';
+  nivel: 'propio' | 'centro_costo' | 'todos';
+  concedido: boolean;
+  fechaConcesion: string;
+  concedidoPor: string;
 }
 
 export interface User {
   id: string;
   email: string;
-  name: string;
-  role: UserRole;
-  approved: boolean;
-  avatarUrl?: string;
+  nombre: string;
+  apellido: string;
+  telefono: string;
+  avatar?: string;
+  passwordHash?: string;
   password?: string;
-  createdAt: string;
+  estado: UserStatus;
+  fechaRegistro: string;
+  ultimoAcceso?: string;
+  intentosFallidos: number;
+  approved: boolean;
+  centroCosto: {
+    id: string;
+    nombre: string;
+    codigo: string;
+  };
   costCenter?: string;
-  phone?: string;
-  receiveAlerts?: boolean;
+  role: UserRole;
+  rolesSecundarios: string[];
+  permisos: Permission[];
+  notificaciones: {
+    email: boolean;
+    push: boolean;
+    whatsapp: boolean;
+  };
+  creadoPor: string;
+  fechaCreacion: string;
+  actualizadoPor: string;
+  fechaActualizacion: string;
+  eliminado: boolean;
+  fechaEliminacion?: string;
+}
+
+export enum ServiceStage {
+  REQUESTED = 'SOLICITADO',
+  APPOINTMENT_REQUESTED = 'SOLICITANDO TURNO',
+  REVIEW = 'EN REVISIÓN',
+  SCHEDULING = 'TURNO ASIGNADO',
+  IN_WORKSHOP = 'EN TALLER',
+  BUDGETING = 'PRESUPUESTANDO',
+  EXECUTING = 'EN EJECUCIÓN',
+  INVOICING = 'FACTURACIÓN',
+  FINISHED = 'FINALIZADO',
+  CANCELLED = 'CANCELADO',
+  DELIVERY = 'ENTREGADO'
+}
+
+export type MainServiceCategory = 'MANTENIMIENTO' | 'SERVICIO' | 'COMPRAS';
+
+export interface SuggestedDate {
+  id: string;
+  fecha: string;
+  turno: 'MAÑANA' | 'TARDE';
+}
+
+export interface ServiceMessage {
+  id: string;
+  userId: string;
+  userName: string;
+  text: string;
+  timestamp: string;
+  role: UserRole;
+}
+
+export interface ServiceHistoryItem {
+  id: string;
+  date: string;
+  userId: string;
+  userName: string;
+  fromStage?: ServiceStage;
+  toStage: ServiceStage;
+  comment: string;
+  status?: ServiceStage;
+  note?: string;
+}
+
+export interface ServiceRequest {
+  id: string;
+  code: string;
+  vehiclePlate: string;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  userPhone: string;
+  costCenter: string;
+  stage: ServiceStage;
+  mainCategory: MainServiceCategory;
+  category?: string;
+  specificType: string;
+  description: string;
+  location: string;
+  odometerAtRequest: number;
+  suggestedDates: SuggestedDate[];
+  priority: 'BAJA' | 'MEDIA' | 'ALTA' | 'URGENTE';
+  attachments: Array<{ name: string; url: string; type: string }>;
+  isDialogueOpen: boolean;
+  messages: ServiceMessage[];
+  budgets: any[];
+  history: ServiceHistoryItem[];
+  createdAt: string;
+  updatedAt: string;
+  totalCost?: number;
+  providerId?: string;
+  unreadUserCount?: number;
+  suggestedDate?: string;
 }
 
 export enum VehicleStatus {
@@ -48,19 +156,6 @@ export enum TransmissionType {
   AUTOMATIC = 'AUTOMÁTICA'
 }
 
-export enum ServiceStage {
-  REQUESTED = 'SOLICITADO',
-  BUDGETING = 'EN COTIZACIÓN',
-  REBUDGETING = 'EN RECOTIZACIÓN',
-  AUDITING = 'EN PROCESO DE AUDITORÍA',
-  SCHEDULING = 'EN ASIGNACIÓN DE TURNO',
-  IN_WORKSHOP = 'EN TALLER',
-  EXECUTING = 'EN EJECUCIÓN',
-  FINISHED = 'TERMINADO',
-  DELIVERY = 'ENTREGADO',
-  CANCELLED = 'CANCELADO'
-}
-
 export enum ServiceCategory {
   PREVENTIVE = 'MANTENIMIENTO PREVENTIVO',
   CORRECTIVE = 'REPARACIÓN CORRECTIVA',
@@ -69,26 +164,6 @@ export enum ServiceCategory {
   ACCESSORIES = 'COMPRA DE ACCESORIOS',
   DOCUMENTATION = 'DOCUMENTACIÓN',
   OTHER = 'OTRO'
-}
-
-export interface ServiceMessage {
-  id: string;
-  userId: string;
-  userName: string;
-  text: string;
-  timestamp: string;
-  role: UserRole;
-  isAi?: boolean;
-}
-
-export interface ServiceHistoryItem {
-  id: string;
-  date: string;
-  userId: string;
-  userName: string;
-  fromStage: ServiceStage;
-  toStage: ServiceStage;
-  comment: string;
 }
 
 export interface EstimateItem {
@@ -108,96 +183,80 @@ export interface Estimate {
   totalAmount: number;
   status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'REQUOTE';
   createdAt: string;
-  imageUrl?: string;
-  details?: string;
-  approvedBy?: string;
-  approvedEmail?: string;
-  approvedAt?: string;
-  approvedSignature?: string;
-  rejectedReason?: string;
-  requoteComment?: string;
+  auditComment?: string;
+  auditSignature?: string;
 }
 
-export interface Provider {
-  id: string;
+export interface ChecklistItem {
   name: string;
-  taxId: string;
-  contactName: string;
-  phone: string;
-  email: string;
-  address: string;
-  specialty: string[];
+  status: 'GOOD' | 'REGULAR' | 'BAD' | undefined;
+  observation?: string;
+  images?: string[];
+  hasIt?: boolean;
 }
 
-export interface Invoice {
-  id: string;
-  invoiceNumber: string;
-  date: string;
-  amount: number;
-  providerId: string;
-  documentUrl: string;
-  status: 'PENDING' | 'PAID';
+export interface AccessoryItem {
+    name: string;
+    isFireExt?: boolean;
+    isBotiquin?: boolean;
+    quantity: number;
+    quantityFound: number;
+    status: 'GOOD' | 'REGULAR' | 'BAD' | undefined;
+    observation: string;
+    images: string[];
+    expirationDates?: string[];
+    specification?: string;
+    isManual?: boolean;
 }
 
-export interface ServiceRequest {
+export interface FindingMarker {
+  id: number;
+  x: number;
+  y: number;
+  comment: string;
+  photo?: string;
+}
+
+export interface Checklist {
   id: string;
-  code: string;
   vehiclePlate: string;
   userId: string;
   userName: string;
+  date: string;
+  type: string;
+  km: number;
   costCenter: string;
-  stage: ServiceStage;
-  category: ServiceCategory;
-  description: string;
-  priority: 'BAJA' | 'MEDIA' | 'ALTA' | 'URGENTE';
-  odometerAtRequest: number;
-  createdAt: string;
-  updatedAt: string;
-  
-  scheduledDate?: string;
-  scheduledTime?: string;
-  scheduledProvider?: string;
-  scheduledLocation?: string;
-  scheduledContact?: string;
-  scheduledAdminComments?: string;
-  
-  userSchedulingStatus?: 'PENDING' | 'ACCEPTED' | 'REJECTED';
-  userProposedDate?: string;
-  userSchedulingComments?: string;
-  
-  entryDate?: string;
-  entryDriver?: string;
-  entryReceptionist?: string;
-  entryComments?: string;
-  entryChecklistId?: string;
-  
-  executionNovelties?: string;
-  executionImages?: string[];
-  
-  conformanceStatus?: 'CONFORME' | 'OBSERVACIONES';
-  conformanceComments?: string;
-  conformanceDate?: string;
-  conformanceSignature?: string;
-  
-  exitDate?: string;
-  budgets: Estimate[];
-  invoices: Invoice[];
-  history: ServiceHistoryItem[];
-  images: string[];
-  totalCost?: number;
-  messages?: ServiceMessage[];
-  resolutionSummary?: string;
-  unreadAdminCount?: number;
-  unreadUserCount?: number;
-  isDialogueOpen?: boolean;
+  currentProvince: string;
+  canCirculate: boolean;
+  motor: ChecklistItem[];
+  lights: ChecklistItem[];
+  general: ChecklistItem[];
+  bodywork: ChecklistItem[];
+  accessories: AccessoryItem[];
+  findingsMarkers?: FindingMarker[];
+  signature: string;
+  clarification: string;
+  generalObservations?: string;
+  receivedBy?: string;
+  receiverSignature?: string;
+  originSector?: string;
+  destinationSector?: string;
+  emailRecipients?: string[];
 }
 
-export interface MileageLog {
+export interface CustomField {
   id: string;
-  date: string;
-  km: number;
-  source: 'CHECKLIST' | 'SERVICE' | 'MANUAL';
-  userId: string;
+  name: string;
+  value: string;
+}
+
+export interface DocumentFile {
+    id: string;
+    name: string;
+    url: string;
+    fileType: string;
+    uploadDate: string;
+    fileSize?: number;
 }
 
 export interface Document {
@@ -206,65 +265,34 @@ export interface Document {
   name?: string;
   documentNumber?: string;
   issueDate?: string;
-  expirationDate?: string;
-  category: 'legal' | 'technical' | 'operational';
-  files?: Array<{
-    id: string;
-    name: string;
-    url: string;
-    fileType: string;
-    uploadDate: string;
-    fileSize: number;
-  }>;
-  customFields?: Array<{ id: string; name: string; value: string }>;
-  alertsEnabled: boolean;
-  requiredForOperation: boolean;
+  expirationDate: string;
+  category?: 'legal' | 'technical' | 'other';
+  files: DocumentFile[];
+  customFields?: CustomField[];
+  alertsEnabled?: boolean;
+  requiredForOperation?: boolean;
   alertSettings?: {
     daysBeforeExpiration: number[];
-    recipients: Array<{
-      userId: string;
-      channels: ('whatsapp' | 'email')[];
-    }>;
+    recipients: { userId: string; channels: ('whatsapp' | 'email')[] }[];
   };
-  notes?: string;
 }
 
 export interface VehicleImage {
-  id: string;
-  url: string;
-  type: 'standard' | 'damage';
-  category: 'view' | 'incident';
-  uploadDate: string;
-  title?: string;
-  incident?: {
-    date: string;
-    locationOnVehicle: string;
-    severity: 'minor' | 'moderate' | 'severe' | 'critical';
-    report: string;
-    status: 'pending' | 'resolved';
-    photos: string[];
-    attachments: Array<{
-      id: string;
-      name: string;
-      url: string;
-      fileType: string;
-    }>;
-  };
-}
-
-export enum TireStatus {
-  NEW = 'NUEVO',
-  GOOD = 'BUENO',
-  REGULAR = 'REGULAR',
-  WORN = 'DESGASTADO',
-  CRITICAL = 'CRÍTICO'
-}
-
-export interface AccessoryItem {
-  name: string;
-  isEquipped: boolean;
-  quantity: number;
-  detail?: string;
+    id: string;
+    url: string;
+    type: 'standard' | 'damage';
+    category: 'view' | 'incident';
+    uploadDate: string;
+    title?: string;
+    incident?: {
+        date: string;
+        locationOnVehicle: string;
+        severity: 'minor' | 'moderate' | 'severe' | 'critical';
+        report: string;
+        status: 'pending' | 'resolved' | 'comprado';
+        photos: string[];
+        attachments: any[];
+    };
 }
 
 export interface RentalPriceHistory {
@@ -282,16 +310,6 @@ export interface RentalPago {
   notes?: string;
 }
 
-export interface RentalReplacementEntry {
-  id: string;
-  date: string;
-  originalPlate: string;
-  replacementPlate: string;
-  reason: string;
-  status: 'ACTIVE' | 'FINISHED';
-  returnDate?: string;
-}
-
 export interface PeriodoAlquiler {
   id: string;
   fechaInicio: string;
@@ -301,7 +319,7 @@ export interface PeriodoAlquiler {
   costoMensual: number;
   costoDiario: number;
   costoAcumulado: number;
-  estadoPago: string;
+  estadoPago: 'pendiente' | 'pagado';
 }
 
 export interface LeasingPago {
@@ -313,12 +331,6 @@ export interface LeasingPago {
   notas?: string;
 }
 
-export interface CustomField {
-  id: string;
-  name: string;
-  value: string;
-}
-
 export interface ManagedLists {
   operandoPara: string[];
   zona: string[];
@@ -327,82 +339,68 @@ export interface ManagedLists {
   director: string[];
   conductor: string[];
   propietario: string[];
-  documentTypes?: string[];
 }
 
 export interface AdministrativeData {
-  regimen: OwnershipType;
-  anio: number;
-  vigenciaSugerida: number;
-  fechaCalculoVigencia: string;
-  diasRestantesVigencia: number;
-  aniosRestantesVigencia: number;
-  operandoPara: string;
-  zona: string;
-  provincia: string;
-  sitio: string;
-  uso: string;
-  directorResponsable: string;
-  conductorPrincipal: string;
-  propietario: string;
-  tarjetaCombustible: {
-    numero: string;
-    pin: string;
-    proveedor: string;
-    limiteMensual: number;
-    saldoActual: number;
-    fechaVencimiento: string;
-    estado: string;
-  };
-  tarjetaTelepase: {
-    numero: string;
-    pin: string;
-    proveedor: string;
-    limiteMensual: number;
-    saldoActual: number;
-    fechaVencimiento: string;
-    estado: string;
-  };
-  unidadActiva: boolean;
-  opcionesListas?: ManagedLists;
-  proveedorAlquiler?: string;
-  rentalProviderContact?: string;
-  rentalProviderEmail?: string;
-  rentalProviderPhone?: string;
-  valorAlquilerMensual?: number;
-  fechaInicioContrato?: string;
-  fechaFinContrato?: string;
-  rental_nroContrato?: string;
-  configuracionPagos?: { periodoPagoDias: number };
-  rentalPriceHistory?: RentalPriceHistory[];
-  rental_pagos?: RentalPago[];
-  rental_linkedPlate?: string;
-  rental_replacementHistory?: RentalReplacementEntry[];
-  rental_isReplacement?: boolean;
-  leasing_estadoContrato?: string;
-  leasing_cuotaMensual?: number;
-  leasing_moneda?: 'ARS' | 'USD';
-  leasing_plazoMeses?: number;
-  leasing_tipo?: string;
-  leasing_nroContrato?: string;
-  leasing_fechaInicio?: string;
-  leasing_fechaFin?: string;
-  leasing_arrendadorNombre?: string;
-  leasing_arrendadorCUIT?: string;
-  leasing_arrendadorContacto?: string;
-  leasing_arrendadorEmail?: string;
-  leasing_valorResidual?: number;
-  leasing_opcionCompra?: boolean;
-  leasing_precioOpcionCompra?: number;
-  leasing_pagos?: LeasingPago[];
-}
-
-export interface TireInfo {
-  marca: string;
-  medidas: string;
-  presion: number;
-  estado: string;
-  ubicacion?: string;
+    regimen: OwnershipType;
+    anio: number;
+    vigenciaSugerida: number;
+    fechaCalculoVigencia: string;
+    diasRestantesVigencia: number;
+    aniosRestantesVigencia: number;
+    operandoPara: string;
+    zona: string;
+    provincia: string;
+    sitio: string;
+    uso: string;
+    directorResponsable: string;
+    conductorPrincipal: string;
+    propietario: string;
+    tarjetaCombustible: {
+      numero: string;
+      pin: string;
+      proveedor: string;
+      limiteMensual: number;
+      saldoActual: number;
+      fechaVencimiento: string;
+      estado: 'activa' | 'bloqueada';
+    };
+    tarjetaTelepase: {
+      numero: string;
+      pin: string;
+      proveedor: string;
+      limiteMensual: number;
+      saldoActual: number;
+      fechaVencimiento: string;
+      estado: 'activa' | 'bloqueada';
+    };
+    unidadActiva: boolean;
+    opcionesListas?: ManagedLists;
+    proveedorAlquiler?: string;
+    rentalProviderContact?: string;
+    rentalProviderEmail?: string;
+    rentalProviderPhone?: string;
+    fechaInicioContrato?: string;
+    fechaFinContrato?: string;
+    valorAlquilerMensual?: number;
+    rentalPriceHistory?: RentalPriceHistory[];
+    rental_pagos?: RentalPago[];
+    leasing_nroContrato?: string;
+    leasing_fechaInicio?: string;
+    leasing_fechaFin?: string;
+    leasing_plazoMeses?: number;
+    leasing_tipo?: 'financiero' | 'operativo';
+    leasing_arrendadorNombre?: string;
+    leasing_arrendadorCUIT?: string;
+    leasing_arrendadorContacto?: string;
+    leasing_arrendadorEmail?: string;
+    leasing_moneda?: 'ARS' | 'USD';
+    leasing_valorResidual?: number;
+    leasing_opcionCompra?: boolean;
+    leasing_precioOpcionCompra?: number;
+    leasing_estadoContrato?: 'activo' | 'comprado' | 'vencido';
+    leasing_cuotaMensual?: number;
+    leasing_pagos?: LeasingPago[];
 }
 
 export interface StandardAccessory {
@@ -432,15 +430,14 @@ export interface FichaTecnica {
   sistemaTraccion: string;
   tipoTransmision: string;
   neumaticos: {
-    delanteroIzquierdo: TireInfo;
-    delanteroDerecho: TireInfo;
-    traseroIzquierdo: TireInfo;
-    traseroDerecho: TireInfo;
+    [key: string]: {
+      marca: string;
+      medidas: string;
+      presion: number;
+      estado: string;
+    };
   };
-  neumaticosAuxiliares: {
-    auxiliar1: TireInfo;
-    auxiliar2: TireInfo;
-  };
+  neumaticosAuxiliares: any;
   dimensiones: {
     largo: number;
     ancho: number;
@@ -469,37 +466,7 @@ export interface FichaTecnica {
   };
   equipamiento: {
     accesoriosEstandar: StandardAccessory[];
-    accesoriosAdicionales: Array<{
-      descripcion: string;
-      cantidad: number;
-      notas?: string;
-    }>;
-    ruedasAuxilio: number;
-    barraAntivuelco: boolean;
-    slingas: number;
-    grilletes: number;
-    conos: number;
-    cadenasDesatasco: number;
-    tablasDesatasco: number;
-    calzas: any[];
-    balizaEstroboscopica: number;
-    pertigaMinera: boolean;
-    balizasTriangulo: number;
-    spot: { activo: boolean };
-    starlink: boolean;
-    radioBase: boolean;
-    rastreoSatelital: { activo: boolean };
-    cuarta: boolean;
-    mantas: number;
-    botiquin: boolean;
-    matafuegos: any[];
-    cajaHerramientas: { tiene: boolean; herramientas: any[] };
-    baulHerramientas: boolean;
-    bidonCombustible: number;
-    criqueGato: number;
-    llaveRueda: number;
-    trabasSeguridadRuedas: number;
-    handi: boolean;
+    accesoriosAdicionales: any[];
   };
   actualizadoPor: string;
   fechaActualizacion: string;
@@ -512,12 +479,20 @@ export interface AnalisisServicio {
   proximoServicioIntervalo: number;
   proximoServicioHito: number;
   porcentajeUso: number;
-  estado: 'ok' | 'atrasado' | 'urgente' | 'pendiente' | 'error_logico';
+  estado: 'ok' | 'pendiente' | 'urgente' | 'atrasado' | 'error_logico';
   alerta: {
-    nivel: 'critico' | 'alerta' | 'advertencia' | 'info';
+    nivel: 'info' | 'advertencia' | 'alerta' | 'critico';
     mensaje: string;
     color: string;
   };
+}
+
+export interface Invoice {
+    id: string;
+    number: string;
+    amount: number;
+    date: string;
+    url?: string;
 }
 
 export interface Vehicle {
@@ -529,7 +504,6 @@ export interface Vehicle {
   motorNum: string;
   type: string;
   version: string;
-  color?: string;
   status: VehicleStatus;
   ownership: OwnershipType;
   costCenter: string;
@@ -539,8 +513,6 @@ export interface Vehicle {
   currentKm: number;
   serviceIntervalKm: number;
   nextServiceKm: number;
-  site?: string;
-  zone?: string;
   images: {
     front?: string;
     rear?: string;
@@ -549,56 +521,11 @@ export interface Vehicle {
     list?: VehicleImage[];
   };
   documents: Document[];
-  mileageHistory: MileageLog[];
-  equipment: any[];
-  adminData?: AdministrativeData;
-  fichaTecnica?: FichaTecnica;
   purchaseValue?: number;
-}
-
-export interface ChecklistItem {
-  name: string;
-  status: 'GOOD' | 'REGULAR' | 'BAD';
-  images?: string[];
-  observation?: string;
-}
-
-export interface FindingMarker {
-  id: number;
-  x: number;
-  y: number;
-  comment: string;
-  photo?: string;
-}
-
-export interface Checklist {
-  id: string;
-  vehiclePlate: string;
-  userId: string;
-  userName: string;
-  date: string;
-  type: string;
-  km: number;
-  costCenter?: string;
-  canCirculate: boolean;
-  motor: ChecklistItem[];
-  lights: ChecklistItem[];
-  general: ChecklistItem[];
-  bodywork: ChecklistItem[];
-  accessories: any[];
-  damageZones?: string[];
-  findingsMarkers?: FindingMarker[];
-  signature?: string;
-  clarification?: string;
-  contactNumber?: string;
-  receivedBy?: string;
-  receiverSignature?: string;
-  generalObservations?: string;
-  originSector?: string;
-  destinationSector?: string;
-  currentLocation?: string;
-  currentProvince?: string;
-  emailRecipients?: string[];
+  fichaTecnica?: FichaTecnica;
+  adminData?: AdministrativeData;
+  color?: string;
+  mileageHistory?: MileageLog[];
 }
 
 export interface AuditLog {
@@ -607,7 +534,15 @@ export interface AuditLog {
   userId: string;
   userName: string;
   action: string;
-  entityType: 'VEHICLE' | 'USER' | 'SERVICE' | 'CHECKLIST';
+  entityType: 'VEHICLE' | 'SERVICE' | 'USER' | 'CHECKLIST';
   entityId: string;
   details: string;
+}
+
+export interface MileageLog {
+  id: string;
+  plate: string;
+  km: number;
+  date: string;
+  source: 'CHECKLIST' | 'SERVICE' | 'MANUAL';
 }

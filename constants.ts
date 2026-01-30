@@ -1,5 +1,4 @@
-
-import { User, UserRole, Vehicle, FuelType, VehicleStatus, OwnershipType, TransmissionType, TireStatus } from "./types";
+import { User, UserRole, Vehicle, FuelType, VehicleStatus, OwnershipType, TransmissionType } from "./types";
 
 export const CHECKLIST_SECTIONS = {
   motor: ['Nivel de Agua', 'Nivel de Aceite', 'Líquido de Frenos', 'Líquido Hidráulico', 'Fugas de Aceite', 'Estado Batería'],
@@ -20,15 +19,27 @@ export const CHECKLIST_SECTIONS = {
 export const MOCK_USERS: User[] = [
   {
     id: 'u-master',
-    name: 'Ale Wilczek',
+    nombre: 'Ale',
+    apellido: 'Wilczek',
     email: 'alewilczek@gmail.com',
+    telefono: '+5491100000000',
     role: UserRole.ADMIN,
+    rolesSecundarios: [],
+    estado: 'activo',
     approved: true,
-    createdAt: new Date('2024-01-01').toISOString(),
+    fechaRegistro: '2024-01-01T10:00:00Z',
+    ultimoAcceso: new Date().toISOString(),
+    intentosFallidos: 0,
     password: '12305',
-    phone: '+5491100000000',
+    centroCosto: { id: 'cc-01', nombre: 'Dirección General', codigo: 'DIR-001' },
     costCenter: 'Dirección General',
-    receiveAlerts: true
+    permisos: [],
+    notificaciones: { email: true, push: true, whatsapp: true },
+    creadoPor: 'sistema',
+    fechaCreacion: '2024-01-01T10:00:00Z',
+    actualizadoPor: 'sistema',
+    fechaActualizacion: '2024-01-01T10:00:00Z',
+    eliminado: false
   }
 ];
 
@@ -57,7 +68,7 @@ export const INITIAL_VEHICLES: Vehicle[] = [
     },
     documents: [],
     mileageHistory: [],
-    equipment: [],
+    // FIX: Removed non-existent property 'equipment' to match Vehicle interface
     purchaseValue: 65000000,
     adminData: {
         regimen: OwnershipType.OWNED,
@@ -77,8 +88,6 @@ export const INITIAL_VEHICLES: Vehicle[] = [
         tarjetaCombustible: { numero: '1234-5678', pin: '0000', proveedor: 'YPF', limiteMensual: 500000, saldoActual: 500000, fechaVencimiento: '2028-12-31', estado: 'activa' },
         tarjetaTelepase: { numero: '9999-0000', pin: '1111', proveedor: 'Autopistas', limiteMensual: 50000, saldoActual: 50000, fechaVencimiento: '2028-12-31', estado: 'activa' },
         unidadActiva: true,
-        rentalPriceHistory: [],
-        rental_pagos: [],
         opcionesListas: {
             operandoPara: ['Empresa Constructora S.A.', 'Subcontratista A'],
             zona: ['Cuyo', 'Pampa', 'Patagonia'],
@@ -86,8 +95,8 @@ export const INITIAL_VEHICLES: Vehicle[] = [
             uso: ['Operativo Altura', 'Gerencia', 'Logística'],
             director: ['Ing. Perez', 'Lic. Gomez'],
             conductor: ['Juan Chofer', 'Pedro Conductor'],
-            propietario: ['Empresa Constructora S.A.', 'Leasing Corp'],
-            documentTypes: ['CEDULA', 'TITULO', 'VTV', 'SEGURO', 'SENASA', 'ALQUILER', 'PERMISO MUNICIPAL', 'RUTA', 'MATAFUEGO 1KG', 'MATAFUEGO 5KG']
+            // FIX: Removed documentTypes which is not a valid property of ManagedLists
+            propietario: ['Empresa Constructora S.A.', 'Leasing Corp']
         }
     }
   }
@@ -103,7 +112,7 @@ export const GOLDEN_MASTER_SNAPSHOT = {
     checklists: [],
     requests: [],
     providers: [],
-    masterFindingsImage: null, // Se restaura como nulo para obligar a carga de plano técnico oficial
+    masterFindingsImage: null,
     versions: [
       "CABINA DOBLE 4X4 PACK", 
       "X-GEAR 4X4 AT 2.3 D CD", 
