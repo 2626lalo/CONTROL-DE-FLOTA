@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 
 /**
@@ -6,13 +5,14 @@ import { GoogleGenAI, Type } from "@google/genai";
  * Cliente centralizado para servicios de IA generativa.
  */
 const getAiClient = () => {
-  const apiKey = typeof process !== 'undefined' ? process.env.API_KEY : '';
-  return new GoogleGenAI({ apiKey: apiKey || '' });
+  // FIX: Access process.env.API_KEY directly for initialization as per guidelines
+  return new GoogleGenAI({ apiKey: process.env.API_KEY });
 };
 
 export const isAiAvailable = () => {
   try {
-    return typeof process !== 'undefined' && !!process.env.API_KEY;
+    // FIX: Simplified availability check without manual typeof process validation
+    return !!process.env.API_KEY;
   } catch {
     return false;
   }
@@ -49,6 +49,7 @@ export const analyzeDocumentImage = async (base64: string, side: 'Frente' | 'Dor
         }
       }
     });
+    // FIX: Use the .text property accessor for GenerateContentResponse
     const text = response.text;
     if (!text) throw new Error("Respuesta vacía de IA");
     return { success: true as const, data: JSON.parse(text) };
@@ -82,6 +83,7 @@ export const analyzeBudgetImage = async (base64: string, mimeType: string) => {
         }
       }
     });
+    // FIX: Use the .text property accessor for GenerateContentResponse
     return response.text ? JSON.parse(response.text) : null;
   } catch (error) {
     console.error("AI Budget Error:", error);
@@ -98,6 +100,7 @@ export const getTechnicalAdvice = async (issue: string, vehicleInfo: string) => 
       Proporciona un diagnóstico técnico preliminar, sugiere repuestos probables y califica la urgencia (Baja/Media/Alta/Crítica). 
       Responde en español de forma profesional y concisa.`
     });
+    // FIX: Use the .text property accessor for GenerateContentResponse
     return response.text || "No se pudo generar el consejo técnico en este momento.";
   } catch (error) {
     console.error("AI Advice Error:", error);
@@ -114,6 +117,7 @@ export const getFleetHealthReport = async (vehiclesData: string) => {
       Identifica los 3 riesgos operativos principales (mantenimiento, legal/documental, antigüedad) y propón una acción correctiva prioritaria para el Fleet Manager.
       Utiliza un tono ejecutivo, profesional y estructurado en español.`
     });
+    // FIX: Use the .text property accessor for GenerateContentResponse
     return response.text || null;
   } catch (error) {
     console.error("AI Fleet Health Error:", error);

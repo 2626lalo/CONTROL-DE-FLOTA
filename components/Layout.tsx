@@ -31,9 +31,9 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
     { to: '/reports', icon: LucideBarChart3, label: 'Reportes' },
   ];
 
-  if (user?.role === UserRole.ADMIN || user?.role === UserRole.ADMIN_L2) {
+  if (user?.role === UserRole.ADMIN || user?.role === UserRole.ADMIN_L2 || user?.role === UserRole.MANAGER) {
     navItems.push({ to: '/users', icon: LucideUsers, label: 'Administración' });
-    navItems.push({ to: '/test-sector', icon: LucideFlaskConical, label: 'Laboratorio Técnico' });
+    navItems.push({ to: '/test-sector', icon: LucideFlaskConical, label: 'Gestión de Servicios' });
   }
 
   return (

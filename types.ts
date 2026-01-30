@@ -1,4 +1,3 @@
-
 export enum UserRole {
   ADMIN = 'ADMIN',
   ADMIN_L2 = 'ADMIN_L2',
@@ -190,6 +189,7 @@ export interface ServiceRequest {
   resolutionSummary?: string;
   unreadAdminCount?: number;
   unreadUserCount?: number;
+  isDialogueOpen?: boolean;
 }
 
 export interface MileageLog {
