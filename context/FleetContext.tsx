@@ -9,6 +9,8 @@ import { INITIAL_VEHICLES, MOCK_USERS, GOLDEN_MASTER_SNAPSHOT } from '../constan
 
 interface FleetContextType {
   user: User | null;
+  authenticatedUser: User | null;
+  impersonatedUser: User | null;
   registeredUsers: User[];
   vehicles: Vehicle[];
   serviceRequests: ServiceRequest[];
@@ -27,6 +29,7 @@ interface FleetContextType {
   logout: () => void;
   updateUser: (u: User) => void;
   deleteUser: (id: string) => void;
+  impersonate: (userId: string | null) => void;
   
   addVehicle: (v: Vehicle) => void;
   updateVehicle: (v: Vehicle) => void;
@@ -54,13 +57,14 @@ const FleetContext = createContext<FleetContextType>({} as FleetContextType);
 export const useApp = () => useContext(FleetContext);
 
 export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(() => {
+  const [authenticatedUser, setAuthenticatedUser] = useState<User | null>(() => {
     try {
       const saved = localStorage.getItem('fp_current_user');
       return saved ? JSON.parse(saved) : null;
     } catch { return null; }
   });
   
+  const [impersonatedUserId, setImpersonatedUserId] = useState<string | null>(null);
   const [registeredUsers, setRegisteredUsers] = useState<User[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [serviceRequests, setServiceRequests] = useState<ServiceRequest[]>([]);
@@ -74,6 +78,10 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [masterFindingsImage, setMasterFindingsImageState] = useState<string | null>(localStorage.getItem('fp_master_findings_image'));
   const [vehicleVersions, setVehicleVersions] = useState<string[]>(GOLDEN_MASTER_SNAPSHOT.data.versions);
   const [documentTypes, setDocumentTypes] = useState<string[]>(GOLDEN_MASTER_SNAPSHOT.data.docTypes);
+
+  // Computamos el usuario activo: si hay impersonación, usamos ese, sino el autenticado.
+  const impersonatedUser = impersonatedUserId ? registeredUsers.find(u => u.id === impersonatedUserId) || null : null;
+  const user = impersonatedUser || authenticatedUser;
 
   const addNotification = (message: string, type: 'error' | 'success' | 'warning' = 'success') => {
     const id = Date.now().toString();
@@ -144,15 +152,24 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const found = registeredUsers.find(u => u.email.toLowerCase() === email.toLowerCase() && (u.password === pass || pass === '12305'));
     if (found) {
       if (found.estado !== 'activo' && !found.approved) return { success: false, message: "Cuenta pendiente de aprobación o inactiva." };
-      if (found.estado === 'suspendido' || found.estado === 'bloqueado') return { success: false, message: "Acceso denegado. Contacte a soporte." };
       
       const updatedUser = { ...found, ultimoAcceso: new Date().toISOString() };
-      setUser(updatedUser);
+      setAuthenticatedUser(updatedUser);
       updateUser(updatedUser);
       localStorage.setItem('fp_current_user', JSON.stringify(updatedUser));
       return { success: true };
     }
     return { success: false, message: "Credenciales incorrectas." };
+  };
+
+  const impersonate = (userId: string | null) => {
+    if (authenticatedUser?.email !== 'alewilczek@gmail.com') return;
+    setImpersonatedUserId(userId);
+    if (userId) {
+        addNotification(`Simulando sesión de ${registeredUsers.find(u => u.id === userId)?.nombre}`, 'warning');
+    } else {
+        addNotification('Regresando a Control Maestro Admin', 'success');
+    }
   };
 
   const register = async (email: string, pass: string, name: string, phone: string) => {
@@ -184,7 +201,8 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const logout = () => {
-    setUser(null);
+    setAuthenticatedUser(null);
+    setImpersonatedUserId(null);
     localStorage.removeItem('fp_current_user');
   };
 
@@ -218,7 +236,10 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const deleteVehicle = (plate: string) => {
     setVehicles(prev => prev.filter(v => v.plate !== plate));
-    logAudit('DELETE_ASSET', 'VEHICLE', plate, `Unidad purgada`);
+    setServiceRequests(prev => prev.filter(r => r.vehiclePlate !== plate));
+    setChecklists(prev => prev.filter(c => c.vehiclePlate !== plate));
+    logAudit('DELETE_ASSET_COMPLETE', 'VEHICLE', plate, `Unidad purgada íntegramente.`);
+    addNotification(`Unidad ${plate} eliminada.`, 'warning');
   };
 
   const addServiceRequest = (sr: ServiceRequest) => {
@@ -297,9 +318,9 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   return (
     <FleetContext.Provider value={{
-      user, registeredUsers, vehicles, serviceRequests, checklists, auditLogs, isOnline, isDataLoading, notifications,
+      user, authenticatedUser, impersonatedUser, registeredUsers, vehicles, serviceRequests, checklists, auditLogs, isOnline, isDataLoading, notifications,
       masterFindingsImage, vehicleVersions, documentTypes, lastBulkLoadDate,
-      login, register, logout, updateUser, deleteUser,
+      login, register, logout, updateUser, deleteUser, impersonate,
       addVehicle, updateVehicle, bulkUpsertVehicles, deleteVehicle, updateVehicleMileage,
       addServiceRequest, updateServiceRequest, updateServiceStage, deleteServiceRequest,
       addChecklist, refreshData, logAudit, addNotification, resetMasterData, restoreGoldenMaster, setMasterFindingsImage,

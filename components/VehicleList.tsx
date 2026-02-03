@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useApp } from '../context/FleetContext';
 import { Link, useNavigate } from 'react-router-dom';
@@ -6,17 +5,22 @@ import {
   LucidePlus, LucideSearch, LucideLayoutGrid, LucideList, 
   LucideCar, LucideShieldCheck, LucideWrench, LucideAlertTriangle, 
   LucideBuilding2, LucideCheckCircle2, LucideChevronRight, 
-  LucideInfo, LucideLayers, LucideMapPin, LucideDatabase, LucideFuel
+  LucideInfo, LucideLayers, LucideMapPin, LucideDatabase, LucideFuel,
+  LucideTrash2
 } from 'lucide-react';
 import { Vehicle, VehicleStatus, UserRole } from '../types';
+import { ConfirmationModal } from './ConfirmationModal';
 
 export const VehicleList = () => {
-  const { vehicles, user } = useApp();
+  const { vehicles, user, deleteVehicle } = useApp();
   const [search, setSearch] = useState('');
   const [viewMode, setViewMode] = useState<'GRID' | 'TABLE'>('GRID');
   const [filterStatus, setFilterStatus] = useState('');
   const [filterCC, setFilterCC] = useState('');
+  const [plateToDelete, setPlateToDelete] = useState<string | null>(null);
   const navigate = useNavigate();
+
+  const isMainAdmin = user?.email === 'alewilczek@gmail.com';
 
   const costCenters = Array.from(new Set(vehicles.map(v => v.costCenter).filter(Boolean)));
 
@@ -36,8 +40,25 @@ export const VehicleList = () => {
     return matchesSearch && matchesStatus && matchesCC;
   });
 
+  const handleDeleteConfirm = () => {
+    if (plateToDelete) {
+        deleteVehicle(plateToDelete);
+        setPlateToDelete(null);
+    }
+  };
+
   return (
     <div className="space-y-8 animate-fadeIn pb-24">
+      {/* MODAL DE CONFIRMACIÓN DE BORRADO */}
+      <ConfirmationModal 
+        isOpen={!!plateToDelete}
+        title="Eliminación Integral de Unidad"
+        message={`¿Está completamente seguro de eliminar la unidad ${plateToDelete}? Esta acción es irreversible y purgará todos los registros históricos, servicios y checklists asociados a este dominio en todo el sistema.`}
+        onConfirm={handleDeleteConfirm}
+        onClose={() => setPlateToDelete(null)}
+        isDanger={true}
+      />
+
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
         <div>
           <div className="flex items-center gap-3 mb-2">
@@ -94,15 +115,25 @@ export const VehicleList = () => {
       {viewMode === 'GRID' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
           {filtered.map(v => (
-            <div key={v.plate} onClick={() => navigate(`/vehicles/detail/${v.plate}`)} className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden cursor-pointer hover:shadow-2xl transition-all group hover:border-blue-300">
+            <div key={v.plate} onClick={() => navigate(`/vehicles/detail/${v.plate}`)} className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden cursor-pointer hover:shadow-2xl transition-all group hover:border-blue-300 relative">
                <div className="h-48 bg-slate-100 relative overflow-hidden">
                   {v.images.front ? <img src={v.images.front} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt={v.plate} /> : <div className="w-full h-full flex items-center justify-center text-slate-300 bg-slate-200"><LucideCar size={48} className="opacity-20"/></div>}
                   <div className={`absolute top-5 right-5 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${v.status === VehicleStatus.ACTIVE ? 'bg-emerald-500 text-white' : 'bg-amber-500 text-white'}`}>
                     {v.status}
                   </div>
+                  {isMainAdmin && (
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setPlateToDelete(v.plate);
+                      }}
+                      className="absolute top-5 left-5 p-2.5 bg-white/20 backdrop-blur-md text-white rounded-xl hover:bg-rose-600 transition-all opacity-0 group-hover:opacity-100 shadow-lg border border-white/10"
+                    >
+                      <LucideTrash2 size={16}/>
+                    </button>
+                  )}
                </div>
                <div className="p-8">
-                  {/* FIX: Asegurar que v.plate no sea nulo */}
                   <h3 className="text-3xl font-black text-slate-800 tracking-tighter uppercase leading-none">{v.plate || 'SIN DOMINIO'}</h3>
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-2">{v.make || 'Genérico'} {v.model || 'Sin Modelo'}</p>
                   <div className="mt-6 flex justify-between items-center bg-slate-50 p-4 rounded-2xl border border-slate-100 group-hover:bg-blue-50 group-hover:border-blue-100 transition-colors">
@@ -157,7 +188,20 @@ export const VehicleList = () => {
                     </span>
                   </td>
                   <td className="px-8 py-6 text-right">
-                    <LucideChevronRight className="inline-block text-slate-300 group-hover:text-blue-600 group-hover:translate-x-1 transition-all" size={24}/>
+                    <div className="flex items-center justify-end gap-2">
+                        {isMainAdmin && (
+                            <button 
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setPlateToDelete(v.plate);
+                                }}
+                                className="p-2.5 text-slate-300 hover:text-rose-600 transition-colors"
+                            >
+                                <LucideTrash2 size={18}/>
+                            </button>
+                        )}
+                        <LucideChevronRight className="text-slate-300 group-hover:text-blue-600 group-hover:translate-x-1 transition-all" size={24}/>
+                    </div>
                   </td>
                 </tr>
               ))}

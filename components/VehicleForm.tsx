@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/FleetContext';
-import { Vehicle, VehicleStatus, OwnershipType, FuelType, TransmissionType } from '../types';
+import { Vehicle, VehicleStatus, OwnershipType, FuelType, TransmissionType, AdministrativeData } from '../types';
 import { 
   LucideArrowLeft, LucideCar, LucideCheck, LucideCamera, LucideTrash2, 
   LucideRefreshCw, LucideFingerprint, LucideUser, LucideMapPin, LucideLayers,
@@ -17,8 +17,6 @@ export const VehicleForm = () => {
   const { vehicles, addVehicle, updateVehicle, addNotification, logAudit, vehicleVersions } = useApp();
   const isEdit = !!plate;
 
-  // Fix: Changed state type to any because the form uses a flattened/extended data structure 
-  // that does not strictly match the current Vehicle interface in types.ts
   const [formData, setFormData] = useState<any>({
     plate: '', make: '', model: '', year: new Date().getFullYear(), type: 'Pickup', version: '',
     color: '', ownership: OwnershipType.OWNED, status: VehicleStatus.ACTIVE,
@@ -35,15 +33,24 @@ export const VehicleForm = () => {
       interestRate: 0, purchaseOption: true, maintenanceResponsibility: 'lessee', totalValue: 0,
       excessMileageRate: 0, leaseTerm: 36
     },
-    images: { front: '', rear: '', leftSide: '', rightSide: '' }, 
-    // FIX: Removed non-existent properties 'history' and 'equipment' to match Vehicle interface
+    images: { front: '', rear: '', leftSide: '', rightSide: '', list: [] }, 
     documents: [], mileageHistory: []
   });
 
   useEffect(() => {
     if (isEdit) {
       const found = vehicles.find(v => v.plate === plate);
-      if (found) setFormData(found);
+      if (found) {
+        // Cargar datos anidados en el estado plano del formulario
+        setFormData({
+          ...found,
+          site: found.adminData?.sitio || '',
+          zone: found.adminData?.zona || '',
+          director: found.adminData?.directorResponsable || '',
+          driver: found.adminData?.conductorPrincipal || '',
+          rentalProvider: found.adminData?.proveedorAlquiler || ''
+        });
+      }
     }
   }, [isEdit, plate, vehicles]);
 
@@ -52,12 +59,30 @@ export const VehicleForm = () => {
     if (!formData.plate) return addNotification("Patente obligatoria", "error");
     if (!formData.version) return addNotification("Debe seleccionar una Versión", "warning");
     
-    // Fix: Cast to Vehicle to satisfy FleetContext methods after handling form-specific fields
+    // RECONSTRUCCIÓN ESTRUCTURAL PARA INTEGRIDAD DE DATOS
+    const structuredVehicle: Vehicle = {
+      ...formData,
+      adminData: {
+        ...(formData.adminData || {}),
+        regimen: formData.ownership,
+        anio: formData.year,
+        sitio: formData.site,
+        zona: formData.zone,
+        directorResponsable: formData.director,
+        conductorPrincipal: formData.driver,
+        proveedorAlquiler: formData.rentalProvider,
+        provincia: formData.province,
+        tarjetaCombustible: formData.adminData?.tarjetaCombustible || { numero: '', pin: '', proveedor: '', limiteMensual: 0, saldoActual: 0, fechaVencimiento: '', estado: 'activa' },
+        tarjetaTelepase: formData.adminData?.tarjetaTelepase || { numero: '', pin: '', proveedor: '', limiteMensual: 0, saldoActual: 0, fechaVencimiento: '', estado: 'activa' },
+        unidadActiva: formData.adminData?.unidadActiva ?? true
+      }
+    };
+
     if (isEdit) { 
-      updateVehicle(formData as Vehicle); 
+      updateVehicle(structuredVehicle); 
       logAudit('UPDATE', 'VEHICLE', formData.plate, 'Actualización de ficha integral'); 
     } else { 
-      addVehicle(formData as Vehicle); 
+      addVehicle(structuredVehicle); 
       logAudit('CREATE', 'VEHICLE', formData.plate, 'Alta de activo en inventario corporativo'); 
     }
     navigate('/vehicles');
@@ -72,7 +97,6 @@ export const VehicleForm = () => {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-8">
-        {/* BLOQUE 1: IDENTIFICACIÓN */}
         <div className="bg-slate-900 p-12 rounded-[3.5rem] shadow-2xl text-white space-y-10">
             <h3 className="text-xl font-black uppercase italic tracking-widest text-blue-400 border-b border-white/10 pb-4 flex items-center gap-3"><LucideSettings2 size={24}/> Identificación Estratégica</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
@@ -149,7 +173,6 @@ export const VehicleForm = () => {
           </div>
         )}
 
-        {/* BLOQUE ADMINISTRACIÓN */}
         <div className="bg-white p-12 rounded-[3.5rem] border border-slate-100 shadow-sm space-y-10">
             <h3 className="text-xl font-black uppercase italic tracking-widest text-slate-800 border-b pb-4 flex items-center gap-3"><LucideBuilding2 className="text-blue-500"/> Administración de Destino</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

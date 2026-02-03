@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { 
   LucideFileCheck2, LucideDollarSign, LucideCalendar, LucideBriefcase, 
@@ -38,9 +37,11 @@ export const GestionLeasing: React.FC<Props> = ({ vehicle, adminData, onUpdate, 
   const progressMonths = adminData.leasing_pagos?.length || 0;
   const totalMonths = adminData.leasing_plazoMeses || 1;
   const progressPercent = Math.min(100, (progressMonths / totalMonths) * 100);
+  
+  // CORRECCIÓN INTEGRIDAD: Cálculo financiero sensible a moneda
   const totalPagado = adminData.leasing_pagos?.reduce((acc, p) => acc + p.monto, 0) || 0;
+  const currencySymbol = adminData.leasing_moneda === 'USD' ? 'u$s' : '$';
 
-  // Detectar si el contrato está cerca de finalizar o finalizado
   const isContractFinished = progressMonths >= totalMonths;
 
   const handleAddPayment = () => {
@@ -74,12 +75,12 @@ export const GestionLeasing: React.FC<Props> = ({ vehicle, adminData, onUpdate, 
     doc.setFillColor(15, 23, 42); doc.rect(0, 0, 210, 40, 'F');
     doc.setTextColor(255, 255, 255); doc.setFontSize(18); doc.text("REPORTE HISTÓRICO DE LEASING", 14, 20);
     doc.setFontSize(10); doc.text(`UNIDAD: ${vehicle.plate} | ARRENDADOR: ${adminData.leasing_arrendadorNombre || 'N/A'}`, 14, 30);
-    doc.text(`TOTAL AMORTIZADO: ${adminData.leasing_moneda === 'USD' ? 'u$s' : '$'} ${totalPagado.toLocaleString()}`, 14, 35);
+    doc.text(`TOTAL AMORTIZADO: ${currencySymbol} ${totalPagado.toLocaleString()}`, 14, 35);
     
     autoTable(doc, {
       startY: 45,
       head: [['Cuota', 'Fecha Pago', 'Referencia', 'Monto']],
-      body: adminData.leasing_pagos?.map(p => [`Cuota ${p.nroCuota}`, format(parseISO(p.fechaPago), 'dd/MM/yyyy'), p.referencia || '-', `${adminData.leasing_moneda === 'USD' ? 'u$s' : '$'} ${p.monto.toLocaleString()}`]) || [],
+      body: adminData.leasing_pagos?.map(p => [`Cuota ${p.nroCuota}`, format(parseISO(p.fechaPago), 'dd/MM/yyyy'), p.referencia || '-', `${currencySymbol} ${p.monto.toLocaleString()}`]) || [],
       headStyles: { fillColor: [79, 70, 229] },
       theme: 'grid'
     });
@@ -111,7 +112,7 @@ export const GestionLeasing: React.FC<Props> = ({ vehicle, adminData, onUpdate, 
             <div className={`px-8 py-4 rounded-3xl text-white text-center shadow-2xl border transition-all ${editMode ? 'bg-slate-800 border-blue-500/50 ring-4 ring-blue-500/10' : 'bg-slate-900 border-white/5'}`}>
                 <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1">Canon Vigente</p>
                 <div className="flex items-center justify-center gap-1">
-                  <span className="text-xl font-black text-blue-400/50">{adminData.leasing_moneda === 'USD' ? 'u$s' : '$'}</span>
+                  <span className="text-xl font-black text-blue-400/50">{currencySymbol}</span>
                   {editMode ? (
                     <input 
                       type="number" 
@@ -133,7 +134,6 @@ export const GestionLeasing: React.FC<Props> = ({ vehicle, adminData, onUpdate, 
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* SECCIÓN 1: DATOS DEL CONTRATO */}
         <section className={`bg-white p-10 rounded-[3.5rem] border transition-all ${editMode ? 'border-indigo-200 shadow-inner' : 'border-slate-100 shadow-sm'} space-y-8`}>
            <h4 className="text-sm font-black text-slate-800 uppercase italic flex items-center gap-3 border-b pb-4"><LucideHash className="text-indigo-600"/> Datos del Contrato</h4>
            <div className="space-y-6">
@@ -167,7 +167,6 @@ export const GestionLeasing: React.FC<Props> = ({ vehicle, adminData, onUpdate, 
            </div>
         </section>
 
-        {/* SECCIÓN 2: ARRENDADOR (LEASING CO) */}
         <section className={`bg-white p-10 rounded-[3.5rem] border transition-all ${editMode ? 'border-indigo-200 shadow-inner' : 'border-slate-100 shadow-sm'} space-y-8`}>
            <h4 className="text-sm font-black text-slate-800 uppercase italic flex items-center gap-3 border-b pb-4"><LucideBuilding className="text-indigo-600"/> Datos del Arrendador</h4>
            <div className="space-y-6">
@@ -192,7 +191,6 @@ export const GestionLeasing: React.FC<Props> = ({ vehicle, adminData, onUpdate, 
            </div>
         </section>
 
-        {/* SECCIÓN 3: CONDICIONES FINANCIERAS */}
         <section className={`bg-white p-10 rounded-[3.5rem] border transition-all ${editMode ? 'border-indigo-200 shadow-inner' : 'border-slate-100 shadow-sm'} space-y-8`}>
            <h4 className="text-sm font-black text-slate-800 uppercase italic flex items-center gap-3 border-b pb-4"><LucideDollarSign className="text-indigo-600"/> Condiciones Financieras</h4>
            <div className="space-y-6">
@@ -250,7 +248,7 @@ export const GestionLeasing: React.FC<Props> = ({ vehicle, adminData, onUpdate, 
             </div>
             <div className="space-y-2">
                 <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Inversión Acumulada</p>
-                <p className="text-4xl font-black text-emerald-400 tracking-tighter">{adminData.leasing_moneda === 'USD' ? 'u$s' : '$'} {totalPagado.toLocaleString()}</p>
+                <p className="text-4xl font-black text-emerald-400 tracking-tighter">{currencySymbol} {totalPagado.toLocaleString()}</p>
             </div>
             <div className="md:col-span-2 space-y-4">
                 <div className="flex justify-between items-end">
@@ -311,7 +309,7 @@ export const GestionLeasing: React.FC<Props> = ({ vehicle, adminData, onUpdate, 
                  <div className="bg-slate-50 p-8 rounded-[2rem] border border-slate-100 space-y-4">
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Valor de Opción de Compra</p>
                     <p className="text-4xl font-black text-emerald-600 italic tracking-tighter">
-                      {adminData.leasing_moneda === 'USD' ? 'u$s' : '$'} {(adminData.leasing_precioOpcionCompra || 0).toLocaleString()}
+                      {currencySymbol} {(adminData.leasing_precioOpcionCompra || 0).toLocaleString()}
                     </p>
                     <div className="pt-4 border-t border-slate-200">
                       <p className="text-[9px] text-slate-500 italic">Al confirmar, el régimen de propiedad cambiará a "PROPIO". El historial de leasing se conservará como antecedente contable.</p>
@@ -404,7 +402,7 @@ export const GestionLeasing: React.FC<Props> = ({ vehicle, adminData, onUpdate, 
                                         <td className="px-8 py-4"><span className="w-8 h-8 bg-slate-900 text-white rounded-lg flex items-center justify-center font-black text-xs italic">C{p.nroCuota}</span></td>
                                         <td className="px-8 py-4 font-bold text-xs text-slate-500">{format(parseISO(p.fechaPago), 'dd/MM/yyyy')}</td>
                                         <td className="px-8 py-4 font-black text-xs text-slate-700 uppercase tracking-tighter">{p.referencia || 'S/REF'}</td>
-                                        <td className="px-8 py-4 text-right font-black text-slate-800 text-sm">{adminData.leasing_moneda === 'USD' ? 'u$s' : '$'} {p.monto.toLocaleString()}</td>
+                                        <td className="px-8 py-4 text-right font-black text-slate-800 text-sm">{currencySymbol} {p.monto.toLocaleString()}</td>
                                         {editMode && (
                                             <td className="px-8 py-4 text-right">
                                                 <button onClick={() => handleDeletePayment(p.id)} className="p-2 text-slate-300 hover:text-rose-500 transition-colors"><LucideTrash2 size={16}/></button>
@@ -419,7 +417,7 @@ export const GestionLeasing: React.FC<Props> = ({ vehicle, adminData, onUpdate, 
                             <tfoot className="bg-slate-950 text-white">
                                 <tr>
                                     <td colSpan={3} className="px-8 py-6 font-black uppercase text-xs italic">Total Amortizado a la Fecha</td>
-                                    <td className="px-8 py-6 text-right font-black text-xl text-emerald-400 italic">{adminData.leasing_moneda === 'USD' ? 'u$s' : '$'} {totalPagado.toLocaleString()}</td>
+                                    <td className="px-8 py-6 text-right font-black text-xl text-emerald-400 italic">{currencySymbol} {totalPagado.toLocaleString()}</td>
                                     {editMode && <td></td>}
                                 </tr>
                             </tfoot>

@@ -14,7 +14,6 @@ import {
   LucideImage
 } from 'lucide-react';
 import { format, parseISO, isBefore, startOfDay, addDays, differenceInDays } from 'date-fns';
-// FIX: Correctly import 'es' locale from date-fns
 import { es } from 'date-fns/locale/es';
 import { compressImage } from '../utils/imageCompressor';
 import { jsPDF } from 'jspdf';
@@ -109,7 +108,6 @@ const EvidencePanel = ({
 };
 
 export const Checklist = () => {
-    // FIX: Removed syncExtinguisherDate as it does not exist in FleetContextType
     const { vehicles, addChecklist, user, checklists, addNotification, logAudit, masterFindingsImage } = useApp();
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
@@ -295,7 +293,15 @@ export const Checklist = () => {
     const validateForm = () => {
         const newErrors: Record<string, boolean> = {};
         if (!selectedVehicle) { newErrors.plate_input = true; }
-        if (km < (selectedVehicle?.currentKm || 0) || km < 0) { newErrors.km_input = true; }
+        
+        // CORRECCIÓN INTEGRIDAD: Validación de kilometraje lógico
+        const currentKm = selectedVehicle?.currentKm || 0;
+        if (km < currentKm) { 
+            newErrors.km_input = true;
+            addNotification(`El kilometraje (${km}) no puede ser menor al actual (${currentKm})`, "error");
+        }
+        if (km < 0) { newErrors.km_input = true; }
+        
         if (!signature) newErrors.signature_pad = true;
         
         const isDoubleSignType = checkType === 'REEMPLAZO' || checkType === 'TURNO' || checkType === 'POR INGRESO A TALLER';
@@ -326,7 +332,6 @@ export const Checklist = () => {
 
     const handleSave = () => {
         if (!validateForm()) {
-            addNotification("Por favor, complete todos los campos requeridos.", "error");
             return;
         }
         
