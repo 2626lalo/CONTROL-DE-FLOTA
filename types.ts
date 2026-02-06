@@ -59,6 +59,7 @@ export enum ServiceStage {
   APPOINTMENT_REQUESTED = 'SOLICITANDO TURNO',
   REVIEW = 'EN REVISIÓN',
   SCHEDULING = 'TURNO ASIGNADO',
+  RECEPCION = 'RECEPCIÓN', // MOD: 2024-05-24 22:30
   IN_WORKSHOP = 'EN TALLER',
   BUDGETING = 'PRESUPUESTANDO',
   EXECUTING = 'EN EJECUCIÓN',
@@ -74,6 +75,11 @@ export interface SuggestedDate {
   id: string;
   fecha: string;
   turno: 'MAÑANA' | 'TARDE';
+  hora?: string;
+  nombreTaller?: string;
+  direccionTaller?: string;
+  mapUrl?: string;
+  comentarios?: string;
 }
 
 export interface ServiceMessage {
@@ -328,7 +334,7 @@ export interface LeasingPago {
   monto: number;
   fechaPago: string;
   referencia: string;
-  notas?: string;
+  notes?: string;
 }
 
 export interface ManagedLists {

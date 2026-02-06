@@ -52,7 +52,8 @@ export const GestionLeasing: React.FC<Props> = ({ vehicle, adminData, onUpdate, 
       monto: Number(newPayment.monto),
       fechaPago: newPayment.fechaPago || format(new Date(), 'yyyy-MM-dd'),
       referencia: newPayment.referencia || '',
-      notas: newPayment.notas || ''
+      // FIX: Changed property from 'notas' to 'notes' to match type definition
+      notes: newPayment.notes || ''
     };
     const updatedPagos = [...(adminData.leasing_pagos || []), payment].sort((a, b) => a.nroCuota - b.nroCuota);
     handleUpdate('leasing_pagos', updatedPagos);
@@ -307,7 +308,7 @@ export const GestionLeasing: React.FC<Props> = ({ vehicle, adminData, onUpdate, 
                  </div>
                  
                  <div className="bg-slate-50 p-8 rounded-[2rem] border border-slate-100 space-y-4">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Valor de Opción de Compra</p>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Precio de Opción de Compra</p>
                     <p className="text-4xl font-black text-emerald-600 italic tracking-tighter">
                       {currencySymbol} {(adminData.leasing_precioOpcionCompra || 0).toLocaleString()}
                     </p>
