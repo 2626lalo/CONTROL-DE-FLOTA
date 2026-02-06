@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   LucidePlusCircle, LucideCar, LucideSearch, LucideChevronRight, 
@@ -17,14 +17,15 @@ import {
   LucideFilePlus, LucideFileSpreadsheet, LucideFileWarning,
   LucideClipboardList, LucideAlertCircle, LucideFileDown, LucideFileSearch,
   LucideBriefcase, LucideDollarSign, LucidePlus, LucideFile,
-  LucideRefreshCw, LucideGauge, LucideUnlock, LucideNavigation
+  LucideRefreshCw, LucideGauge, LucideUnlock, LucideNavigation,
+  LucideMaximize
 } from 'lucide-react';
 import { useApp } from '../context/FleetContext';
 import { 
     ServiceStage, ServiceRequest, UserRole, MainServiceCategory, 
     SuggestedDate, ServiceMessage, Checklist, Vehicle
 } from '../types';
-import { format, parseISO, isBefore, startOfDay, differenceInDays, differenceInHours } from 'date-fns';
+import { format, parseISO, isBefore, startOfDay, endOfDay, subDays, isWithinInterval, differenceInDays, differenceInHours } from 'date-fns';
 import { es } from 'date-fns/locale/es';
 import { ImageZoomModal } from './ImageZoomModal';
 import { compressImage } from '../utils/imageCompressor'; 
@@ -71,7 +72,13 @@ export const TestSector = () => {
   const [zoomedImage, setZoomedImage] = useState<{url: string, label: string} | null>(null);
   const [isMapLoaded, setIsMapLoaded] = useState(false);
 
+  // --- ESTADOS DE FILTRO ---
   const [searchQuery, setSearchQuery] = useState('');
+  const [filterDateFrom, setFilterDateFrom] = useState(format(subDays(new Date(), 30), 'yyyy-MM-dd'));
+  const [filterDateTo, setFilterDateTo] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [filterStatus, setFilterStatus] = useState<ServiceStage | ''>('');
+  const [filterCC, setFilterCC] = useState('');
+
   const [showSuggestions, setShowSuggestions] = useState(false);
   
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
@@ -95,9 +102,15 @@ export const TestSector = () => {
   const [workshopAddress, setWorkshopAddress] = useState('');
   const [turnComments, setTurnComments] = useState('');
 
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
   const currentRequest = useMemo(() => 
     serviceRequests.find(r => r.id === selectedReqId), [serviceRequests, selectedReqId]
   );
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [currentRequest?.messages, activeView]);
 
   const requestVehicle = useMemo(() => 
     vehicles.find(v => v.plate === currentRequest?.vehiclePlate), [vehicles, currentRequest]
@@ -110,14 +123,39 @@ export const TestSector = () => {
     return [];
   }, [mainCategory]);
 
+  // Lista de Centros de Costo únicos para el filtro
+  const allCostCenters = useMemo(() => {
+    const set = new Set(serviceRequests.map(r => r.costCenter).filter(Boolean));
+    return Array.from(set).sort();
+  }, [serviceRequests]);
+
   const filteredRequests = useMemo(() => {
     return serviceRequests.filter(r => {
+        // Validación de permisos base
         if (!isSupervisorOrAdmin && !isReadOnly) {
-            return (r.costCenter || '').toUpperCase() === userCC;
+            if ((r.costCenter || '').toUpperCase() !== userCC) return false;
         }
+
+        // Filtro por Patente o Código (Evento)
+        const term = searchQuery.toUpperCase();
+        const matchSearch = r.vehiclePlate.includes(term) || r.code.toUpperCase().includes(term);
+        if (!matchSearch) return false;
+
+        // Filtro por Estado
+        if (filterStatus && r.stage !== filterStatus) return false;
+
+        // Filtro por Centro de Costo
+        if (filterCC && r.costCenter !== filterCC) return false;
+
+        // Filtro por Rango de Fecha
+        const rDate = parseISO(r.createdAt);
+        const start = startOfDay(parseISO(filterDateFrom));
+        const end = endOfDay(parseISO(filterDateTo));
+        if (!isWithinInterval(rDate, { start, end })) return false;
+
         return true;
-    }).filter(r => r.vehiclePlate.includes(searchQuery.toUpperCase()));
-  }, [serviceRequests, searchQuery, isSupervisorOrAdmin, isReadOnly, userCC]);
+    }).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }, [serviceRequests, searchQuery, filterDateFrom, filterDateTo, filterStatus, filterCC, isSupervisorOrAdmin, isReadOnly, userCC]);
 
   const startNewRequest = () => {
     setSearchQuery('');
@@ -324,15 +362,80 @@ export const TestSector = () => {
                )}
             </div>
 
-            <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-xl overflow-hidden">
-                <div className="p-8 border-b bg-slate-50/50 flex justify-between items-center">
-                    <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest italic">Mesa de Control de Servicios</h3>
-                    <div className="flex gap-4">
-                        <div className="relative">
-                            <LucideSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16}/>
-                            <input type="text" placeholder="Filtrar por Patente..." className="pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold uppercase outline-none focus:ring-4 focus:ring-blue-50" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
-                        </div>
+            {/* SECCIÓN DE FILTROS */}
+            <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm grid grid-cols-1 md:grid-cols-5 gap-6 items-end">
+                <div className="space-y-1">
+                    <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-2">Patente / Evento</label>
+                    <div className="relative">
+                        <LucideSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" size={14}/>
+                        <input 
+                            type="text" 
+                            className="w-full pl-9 pr-4 py-3 bg-slate-50 border border-slate-100 rounded-xl font-bold text-xs uppercase outline-none focus:ring-4 focus:ring-blue-50" 
+                            placeholder="BUSCAR..." 
+                            value={searchQuery} 
+                            onChange={e => setSearchQuery(e.target.value)} 
+                        />
                     </div>
+                </div>
+                <div className="space-y-1">
+                    <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-2">Estado</label>
+                    <select 
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl font-bold text-[10px] uppercase outline-none focus:ring-4 focus:ring-blue-50"
+                        value={filterStatus}
+                        onChange={e => setFilterStatus(e.target.value as ServiceStage)}
+                    >
+                        <option value="">TODOS</option>
+                        {Object.values(ServiceStage).map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                </div>
+                <div className="space-y-1">
+                    <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-2">C. Costo</label>
+                    <select 
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl font-bold text-[10px] uppercase outline-none focus:ring-4 focus:ring-blue-50"
+                        value={filterCC}
+                        onChange={e => setFilterCC(e.target.value)}
+                    >
+                        <option value="">TODOS</option>
+                        {allCostCenters.map(cc => <option key={cc} value={cc}>{cc}</option>)}
+                    </select>
+                </div>
+                <div className="space-y-1">
+                    <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-2">Desde</label>
+                    <input 
+                        type="date" 
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl font-bold text-xs outline-none focus:ring-4 focus:ring-blue-50" 
+                        value={filterDateFrom} 
+                        onChange={e => setFilterDateFrom(e.target.value)} 
+                    />
+                </div>
+                <div className="space-y-1">
+                    <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-2">Hasta</label>
+                    <input 
+                        type="date" 
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl font-bold text-xs outline-none focus:ring-4 focus:ring-blue-50" 
+                        value={filterDateTo} 
+                        onChange={e => setFilterDateTo(e.target.value)} 
+                    />
+                </div>
+                <div className="md:col-span-5 text-right">
+                    <button 
+                        onClick={() => {
+                            setSearchQuery('');
+                            setFilterStatus('');
+                            setFilterCC('');
+                            setFilterDateFrom(format(subDays(new Date(), 30), 'yyyy-MM-dd'));
+                            setFilterDateTo(format(new Date(), 'yyyy-MM-dd'));
+                        }}
+                        className="text-[9px] font-black text-slate-400 hover:text-blue-600 uppercase tracking-widest transition-all flex items-center justify-end gap-2 ml-auto"
+                    >
+                        <LucideRefreshCcw size={12}/> Restaurar Parámetros de Filtro
+                    </button>
+                </div>
+            </div>
+
+            <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-xl overflow-hidden">
+                <div className="p-8 border-b bg-slate-50/50">
+                    <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest italic">Mesa de Control de Servicios</h3>
                 </div>
                 <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse">
@@ -342,30 +445,46 @@ export const TestSector = () => {
                                 <th className="px-8 py-6">Unidad</th>
                                 <th className="px-8 py-6">Tipo Gestión</th>
                                 <th className="px-8 py-6">Fecha</th>
+                                <th className="px-8 py-6">C. Costo</th>
                                 <th className="px-8 py-6">Situación Actual</th>
                                 <th className="px-8 py-6 text-right">Canal</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50">
-                            {filteredRequests.map(req => (
-                                <tr key={req.id} onClick={() => handleOpenDetail(req)} className="group hover:bg-blue-50/50 transition-all cursor-pointer">
-                                    <td className="px-8 py-6"><span className="text-sm font-black text-slate-700 italic">{req.code}</span></td>
-                                    <td className="px-8 py-6"><span className="text-sm font-black text-slate-700 uppercase">{req.vehiclePlate}</span></td>
-                                    <td className="px-8 py-6"><span className="text-[10px] font-black text-slate-500 uppercase">{req.specificType}</span></td>
-                                    <td className="px-8 py-6"><span className="text-xs font-bold text-slate-400">{format(parseISO(req.createdAt), 'dd/MM/yy')}</span></td>
-                                    <td className="px-8 py-6">
-                                        <span className={`px-5 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border ${getStageBadgeStyles(req.stage)}`}>{req.stage}</span>
-                                    </td>
-                                    <td className="px-8 py-6 text-right">
-                                        <div className="flex items-center justify-end gap-3">
-                                            {req.isDialogueOpen && (
-                                                <div className={`w-3 h-3 rounded-full animate-pulse shadow-lg ${(req.unreadUserCount || 0) > 0 ? 'bg-emerald-500 shadow-emerald-200' : 'bg-blue-500 shadow-blue-200'}`}></div>
-                                            )}
-                                            <LucideChevronRight size={18} className="text-slate-200 group-hover:text-blue-600 transition-all"/>
-                                        </div>
+                            {filteredRequests.map(req => {
+                                const hasUnread = (req.unreadUserCount || 0) > 0;
+                                const hasMessages = (req.messages?.length || 0) > 0;
+                                return (
+                                    <tr key={req.id} onClick={() => handleOpenDetail(req)} className="group hover:bg-blue-50/50 transition-all cursor-pointer">
+                                        <td className="px-8 py-6"><span className="text-sm font-black text-slate-700 italic">{req.code}</span></td>
+                                        <td className="px-8 py-6"><span className="text-sm font-black text-slate-700 uppercase">{req.vehiclePlate}</span></td>
+                                        <td className="px-8 py-6"><span className="text-[10px] font-black text-slate-500 uppercase">{req.specificType}</span></td>
+                                        <td className="px-8 py-6"><span className="text-xs font-bold text-slate-400">{format(parseISO(req.createdAt), 'dd/MM/yy')}</span></td>
+                                        <td className="px-8 py-6"><span className="text-[9px] font-bold text-slate-400 uppercase">{req.costCenter}</span></td>
+                                        <td className="px-8 py-6">
+                                            <span className={`px-5 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border ${getStageBadgeStyles(req.stage)}`}>{req.stage}</span>
+                                        </td>
+                                        <td className="px-8 py-6 text-right">
+                                            <div className="flex items-center justify-end gap-3">
+                                                {(hasMessages || req.isDialogueOpen) && (
+                                                    <div className={`p-2 rounded-xl transition-all ${hasUnread ? 'bg-emerald-100 text-emerald-600 animate-pulse border border-emerald-200' : 'bg-blue-50 text-blue-500 border border-blue-100'}`}>
+                                                        <LucideMessageSquare size={16} fill={hasUnread ? 'currentColor' : 'none'}/>
+                                                    </div>
+                                                )}
+                                                <LucideChevronRight size={18} className="text-slate-200 group-hover:text-blue-600 transition-all"/>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                            {filteredRequests.length === 0 && (
+                                <tr>
+                                    <td colSpan={7} className="py-20 text-center">
+                                        <LucideDatabase size={48} className="mx-auto text-slate-100 mb-4"/>
+                                        <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest italic">Sin registros coincidentes con la búsqueda activa</p>
                                     </td>
                                 </tr>
-                            ))}
+                            )}
                         </tbody>
                     </table>
                 </div>
@@ -546,9 +665,11 @@ export const TestSector = () => {
 
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
                  <div className="lg:col-span-8 space-y-10">
+                    {/* CONSOLA DE GESTIÓN (SOLO SUPERVISOR) - POSICIONADA ARRIBA */}
                     {!isReadOnly && isSupervisorOrAdmin && (currentRequest.stage !== ServiceStage.FINISHED && currentRequest.stage !== ServiceStage.CANCELLED) && (
                       <div className="bg-slate-950 p-10 rounded-[3.5rem] text-white space-y-10 shadow-3xl border border-white/5 animate-fadeIn">
-                         <div className="flex items-center gap-6"><div className="p-4 bg-blue-600 rounded-2xl shadow-xl"><LucideShield size={28}/></div><h4 className="text-2xl font-black uppercase italic tracking-tighter">Consola de Operaciones</h4></div>
+                         <div className="flex items-center gap-6"><div className="p-4 bg-blue-600 rounded-2xl shadow-xl"><LucideShield size={28}/></div><h4 className="text-2xl font-black uppercase italic tracking-tighter">Burbuja de Gestión Operativa</h4></div>
+                         
                          <div className="p-8 bg-white/5 border border-white/10 rounded-[2.5rem] space-y-6">
                             <h5 className="text-[10px] font-black text-blue-400 uppercase tracking-[0.3em] flex items-center gap-2"><LucideRefreshCw size={14}/> Tránsito de Situación Operativa</h5>
                             <div className="flex flex-col md:flex-row gap-4 items-end">
@@ -562,25 +683,50 @@ export const TestSector = () => {
                                 <button onClick={handleConfirmStageTransition} disabled={!selectedStageToTransition} className="px-10 py-4 bg-blue-600 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl hover:bg-blue-500 transition-all disabled:opacity-30">Confirmar</button>
                             </div>
                          </div>
+
                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <button onClick={() => updateServiceRequest({ ...currentRequest, isDialogueOpen: !currentRequest.isDialogueOpen })} className={`py-6 rounded-[1.8rem] font-black uppercase text-[10px] tracking-widest transition-all flex items-center justify-center gap-3 shadow-xl ${currentRequest.isDialogueOpen ? 'bg-amber-600' : 'bg-blue-600'}`}>
-                               {currentRequest.isDialogueOpen ? <LucideLock size={20}/> : <LucideMessageCircle size={20}/>} {currentRequest.isDialogueOpen ? 'Cerrar Chat' : 'Habilitar Chat'}
+                               {currentRequest.isDialogueOpen ? <LucideLock size={20}/> : <LucideMessageCircle size={20}/>} {currentRequest.isDialogueOpen ? 'Cerrar Chat' : 'Abrir Diálogo'}
                             </button>
-                            <button onClick={() => setIsFinishing(true)} className="py-6 bg-emerald-600 rounded-[1.8rem] font-black uppercase text-[10px] tracking-widest shadow-xl hover:bg-emerald-700 flex items-center justify-center gap-3"><LucideCheckCircle2 size={20}/> Finalizar Gestión</button>
+                            <button onClick={() => setIsFinishing(true)} className="py-6 bg-emerald-600 rounded-[1.8rem] font-black uppercase text-[10px] tracking-widest shadow-xl hover:bg-emerald-700 flex items-center justify-center gap-3"><LucideCheckCircle2 size={20}/> Finalizar Solicitud</button>
                          </div>
+
+                         {/* MESA DE DIÁLOGO INTEGRADA (DEBAJO DE LOS BOTONES PARA SUPERVISOR) */}
                          {currentRequest.isDialogueOpen && (
-                            <div className="bg-slate-900 rounded-[2.5rem] border border-white/10 flex flex-col h-[400px] overflow-hidden animate-fadeIn">
-                                <div className="p-5 border-b border-white/5 flex items-center gap-3"><div className="p-2 bg-blue-600 rounded-lg"><LucideMessageCircle size={14}/></div><span className="text-[10px] font-black uppercase">Canal de Chat Directo</span></div>
+                            <div className="bg-slate-900 rounded-[2.5rem] border border-white/10 flex flex-col h-[450px] overflow-hidden animate-fadeIn mt-6 shadow-2xl">
+                                <div className="p-5 border-b border-white/5 flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2 bg-blue-600 rounded-lg"><LucideMessageCircle size={14}/></div>
+                                        <span className="text-[10px] font-black uppercase tracking-widest">Mesa de Diálogo Activa</span>
+                                    </div>
+                                </div>
                                 <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
                                     {currentRequest.messages.map(m => (
-                                        <div key={m.id} className={`flex ${m.userId === user?.id ? 'justify-end' : 'justify-start'} animate-fadeIn`}><div className={`max-w-[80%] p-4 rounded-2xl shadow-sm border ${m.userId === user?.id ? 'bg-blue-600 border-blue-500 rounded-tr-none' : 'bg-white/5 border-white/10 rounded-tl-none'}`}><p className="text-[7px] font-black uppercase opacity-60 mb-1">{m.userName}</p><p className="text-[11px] font-bold italic">"{m.text}"</p></div></div>
+                                        <div key={m.id} className={`flex ${m.userId === user?.id ? 'justify-end' : 'justify-start'} animate-fadeIn`}>
+                                            <div className={`max-w-[85%] p-4 rounded-2xl shadow-sm border ${m.userId === user?.id ? 'bg-blue-600 text-white border-blue-500 rounded-tr-none' : 'bg-white/5 border-white/10 rounded-tl-none'}`}>
+                                                <p className="text-[7px] font-black uppercase opacity-60 mb-1">{m.userName}</p>
+                                                <p className="text-[11px] font-bold italic">"{m.text}"</p>
+                                            </div>
+                                        </div>
                                     ))}
+                                    <div ref={chatEndRef} />
                                 </div>
-                                <div className="p-5 border-t border-white/5 relative"><textarea rows={1} className="w-full p-4 bg-white/5 border border-white/10 rounded-xl font-bold text-xs outline-none focus:ring-2 focus:ring-blue-500/50 resize-none" placeholder="Escribir..." value={chatMessage} onChange={e => setChatMessage(e.target.value)} /><button onClick={handleSendMessage} className="absolute right-7 top-1/2 -translate-y-1/2 p-2 bg-blue-600 rounded-lg"><LucideSend size={14}/></button></div>
+                                <div className="p-5 border-t border-white/5 relative bg-black/20">
+                                    <textarea 
+                                        rows={1} 
+                                        className="w-full p-4 bg-white/5 border border-white/10 rounded-xl font-bold text-xs text-white outline-none focus:ring-2 focus:ring-blue-500/50 resize-none pr-14" 
+                                        placeholder="Responder al usuario..." 
+                                        value={chatMessage} 
+                                        onChange={e => setChatMessage(e.target.value)} 
+                                        onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSendMessage())}
+                                    />
+                                    <button onClick={handleSendMessage} className="absolute right-7 top-1/2 -translate-y-1/2 p-2 bg-blue-600 text-white rounded-lg shadow-lg hover:bg-blue-500 transition-all"><LucideSend size={14}/></button>
+                                </div>
                             </div>
                          )}
+
                          {isFinishing && (
-                            <div className="bg-slate-900 p-8 rounded-[2.5rem] border-2 border-emerald-500 shadow-2xl space-y-6 animate-fadeIn">
+                            <div className="bg-slate-900 p-8 rounded-[2.5rem] border-2 border-emerald-500 shadow-2xl space-y-6 animate-fadeIn mt-6">
                                 <textarea rows={3} className="w-full p-6 bg-white/5 border border-white/10 rounded-2xl text-sm font-bold text-white outline-none focus:border-emerald-500 resize-none" placeholder="Informe final técnico..." value={finishComment} onChange={e => setFinishComment(e.target.value)} />
                                 <div className="flex gap-4"><button onClick={handleConfirmFinish} disabled={!finishComment.trim()} className="flex-1 py-4 bg-emerald-600 text-white rounded-xl font-black uppercase text-xs">Cerrar Caso</button><button onClick={() => setIsFinishing(false)} className="px-8 py-4 bg-white/10 text-white rounded-xl font-black uppercase text-[10px]">Cancelar</button></div>
                             </div>
@@ -617,8 +763,8 @@ export const TestSector = () => {
                         </div>
                     )}
 
-                    <div className="bg-white p-10 rounded-[3.5rem] border border-slate-100 shadow-sm space-y-10">
-                        <div className="flex items-center gap-4 border-b pb-6"><div className="p-4 bg-blue-50 text-blue-600 rounded-2xl shadow-inner"><LucideInfo size={24}/></div><div><h4 className="text-xl font-black text-slate-800 uppercase italic">Ficha Técnica de Solicitud</h4><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Relevamiento fiel de carga</p></div></div>
+                    <div className="bg-white p-12 rounded-[4rem] border border-slate-100 shadow-sm space-y-10">
+                        <div className="flex items-center gap-4 border-b pb-6"><div className="p-4 bg-blue-50 text-blue-600 rounded-2xl shadow-inner"><LucideInfo size={28}/></div><h3 className="text-2xl font-black text-slate-800 uppercase italic">Resumen de Diagnóstico</h3></div>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                             <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100"><p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Categoría</p><p className="text-[10px] font-black text-blue-600 uppercase">{currentRequest.mainCategory}</p></div>
                             <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100"><p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Tipo</p><p className="text-[10px] font-black text-slate-700 uppercase">{currentRequest.specificType}</p></div>
@@ -637,18 +783,19 @@ export const TestSector = () => {
                                                 {isImg ? (
                                                     <div className="w-full h-full cursor-zoom-in" onClick={() => setZoomedImage({url: att.url, label: att.name})}>
                                                         <img src={att.url} className="w-full h-full object-cover group-hover:scale-110 transition-transform" />
-                                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"><LucideEye className="text-white" size={18}/></div>
+                                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                                                            <LucideMaximize className="text-white" size={18}/>
+                                                        </div>
                                                     </div>
                                                 ) : (
                                                     <div className="w-full h-full bg-slate-50 flex flex-col items-center justify-center p-2 relative">
                                                         <LucideFileText className="text-blue-500" size={32} />
                                                         <span className="text-[6px] font-black uppercase text-center mt-2 truncate w-full px-1">{att.name}</span>
-                                                        <a href={att.url} download={att.name} className="absolute inset-0 bg-blue-600/90 text-white opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center transition-opacity gap-1">
-                                                            <LucideDownload size={20}/>
-                                                            <span className="text-[7px] font-black uppercase">Descargar</span>
-                                                        </a>
                                                     </div>
                                                 )}
+                                                <a href={att.url} download={att.name} className="absolute -top-1 -right-1 p-2 bg-indigo-600 text-white rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-indigo-700 z-20">
+                                                    <LucideDownload size={12}/>
+                                                </a>
                                             </div>
                                         );
                                     })}
@@ -659,17 +806,40 @@ export const TestSector = () => {
                  </div>
 
                  <div className="lg:col-span-4 space-y-10">
-                    {userRole === UserRole.USER && currentRequest.isDialogueOpen && (
-                        <div className="bg-white rounded-[3.5rem] border border-slate-100 shadow-3xl flex flex-col h-[500px] overflow-hidden animate-fadeIn">
-                            <div className="p-8 border-b bg-blue-600 text-white flex items-center gap-4"><div className="p-3 bg-white/20 rounded-xl shadow-lg"><LucideMessageCircle size={20}/></div><h5 className="text-lg font-black uppercase italic">Mesa de Ayuda</h5></div>
-                            <div className="flex-1 overflow-y-auto p-10 space-y-6 custom-scrollbar bg-slate-50/20">
-                                {currentRequest.messages.map(m => (
-                                    <div key={m.id} className={`flex ${m.userId === user?.id ? 'justify-end' : 'justify-start'} animate-fadeIn`}><div className={`max-w-[85%] p-5 rounded-[2rem] shadow-sm border-2 ${m.userId === user?.id ? 'bg-blue-600 text-white border-blue-500 rounded-tr-none' : 'bg-white text-slate-700 border-slate-100 rounded-tl-none'}`}><p className="text-[7px] font-black uppercase opacity-60 mb-2">{m.userName}</p><p className="text-[11px] font-bold italic leading-relaxed">"{m.text}"</p></div></div>
-                                ))}
+                    {/* MESA DE DIÁLOGO (USUARIO) - POSICIONADA A LA DERECHA */}
+                    {userRole === UserRole.USER && (currentRequest.isDialogueOpen || (currentRequest.messages?.length || 0) > 0) && (
+                        <div className="bg-white rounded-[3.5rem] border border-slate-100 shadow-3xl flex flex-col h-[600px] overflow-hidden animate-fadeIn">
+                            <div className="p-8 border-b bg-blue-600 text-white flex items-center justify-between">
+                                <div className="flex items-center gap-4">
+                                    <div className={`p-3 rounded-xl shadow-lg ${currentRequest.isDialogueOpen ? 'bg-white/20' : 'bg-slate-400/30'}`}><LucideMessageCircle size={20}/></div>
+                                    <div>
+                                        <h5 className="text-lg font-black uppercase italic leading-none">Mesa de Ayuda</h5>
+                                        <p className="text-[8px] font-bold uppercase mt-1 opacity-80">Chat de Resolución Técnica</p>
+                                    </div>
+                                </div>
+                                {!currentRequest.isDialogueOpen && <span className="bg-rose-500 text-white px-2 py-1 rounded text-[8px] font-black uppercase">Cerrado</span>}
                             </div>
-                            <div className="p-8 border-t bg-white relative"><textarea rows={2} className="w-full p-6 bg-slate-50 border-2 border-slate-100 rounded-[2.5rem] font-bold text-xs outline-none focus:ring-8 focus:ring-blue-50 resize-none shadow-inner" placeholder="Escribir..." value={chatMessage} onChange={e => setChatMessage(e.target.value)} /><button onClick={handleSendMessage} className="absolute right-4 bottom-4 p-4 bg-blue-600 text-white rounded-2xl shadow-xl"><LucideSend size={18}/></button></div>
+                            <div className="flex-1 overflow-y-auto p-8 space-y-6 custom-scrollbar bg-slate-50/20">
+                                {currentRequest.messages.map(m => (
+                                    <div key={m.id} className={`flex ${m.userId === user?.id ? 'justify-end' : 'justify-start'} animate-fadeIn`}><div className={`max-w-[85%] p-5 rounded-[2rem] shadow-sm border-2 ${m.userId === user?.id ? 'bg-blue-600 text-white border-blue-500 rounded-tr-none' : 'bg-white text-slate-700 border-slate-100 rounded-tl-none'}`}><p className="text-[7px] font-black uppercase opacity-60 mb-2">{m.userName} • {format(parseISO(m.timestamp), 'HH:mm')}</p><p className="text-[11px] font-bold italic leading-relaxed">"{m.text}"</p></div></div>
+                                ))}
+                                <div ref={chatEndRef} />
+                            </div>
+                            <div className="p-8 border-t bg-white relative">
+                                {currentRequest.isDialogueOpen ? (
+                                    <>
+                                        <textarea rows={2} className="w-full p-6 bg-slate-50 border-2 border-slate-100 rounded-[2.5rem] font-bold text-xs outline-none focus:ring-8 focus:ring-blue-50 resize-none shadow-inner" placeholder="Escribir mensaje..." value={chatMessage} onChange={e => setChatMessage(e.target.value)} onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSendMessage())} />
+                                        <button onClick={handleSendMessage} className="absolute right-12 bottom-12 p-4 bg-blue-600 text-white rounded-2xl shadow-xl hover:bg-blue-700 transition-all active:scale-90"><LucideSend size={18}/></button>
+                                    </>
+                                ) : (
+                                    <div className="py-4 text-center">
+                                        <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest italic">El canal de diálogo ha sido finalizado.</p>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     )}
+
                     <div className="bg-slate-900 p-8 rounded-[3.5rem] text-white shadow-2xl space-y-8 relative overflow-hidden group"><h4 className="text-sm font-black uppercase italic tracking-widest text-blue-400 border-b border-white/10 pb-4 flex items-center gap-3"><LucideCar size={18}/> Ficha Unidad</h4>
                         <div className="space-y-6 relative z-10">
                             <div className="grid grid-cols-2 gap-4"><div className="p-4 bg-white/5 rounded-2xl border border-white/10"><p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1">KM Solicitud</p><p className="text-xl font-black italic">{currentRequest.odometerAtRequest.toLocaleString()} KM</p></div><div className="p-4 bg-white/5 rounded-2xl border border-white/10"><p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1">C. Costo</p><p className="text-[10px] font-black truncate">{currentRequest.costCenter}</p></div></div>
