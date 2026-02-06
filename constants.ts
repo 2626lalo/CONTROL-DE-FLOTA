@@ -1,3 +1,4 @@
+
 import { User, UserRole, Vehicle, FuelType, VehicleStatus, OwnershipType, TransmissionType, ServiceStage } from "./types";
 
 export const CHECKLIST_SECTIONS = {
@@ -24,6 +25,8 @@ export const MOCK_USERS: User[] = [
     email: 'alewilczek@gmail.com',
     telefono: '+5491100000000',
     role: UserRole.ADMIN,
+    // FIX: Added missing 'level' property for User interface compatibility
+    level: 3,
     rolesSecundarios: [],
     estado: 'activo',
     approved: true,
@@ -48,6 +51,8 @@ export const MOCK_USERS: User[] = [
     email: 'supervisor@empresa.com',
     telefono: '+5491122223333',
     role: UserRole.SUPERVISOR,
+    // FIX: Added missing 'level' property for User interface compatibility
+    level: 2,
     rolesSecundarios: [],
     estado: 'activo',
     approved: true,
@@ -70,6 +75,8 @@ export const MOCK_USERS: User[] = [
     email: 'auditor@seguridad.com',
     telefono: '+5491144445555',
     role: UserRole.AUDITOR,
+    // FIX: Added missing 'level' property for User interface compatibility
+    level: 2,
     rolesSecundarios: [],
     estado: 'activo',
     approved: true,
@@ -92,6 +99,8 @@ export const MOCK_USERS: User[] = [
     email: 'chofer@empresa.com',
     telefono: '+5491166667777',
     role: UserRole.USER,
+    // FIX: Added missing 'level' property for User interface compatibility
+    level: 1,
     rolesSecundarios: [],
     estado: 'activo',
     approved: true,

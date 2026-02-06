@@ -57,6 +57,8 @@ const FleetContext = createContext<FleetContextType>({} as FleetContextType);
 export const useApp = () => useContext(FleetContext);
 
 export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const MAIN_ADMIN_EMAIL = 'alewilczek@gmail.com';
+
   const [authenticatedUser, setAuthenticatedUser] = useState<User | null>(() => {
     try {
       const saved = localStorage.getItem('fp_current_user');
@@ -79,7 +81,6 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [vehicleVersions, setVehicleVersions] = useState<string[]>(GOLDEN_MASTER_SNAPSHOT.data.versions);
   const [documentTypes, setDocumentTypes] = useState<string[]>(GOLDEN_MASTER_SNAPSHOT.data.docTypes);
 
-  // Computamos el usuario activo: si hay impersonación, usamos ese, sino el autenticado.
   const impersonatedUser = impersonatedUserId ? registeredUsers.find(u => u.id === impersonatedUserId) || null : null;
   const user = impersonatedUser || authenticatedUser;
 
@@ -151,7 +152,9 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const login = async (email: string, pass: string) => {
     const found = registeredUsers.find(u => u.email.toLowerCase() === email.toLowerCase() && (u.password === pass || pass === '12305'));
     if (found) {
-      if (found.estado !== 'activo' && !found.approved) return { success: false, message: "Cuenta pendiente de aprobación o inactiva." };
+      if (found.email !== MAIN_ADMIN_EMAIL && found.estado !== 'activo' && !found.approved) {
+          return { success: false, message: "Cuenta pendiente de aprobación o inactiva." };
+      }
       
       const updatedUser = { ...found, ultimoAcceso: new Date().toISOString() };
       setAuthenticatedUser(updatedUser);
@@ -163,12 +166,12 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const impersonate = (userId: string | null) => {
-    if (authenticatedUser?.email !== 'alewilczek@gmail.com') return;
+    if (authenticatedUser?.email !== MAIN_ADMIN_EMAIL) return;
     setImpersonatedUserId(userId);
     if (userId) {
-        addNotification(`Simulando sesión de ${registeredUsers.find(u => u.id === userId)?.nombre}`, 'warning');
+        addNotification(`Modo Auditor: Simulando sesión de ${registeredUsers.find(u => u.id === userId)?.nombre}`, 'warning');
     } else {
-        addNotification('Regresando a Control Maestro Admin', 'success');
+        addNotification('Restaurando Control Maestro', 'success');
     }
   };
 
@@ -183,6 +186,7 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       telefono: phone,
       estado: 'pendiente',
       role: UserRole.USER, 
+      level: 1,
       rolesSecundarios: [],
       permisos: [],
       approved: false, 
@@ -313,8 +317,24 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
-  const updateUser = (u: User) => setRegisteredUsers(prev => prev.map(curr => curr.id === u.id ? u : curr));
-  const deleteUser = (id: string) => setRegisteredUsers(prev => prev.filter(u => u.id !== id));
+  const updateUser = (u: User) => {
+    // BLINDAJE SUPREMO: Nadie puede modificar al Administrador Principal
+    if (u.email === MAIN_ADMIN_EMAIL && authenticatedUser?.email !== MAIN_ADMIN_EMAIL) {
+        addNotification("Acceso denegado: No se puede modificar al Administrador Supremo", "error");
+        return;
+    }
+    setRegisteredUsers(prev => prev.map(curr => curr.id === u.id ? u : curr));
+  };
+
+  const deleteUser = (id: string) => {
+    const u = registeredUsers.find(x => x.id === id);
+    // BLINDAJE SUPREMO: El Admin Máximo es inamovible
+    if (u?.email === MAIN_ADMIN_EMAIL) {
+        addNotification("Operación Ilegal: El Administrador Supremo es inamovible", "error");
+        return;
+    }
+    setRegisteredUsers(prev => prev.filter(u => u.id !== id));
+  };
 
   return (
     <FleetContext.Provider value={{

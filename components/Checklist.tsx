@@ -5,57 +5,72 @@ import { CHECKLIST_SECTIONS } from '../constants';
 import { Checklist as ChecklistType, ChecklistItem, AccessoryItem, Vehicle, VehicleStatus, FindingMarker } from '../types';
 import { 
   ArrowLeft, Eraser, ChevronDown, ChevronUp, FileText, Plus, Save, 
-  Search, Cpu, Check, MapPin, Eye, Lightbulb, Zap, HardDrive, 
-  Mail, Map, Navigation, AlertCircle, Layout, Truck, ShieldCheck,
-  UserCheck, Camera, Calendar, Image as ImageIcon, X, AlertTriangle,
-  BellRing, ShieldAlert, Timer, History, PackagePlus, MinusCircle, PlusCircle,
-  MapPinned, MoveRight, Gauge, FileDown, EyeIcon, Trash2, DownloadCloud,
-  Building2, MapPinHouse, MapPinCheck, FileSearch, LucideCrosshair, LucideMessageSquare,
-  LucideImage
+  Search, Cpu, Check, MapPin, Eye, Lightbulb, Zap, 
+  Camera, X, AlertTriangle, Gauge, LucideLocate, LucideMaximize2,
+  LucideFileSearch2, LucideX, LucideChevronRight, LucideMapPinCheck, LucideMapPinHouse,
+  LucideMessageSquare, Trash2, Layout, Truck, LucideDownload, LucideClock,
+  LucideShieldCheck
 } from 'lucide-react';
-import { format, parseISO, isBefore, startOfDay, addDays, differenceInDays } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale/es';
 import { compressImage } from '../utils/imageCompressor';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { ImageZoomModal } from './ImageZoomModal';
 
 const SignaturePad = ({ onEnd, label, error, id }: { onEnd: (base64: string) => void, label: string, error?: boolean, id?: string }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [isDrawing, setIsDrawing] = useState(false);
 
-    useEffect(() => {
+    const setupCanvas = () => {
         const canvas = canvasRef.current;
         if (canvas) {
-            canvas.width = canvas.parentElement?.clientWidth || 400;
-            canvas.height = 150;
-            const ctx = canvas.getContext('2d');
-            if (ctx) { 
-                ctx.lineWidth = 3; ctx.strokeStyle = '#0f172a'; 
-                ctx.lineJoin = 'round'; ctx.lineCap = 'round'; 
+            const rect = canvas.parentElement?.getBoundingClientRect();
+            if (rect && rect.width > 0) {
+                canvas.width = rect.width;
+                canvas.height = 150;
+                const ctx = canvas.getContext('2d');
+                if (ctx) { 
+                    ctx.lineWidth = 3; ctx.strokeStyle = '#0f172a'; 
+                    ctx.lineJoin = 'round'; ctx.lineCap = 'round'; 
+                }
             }
         }
+    };
+
+    useEffect(() => {
+        setupCanvas();
+        window.addEventListener('resize', setupCanvas);
+        return () => window.removeEventListener('resize', setupCanvas);
     }, []);
 
-    const startDrawing = (e: any) => {
+    const getCoords = (e: any) => {
         const canvas = canvasRef.current;
-        const ctx = canvas?.getContext('2d');
-        if (!canvas || !ctx) return;
-        setIsDrawing(true);
+        if (!canvas) return { x: 0, y: 0 };
         const rect = canvas.getBoundingClientRect();
-        const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
-        const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
-        ctx.beginPath(); ctx.moveTo(x, y);
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        const x = (clientX - rect.left) * (canvas.width / rect.width);
+        const y = (clientY - rect.top) * (canvas.height / rect.height);
+        return { x, y };
+    };
+
+    const startDrawing = (e: any) => {
+        setIsDrawing(true);
+        const ctx = canvasRef.current?.getContext('2d');
+        if (ctx) {
+            const { x, y } = getCoords(e);
+            ctx.beginPath(); ctx.moveTo(x, y);
+        }
     };
 
     const draw = (e: any) => {
         if (!isDrawing) return;
-        const canvas = canvasRef.current;
-        const ctx = canvas?.getContext('2d');
-        if (!canvas || !ctx) return;
-        const rect = canvas.getBoundingClientRect();
-        const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
-        const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
-        ctx.lineTo(x, y); ctx.stroke();
+        const ctx = canvasRef.current?.getContext('2d');
+        if (ctx) {
+            const { x, y } = getCoords(e);
+            ctx.lineTo(x, y); ctx.stroke();
+        }
     };
 
     return (
@@ -93,10 +108,10 @@ const EvidencePanel = ({
             <div className="space-y-1">
                 <div className="flex justify-between items-center ml-1">
                     <label className="text-[7px] font-black text-slate-500 uppercase tracking-widest">Detalle de Novedad</label>
-                    {error && <span className="text-[7px] font-black text-rose-600 uppercase italic">Justificación Obligatoria por Stock 0</span>}
+                    {error && <span className="text-[7px] font-black text-rose-600 uppercase italic">Justificación Obligatoria</span>}
                 </div>
                 <textarea 
-                    className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-[10px] font-bold outline-none focus:ring-2 focus:ring-blue-100 resize-none"
+                    className={`w-full p-2.5 bg-white border rounded-xl text-[10px] font-bold outline-none focus:ring-2 focus:ring-blue-100 resize-none ${error ? 'border-rose-400' : 'border-slate-200'}`}
                     placeholder="Describa el motivo del faltante o daño..."
                     value={item.observation || ''}
                     onChange={e => onUpdate({ observation: e.target.value })}
@@ -107,33 +122,68 @@ const EvidencePanel = ({
     );
 };
 
+const PreviewItem: React.FC<{ item: any }> = ({ item }) => (
+    <div className="py-3 border-b border-slate-100 last:border-0">
+        <div className="flex justify-between items-start">
+            <div className="flex-1">
+                <p className="text-[10px] font-black text-slate-700 uppercase tracking-tight">{item.name}</p>
+                {item.observation && (
+                    <p className="text-[9px] font-bold text-slate-400 italic mt-1 leading-relaxed">Nota: {item.observation}</p>
+                )}
+                {item.images && item.images.length > 0 && (
+                    <div className="flex gap-1 mt-2">
+                        {item.images.map((img: string, i: number) => (
+                            <div key={i} className="w-10 h-10 rounded-lg overflow-hidden border border-slate-200">
+                                <img src={img} className="w-full h-full object-cover" alt="Evidencia" />
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+            <div className="shrink-0 text-right ml-4">
+                <span className={`px-3 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest border ${
+                    item.hasIt === false ? 'bg-slate-100 text-slate-400 border-slate-200' :
+                    item.status === 'GOOD' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                    item.status === 'REGULAR' ? 'bg-amber-50 text-amber-600 border-amber-100' :
+                    item.status === 'BAD' ? 'bg-rose-50 text-rose-600 border-rose-100' : 'bg-slate-50 text-slate-300 border-slate-100'
+                }`}>
+                    {item.hasIt === false ? 'NO POSEE' : 
+                         item.status === 'GOOD' ? 'OK' : 
+                         item.status === 'REGULAR' ? 'REGULAR' : 
+                         item.status === 'BAD' ? 'DEFECTUOSO' : 'SIN EVALUAR'}
+                </span>
+            </div>
+        </div>
+    </div>
+);
+
 export const Checklist = () => {
-    const { vehicles, addChecklist, user, checklists, addNotification, logAudit, masterFindingsImage } = useApp();
-    const [searchParams] = useSearchParams();
+    const { vehicles, addChecklist, user, checklists, addNotification, masterFindingsImage } = useApp();
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
     
-    const serviceId = searchParams.get('serviceId');
+    const plateFromUrl = searchParams.get('plate');
     const autoType = searchParams.get('type');
     
-    const [viewMode, setViewMode] = useState<'LIST' | 'CREATE' | 'VIEW'>(searchParams.get('plate') ? 'CREATE' : 'LIST');
+    const [viewMode, setViewMode] = useState<'LIST' | 'CREATE' | 'VIEW'>(plateFromUrl ? 'CREATE' : 'LIST');
     const [searchTerm, setSearchTerm] = useState('');
     const [viewingChecklist, setViewingChecklist] = useState<ChecklistType | null>(null);
-    
-    const [plateSearch, setPlateSearch] = useState(searchParams.get('plate') || '');
+    const [zoomedImage, setZoomedImage] = useState<{url: string, label: string} | null>(null);
+    const [showHtmlPreview, setShowHtmlPreview] = useState(false);
+
+    const [plateSearch, setPlateSearch] = useState(plateFromUrl || '');
     const [showSuggestions, setShowSuggestions] = useState(false);
     
     const [km, setKm] = useState<number>(0);
-    const [costCenter, setCostCenter] = useState('');
-    const [province, setProvince] = useState('');
-    const [checkType, setCheckType] = useState(autoType === 'POR_INGRESO' ? 'POR INGRESO A TALLER' : 'DIARIO');
+    const [province, setProvince] = useState(''); 
+    const [gpsCoords, setGpsCoords] = useState<string>('');
+    const [checkType, setCheckType] = useState(autoType || 'DIARIO');
     const [originSector, setOriginSector] = useState('');
     const [destinationSector, setDestinationSector] = useState('');
-    const [sendEmail, setSendEmail] = useState(false);
-    const [emailRecipients, setEmailRecipients] = useState('');
     const [receivedBy, setReceivedBy] = useState('');
     const [receiverSignature, setReceiverSignature] = useState('');
     const [signature, setSignature] = useState('');
-    const [clarification, setClarification] = useState(user?.name || '');
+    const [clarification, setClarification] = useState(`${user?.nombre || ''} ${user?.apellido || ''}`.trim().toUpperCase());
     const [canCirculate, setCanCirculate] = useState(true);
     const [generalObservations, setGeneralObservations] = useState('');
     const [errors, setErrors] = useState<Record<string, boolean>>({});
@@ -145,10 +195,8 @@ export const Checklist = () => {
     const [accessoryItems, setAccessoryItems] = useState<any[]>([]);
     
     const [findingsMarkers, setFindingsMarkers] = useState<FindingMarker[]>([]);
-    const findingsImageRef = useRef<HTMLDivElement>(null);
-
     const [openSections, setOpenSections] = useState<Record<string, boolean>>({ 
-      motor: true, lights: false, general: false, bodywork: false, accessories: true, findings: false 
+      motor: true, lights: false, general: true, bodywork: false, accessories: true, findings: false 
     });
 
     const filteredVehicles = useMemo(() => 
@@ -158,232 +206,335 @@ export const Checklist = () => {
     const selectedVehicle = useMemo(() => vehicles.find(v => v.plate === plateSearch), [plateSearch, vehicles]);
 
     useEffect(() => {
+        if (viewMode === 'CREATE' && "geolocation" in navigator) {
+            navigator.geolocation.getCurrentPosition(
+                (pos) => setGpsCoords(`${pos.coords.latitude.toFixed(6)}, ${pos.coords.longitude.toFixed(6)}`),
+                (err) => console.error("GPS Error:", err),
+                { enableHighAccuracy: true, timeout: 5000 }
+            );
+        }
+    }, [viewMode]);
+
+    useEffect(() => {
         if (!selectedVehicle) return;
-        
         setKm(selectedVehicle.currentKm || 0);
-        setCostCenter(selectedVehicle.costCenter || 'SIN ASIGNAR');
         setProvince(selectedVehicle.province || 'Mendoza');
-        setFindingsMarkers([]); 
-        
         setMotorItems(CHECKLIST_SECTIONS.motor.map(name => ({ name, status: undefined as any, observation: '', images: [] })));
         setLightItems(CHECKLIST_SECTIONS.lights.map(name => ({ name, status: undefined as any, observation: '', images: [] })));
         setGeneralItems(CHECKLIST_SECTIONS.general.map(name => ({ name, status: undefined as any, observation: '', images: [], hasIt: name === 'Equipo de Frío' ? (selectedVehicle.fichaTecnica?.apariencia.tipoCaja.includes('frio') || false) : true })));
         setBodyworkItems(CHECKLIST_SECTIONS.bodywork.map(name => ({ name, status: undefined as any, observation: '', images: [] })));
         
         const fichaAcc = selectedVehicle.fichaTecnica?.equipamiento.accesoriosEstandar;
-        if (fichaAcc && fichaAcc.length > 0) {
-            setAccessoryItems(fichaAcc.filter(a => a.isEquipped).map(a => {
-                const isFireExt = a.name.toUpperCase().includes('MATAFUEGO');
-                const isBotiquin = a.name.toUpperCase().includes('BOTIQUÍN');
-                let initialDates = [''];
-                if (isFireExt || isBotiquin) {
-                    const target = isBotiquin ? 'BOTIQUÍN' : a.name.toUpperCase().includes('1KG') ? 'MATAFUEGO 1KG' : 'MATAFUEGO 5KG';
-                    const doc = selectedVehicle.documents?.find(d => d.type.toUpperCase() === target);
-                    initialDates = doc?.expirationDate ? [doc.expirationDate] : [''];
-                }
-                return { 
-                    name: a.name, isFireExt, isBotiquin, quantity: a.quantity, quantityFound: a.quantity, 
-                    status: undefined as any, observation: '', images: [], expirationDates: initialDates,
-                    specification: a.detail || '', isManual: false
-                };
-            }));
-        } else {
-            setAccessoryItems(CHECKLIST_SECTIONS.accessories.map(name => ({
-                name, isFireExt: name.toUpperCase().includes('MATAFUEGO'), isBotiquin: name.toUpperCase().includes('BOTIQUÍN'), quantity: 1, quantityFound: 1,
-                status: undefined as any, observation: '', images: [], expirationDates: [''], specification: '', isManual: false
-            })));
-        }
+        setAccessoryItems((fichaAcc?.length ? fichaAcc.filter(a => a.isEquipped) : CHECKLIST_SECTIONS.accessories.map(n => ({ name: n, isEquipped: true, quantity: 1 }))).map((a: any) => ({ 
+            name: a.name, quantity: a.quantity || 1, quantityFound: a.quantity || 1, 
+            status: undefined as any, observation: '', images: [], hasIt: true
+        })));
     }, [selectedVehicle]);
-
-    const handleFindingsClick = (e: React.MouseEvent<HTMLDivElement>) => {
-        if (!findingsImageRef.current || !masterFindingsImage) return;
-        const rect = findingsImageRef.current.getBoundingClientRect();
-        const x = ((e.clientX - rect.left) / rect.width) * 100;
-        const y = ((e.clientY - rect.top) / rect.height) * 100;
-        const newMarker: FindingMarker = { id: findingsMarkers.length + 1, x, y, comment: '' };
-        setFindingsMarkers([...findingsMarkers, newMarker]);
-    };
-
-    const updateFindingField = (id: number, field: keyof FindingMarker, value: any) => {
-        setFindingsMarkers(prev => prev.map(m => m.id === id ? { ...m, [field]: value } : m));
-    };
-
-    const handleFindingPhoto = async (id: number, e: React.ChangeEvent<HTMLInputElement>) => {
-        if (!e.target.files?.[0]) return;
-        const reader = new FileReader();
-        reader.onloadend = async () => {
-            const compressed = await compressImage(reader.result as string);
-            updateFindingField(id, 'photo', compressed);
-        };
-        reader.readAsDataURL(e.target.files[0]);
-    };
-
-    const removeFindingMarker = (id: number) => {
-        setFindingsMarkers(prev => prev.filter(m => m.id !== id).map((m, i) => ({ ...m, id: i + 1 })));
-    };
-
-    const handleStatusChange = (section: string, index: number, status: 'GOOD' | 'REGULAR' | 'BAD') => {
-        const setMap: any = { motor: setMotorItems, lights: setLightItems, general: setGeneralItems, bodywork: setBodyworkItems, accessories: setAccessoryItems };
-        const itemsMap: any = { motor: motorItems, lights: lightItems, general: generalItems, bodywork: bodyworkItems, accessories: accessoryItems };
-        const newItems = [...itemsMap[section]];
-        newItems[index].status = status;
-        setMap[section](newItems);
-        if (status === 'BAD') setCanCirculate(false);
-    };
-
-    const handlePhotoCapture = async (section: string, index: number, e: React.ChangeEvent<HTMLInputElement>) => {
-        if (!e.target.files?.[0]) return;
-        const file = e.target.files[0];
-        const reader = new FileReader();
-        reader.onloadend = async () => {
-            const compressed = await compressImage(reader.result as string);
-            const setMap: any = { motor: setMotorItems, lights: setLightItems, general: setGeneralItems, bodywork: setBodyworkItems, accessories: setAccessoryItems };
-            const itemsMap: any = { motor: motorItems, lights: lightItems, general: generalItems, bodywork: bodyworkItems, accessories: accessoryItems };
-            const newItems = [...itemsMap[section]];
-            newItems[index].images = [...(newItems[index].images || []), compressed];
-            setMap[section](newItems);
-        };
-        reader.readAsDataURL(file);
-    };
-
-    const removePhoto = (section: string, itemIdx: number, photoIdx: number) => {
-        const setMap: any = { motor: setMotorItems, lights: setLightItems, general: setGeneralItems, bodywork: setBodyworkItems, accessories: setAccessoryItems };
-        const itemsMap: any = { motor: motorItems, lights: lightItems, general: generalItems, bodywork: bodyworkItems, accessories: accessoryItems };
-        const newItems = [...itemsMap[section]];
-        newItems[itemIdx].images = newItems[itemIdx].images.filter((_: any, i: number) => i !== photoIdx);
-        setMap[section](newItems);
-    };
-
-    const addNewInventoryItem = () => {
-        const lastManual = [...accessoryItems].reverse().find(i => i.isManual);
-        if (lastManual && !lastManual.name.trim()) {
-            addNotification("Complete el nombre del accesorio manual antes de agregar otro.", "warning");
-            return;
-        }
-        setAccessoryItems(prev => [...prev, {
-            name: '', isFireExt: false, isBotiquin: false, quantity: 1, quantityFound: 1,
-            status: undefined as any, observation: '', images: [], expirationDates: [''], specification: '', isManual: true
-        }]);
-    };
-
-    const deleteInventoryItem = (index: number) => {
-        setAccessoryItems(prev => prev.filter((_, i) => i !== index));
-    };
-
-    const updateManualItem = (index: number, field: string, value: any) => {
-        const na = [...accessoryItems];
-        na[index] = { ...na[index], [field]: value };
-        setAccessoryItems(na);
-    };
-
-    const updateExtinguisherDate = (itemIdx: number, val: string) => {
-        const na = [...accessoryItems];
-        na[itemIdx].expirationDates = [val];
-        setAccessoryItems(na);
-    };
-
-    const updateEvidence = (section: string, index: number, updates: any) => {
-        const setMap: any = { motor: setMotorItems, lights: setLightItems, general: setGeneralItems, bodywork: setBodyworkItems, accessories: setAccessoryItems };
-        const itemsMap: any = { motor: motorItems, lights: lightItems, general: generalItems, bodywork: bodyworkItems, accessories: accessoryItems };
-        const newItems = [...itemsMap[section]];
-        newItems[index] = { ...newItems[index], ...updates };
-        setMap[section](newItems);
-    };
 
     const validateForm = () => {
         const newErrors: Record<string, boolean> = {};
-        if (!selectedVehicle) { newErrors.plate_input = true; }
-        
-        // CORRECCIÓN INTEGRIDAD: Validación de kilometraje lógico
-        const currentKm = selectedVehicle?.currentKm || 0;
-        if (km < currentKm) { 
-            newErrors.km_input = true;
-            addNotification(`El kilometraje (${km}) no puede ser menor al actual (${currentKm})`, "error");
-        }
-        if (km < 0) { newErrors.km_input = true; }
-        
-        if (!signature) newErrors.signature_pad = true;
-        
-        const isDoubleSignType = checkType === 'REEMPLAZO' || checkType === 'TURNO' || checkType === 'POR INGRESO A TALLER';
-        if (isDoubleSignType && (!receivedBy || !receiverSignature)) newErrors.received_by_input = true;
+        let firstErrorId = '';
 
-        const isTravelType = checkType === 'INGRESO' || checkType === 'EGRESO';
-        if (isTravelType && (!originSector || !destinationSector)) newErrors.travel_inputs = true;
+        const setError = (id: string) => {
+            newErrors[id] = true;
+            if (!firstErrorId) firstErrorId = id;
+        };
 
-        const checkSection = (items: any[]) => items.some(i => i.hasIt !== false && i.status === undefined);
-        if (checkSection(motorItems)) newErrors.motor = true;
-        if (checkSection(lightItems)) newErrors.lights = true;
-        if (checkSection(generalItems)) newErrors.general = true;
-        if (checkSection(bodyworkItems)) newErrors.bodywork = true;
-        if (checkSection(accessoryItems)) newErrors.accessories = true;
+        if (!selectedVehicle) setError('plate_input');
+        if (km < (selectedVehicle?.currentKm || 0)) setError('km_input');
+        if (!province?.trim()) setError('province_input');
+        if (!signature) setError('signature_pad');
+        
+        if (['REEMPLAZO', 'POR CAMBIO DE TURNO', 'ENTREGA / RECEPCIÓN'].includes(checkType) && (!receivedBy || !receiverSignature)) setError('received_by_input');
+        if (['INGRESO', 'EGRESO', 'VIAJE DE INGRESO', 'VIAJE DE EGRESO'].includes(checkType) && (!originSector || !destinationSector)) setError('travel_inputs');
+
+        const checkItems = (items: any[], sectionId: string) => {
+            items.forEach((item, idx) => {
+                if (item.hasIt !== false && item.status === undefined) {
+                    newErrors[sectionId] = true;
+                    if (!firstErrorId) firstErrorId = sectionId;
+                }
+                if (item.hasIt !== false && (item.status === 'REGULAR' || item.status === 'BAD' || item.quantityFound < item.quantity) && !item.observation?.trim()) {
+                  setError(`obs_${sectionId}_${idx}`);
+                }
+            });
+        };
+
+        checkItems(motorItems, 'motor');
+        checkItems(lightItems, 'lights');
+        checkItems(generalItems, 'general');
+        checkItems(bodyworkItems, 'bodywork');
+        checkItems(accessoryItems, 'accessories');
 
         setErrors(newErrors);
+        if (firstErrorId) {
+            const el = document.getElementById(firstErrorId);
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            addNotification("Por favor, complete los campos faltantes resaltados.", "warning");
+        }
         return Object.keys(newErrors).length === 0;
     };
 
-    const getExtStatus = (dateStr: string) => {
-        if (!dateStr) return null;
-        const today = startOfDay(new Date());
-        const expDate = parseISO(dateStr);
-        const diff = differenceInDays(expDate, today);
-        if (diff < 0) return { label: `VENCIDO`, color: 'text-rose-600', bg: 'bg-rose-50', isCritical: true };
-        return { label: `VIGENTE`, color: 'text-emerald-600', bg: 'bg-emerald-50', isCritical: false };
-    };
-
     const handleSave = () => {
-        if (!validateForm()) {
-            return;
-        }
-        
-        const newChecklist: ChecklistType = {
-            id: `CHK-${Date.now()}`, vehiclePlate: plateSearch, userId: user?.id || 'guest',
+        if (!validateForm()) return;
+        addChecklist({
+            id: `CHK-${Date.now()}`, vehiclePlate: plateSearch, userId: user?.id || 'sys',
             userName: clarification, date: new Date().toISOString(), type: checkType, 
-            km, costCenter, currentProvince: province, canCirculate, 
+            km, costCenter: selectedVehicle?.costCenter || 'S/A', currentProvince: province, canCirculate, 
             motor: motorItems, lights: lightItems, general: generalItems, 
             bodywork: bodyworkItems, accessories: accessoryItems, 
-            findingsMarkers: findingsMarkers,
-            signature, clarification, generalObservations, 
-            receivedBy, receiverSignature,
-            originSector, destinationSector,
-            emailRecipients: emailRecipients ? emailRecipients.split(',').map(e => e.trim()) : []
-        };
-        
-        addChecklist(newChecklist);
-        addNotification("Reporte guardado con éxito.", "success");
+            findingsMarkers, signature, clarification, generalObservations, 
+            receivedBy, receiverSignature, originSector, destinationSector
+        });
+        addNotification("Reporte generado y guardado.", "success");
         setViewMode('LIST');
     };
+
+    const handleGeneratePDF = (data: ChecklistType) => {
+        const doc = new jsPDF();
+        const pw = doc.internal.pageSize.getWidth();
+        
+        doc.setFillColor(15, 23, 42); doc.rect(0, 0, pw, 45, 'F');
+        doc.setTextColor(255, 255, 255); doc.setFontSize(22); doc.text("REPORTE DE INSPECCIÓN TÉCNICA", 14, 25);
+        doc.setFontSize(9); doc.text(`UNIDAD: ${data.vehiclePlate} | KM: ${data.km.toLocaleString()} | TIPO: ${data.type}`, 14, 35);
+        doc.text(`UBICACIÓN: ${data.currentProvince.toUpperCase()} | FECHA: ${format(parseISO(data.date), 'dd/MM/yyyy HH:mm')}`, 14, 40);
+        
+        const summary = [
+            ['Veredicto Operativo', data.canCirculate ? 'APTA PARA CIRCULAR' : 'FUERA DE SERVICIO'],
+            ['Responsable Técnico', data.clarification],
+            ['Observaciones Generales', data.generalObservations || 'Sin notas adicionales']
+        ];
+
+        autoTable(doc, {
+            startY: 50,
+            head: [['SÍNTESIS DE REGISTRO', 'ESTADO']],
+            body: summary,
+            theme: 'grid',
+            headStyles: { fillColor: [30, 41, 59] }
+        });
+
+        const sections = [
+            { t: 'SECCIÓN A: MECÁNICA Y NIVELES', d: data.motor },
+            { t: 'SECCIÓN B: ILUMINACIÓN', d: data.lights },
+            { t: 'SECCIÓN C: CABINA', d: data.general },
+            { t: 'SECCIÓN D: CARROCERÍA', d: data.bodywork },
+            { t: 'SECCIÓN E: ACCESORIOS', d: data.accessories }
+        ];
+
+        let finalY = (doc as any).lastAutoTable.finalY + 10;
+        sections.forEach(s => {
+            if (finalY > 250) { doc.addPage(); finalY = 20; }
+            doc.setTextColor(15, 23, 42); doc.setFontSize(10); doc.text(s.t, 14, finalY);
+            autoTable(doc, {
+                startY: finalY + 5,
+                head: [['ÍTEM', 'ESTADO', 'DETALLE DE NOVEDAD']],
+                body: s.d.map((i:any) => [
+                    i.name.toUpperCase(), 
+                    i.hasIt === false ? 'NO POSEE' : (i.status === 'GOOD' ? 'OK' : i.status === 'REGULAR' ? 'REGULAR' : i.status === 'BAD' ? 'DEFECTUOSO' : 'N/E'),
+                    i.observation || '-'
+                ]),
+                theme: 'striped',
+                headStyles: { fillColor: [71, 85, 105] },
+                styles: { fontSize: 8 }
+            });
+            finalY = (doc as any).lastAutoTable.finalY + 10;
+        });
+
+        doc.save(`Inspeccion_${data.vehiclePlate}_${format(parseISO(data.date), 'yyyyMMdd_HHmm')}.pdf`);
+    };
+
+    const ThumbnailsRow = ({ images }: { images: string[] }) => (
+        images && images.length > 0 ? (
+            <div className="flex flex-wrap gap-1 mt-2">
+                {images.map((img, i) => (
+                    <div key={i} className="w-8 h-8 rounded-lg overflow-hidden border border-slate-200 cursor-zoom-in" onClick={() => setZoomedImage({url: img, label: 'Evidencia'})}>
+                        <img src={img} className="w-full h-full object-cover" alt="Evidencia" />
+                    </div>
+                ))}
+            </div>
+        ) : null
+    );
 
     const StatusPicker = ({ section, index, status, disabled }: { section: string, index: number, status: any, disabled?: boolean }) => (
         <div className={`flex items-center gap-2 ${disabled ? 'opacity-20 pointer-events-none grayscale' : ''}`}>
             <div className="flex bg-white p-1 rounded-xl border border-slate-200">
-                <button type="button" onClick={() => handleStatusChange(section, index, 'GOOD')} className={`px-4 py-1.5 rounded-lg text-[8px] font-black transition-all ${status === 'GOOD' ? 'bg-emerald-500 text-white shadow-md' : 'text-slate-400 hover:bg-slate-50'}`}>OK</button>
-                <button type="button" onClick={() => handleStatusChange(section, index, 'REGULAR')} className={`px-4 py-1.5 rounded-lg text-[8px] font-black transition-all ${status === 'REGULAR' ? 'bg-amber-500 text-white shadow-md' : 'text-slate-400 hover:bg-slate-50'}`}>REG</button>
-                <button type="button" onClick={() => handleStatusChange(section, index, 'BAD')} className={`px-4 py-1.5 rounded-lg text-[8px] font-black transition-all ${status === 'BAD' ? 'bg-rose-500 text-white shadow-md' : 'text-slate-400 hover:bg-slate-50'}`}>DEF</button>
+                {['GOOD', 'REGULAR', 'BAD'].map((s: any) => (
+                    <button key={s} type="button" onClick={() => {
+                        const setMap: any = { motor: setMotorItems, lights: setLightItems, general: setGeneralItems, bodywork: setBodyworkItems, accessories: setAccessoryItems };
+                        const itemsMap: any = { motor: motorItems, lights: lightItems, general: generalItems, bodywork: bodyworkItems, accessories: accessoryItems };
+                        const ni = [...itemsMap[section]];
+                        ni[index].status = s;
+                        setMap[section](ni);
+                        if (s === 'BAD') setCanCirculate(false);
+                    }} className={`px-4 py-1.5 rounded-lg text-[8px] font-black transition-all ${status === s ? (s === 'GOOD' ? 'bg-emerald-500' : s === 'REGULAR' ? 'bg-amber-500' : 'bg-rose-500') + ' text-white shadow-md' : 'text-slate-400 hover:bg-slate-50'}`}>
+                        {s === 'GOOD' ? 'OK' : s === 'REGULAR' ? 'REG' : 'DEF'}
+                    </button>
+                ))}
             </div>
             {!disabled && (
                 <label className="p-2.5 bg-blue-50 text-blue-600 rounded-xl border border-blue-100 cursor-pointer hover:bg-blue-600 hover:text-white transition-all shadow-sm">
                     <Camera size={16}/>
-                    <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => handlePhotoCapture(section, index, e)} />
+                    <input type="file" accept="image/*" capture="environment" className="hidden" onChange={async (e) => {
+                        if (!e.target.files?.[0]) return;
+                        const compressed = await compressImage(await new Promise(r => { const rd = new FileReader(); rd.onload = () => r(rd.result as string); rd.readAsDataURL(e.target.files![0]); }));
+                        const setMap: any = { motor: setMotorItems, lights: setLightItems, general: setGeneralItems, bodywork: setBodyworkItems, accessories: setAccessoryItems };
+                        const itemsMap: any = { motor: motorItems, lights: lightItems, general: generalItems, bodywork: bodyworkItems, accessories: accessoryItems };
+                        const ni = [...itemsMap[section]];
+                        ni[index].images = [...(ni[index].images || []), compressed];
+                        setMap[section](ni);
+                    }} />
                 </label>
             )}
+        </div>
+    );
+
+    const DossierView = ({ data, onDownload, onClose }: { data: ChecklistType, onDownload?: () => void, onClose: () => void }) => (
+        <div className="fixed inset-0 z-[2100] bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-2 md:p-4 lg:p-4 animate-fadeIn">
+            <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-[98vw] lg:max-w-6xl h-[95vh] flex flex-col overflow-hidden border-t-[12px] border-indigo-600">
+                <div className="bg-slate-950 p-6 md:p-8 text-white flex justify-between items-center shrink-0">
+                    <div className="flex items-center gap-4">
+                        <div className="p-3 md:p-4 bg-indigo-600 rounded-2xl md:rounded-3xl shadow-xl"><LucideFileSearch2 size={24}/></div>
+                        <div>
+                            <h3 className="text-lg md:text-xl font-black uppercase italic tracking-tighter leading-none">Hoja de Inspección</h3>
+                            <p className="text-[8px] md:text-[10px] font-black text-slate-500 uppercase tracking-widest mt-1">Sincronización de Campo Digital</p>
+                        </div>
+                    </div>
+                    <div className="flex gap-2 md:gap-4">
+                        {onDownload && (
+                            <button onClick={onDownload} className="px-3 md:px-6 py-2 md:py-3 bg-emerald-600 text-white rounded-xl md:rounded-2xl font-black uppercase text-[8px] md:text-[10px] tracking-widest hover:bg-emerald-500 transition-all flex items-center gap-2 shadow-lg">
+                                <LucideDownload size={16}/> <span className="hidden sm:inline">Descargar PDF</span>
+                            </button>
+                        )}
+                        <button onClick={onClose} className="p-3 md:p-4 bg-white/10 hover:bg-rose-600 text-white rounded-xl md:rounded-2xl transition-all shadow-xl"><LucideX size={20}/></button>
+                    </div>
+                </div>
+                
+                <div className="flex-1 bg-slate-100 p-4 md:p-10 overflow-auto custom-scrollbar font-sans w-full">
+                    <div className="mx-auto bg-white shadow-inner rounded-[2rem] overflow-hidden border border-slate-200 min-w-[750px] lg:min-w-0 lg:max-w-4xl">
+                        <div className="p-8 md:p-12 space-y-10">
+                            <div className="flex justify-between items-start border-b-4 border-slate-900 pb-6">
+                                <div>
+                                    <h2 className="text-2xl font-black uppercase italic tracking-tighter text-slate-900">Hoja de Inspección Técnica</h2>
+                                    <div className="flex items-center gap-2 mt-1">
+                                        <LucideClock size={12} className="text-blue-600"/>
+                                        <p className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em] italic">{format(parseISO(data.date), "dd 'de' MMMM, yyyy HH:mm'hs'", {locale: es})}</p>
+                                    </div>
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Unidad Auditada</p>
+                                    <p className="text-4xl font-black text-slate-900 italic uppercase leading-none">{data.vehiclePlate}</p>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-10">
+                                <div className="space-y-4">
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-1">Contexto de Operación</p>
+                                    <div className="grid grid-cols-1 gap-2 text-xs font-bold text-slate-700">
+                                        <div className="flex justify-between"><span className="text-slate-400 uppercase text-[9px]">Kilometraje:</span> <span>{data.km.toLocaleString()} KM</span></div>
+                                        <div className="flex justify-between"><span className="text-slate-400 uppercase text-[9px]">Tipo Control:</span> <span className="uppercase">{data.type}</span></div>
+                                        <div className="flex justify-between"><span className="text-slate-400 uppercase text-[9px]">Ubicación:</span> <span className="uppercase">{data.currentProvince}</span></div>
+                                    </div>
+                                </div>
+                                <div className="space-y-4">
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-1">Responsable Técnico</p>
+                                    <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-1">
+                                        <p className="text-sm font-black text-slate-900 uppercase italic">{data.clarification}</p>
+                                        <p className="text-[9px] font-bold text-slate-400 uppercase">{data.costCenter}</p>
+                                    </div>
+                                    <div className={`p-4 rounded-2xl text-center font-black uppercase text-xs border-2 shadow-sm ${data.canCirculate ? 'bg-emerald-50 border-emerald-500 text-emerald-600' : 'bg-rose-50 border-rose-500 text-rose-600'}`}>
+                                        {data.canCirculate ? 'APTA PARA CIRCULAR' : 'FUERA DE SERVICIO'}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="space-y-10">
+                                {[
+                                    { t: 'SECCIÓN A: MECÁNICA Y NIVELES', d: data.motor, icon: Cpu, color: 'text-blue-600' },
+                                    { t: 'SECCIÓN B: ILUMINACIÓN', d: data.lights, icon: Lightbulb, color: 'text-amber-500' },
+                                    { t: 'SECCIÓN C: CABINA Y CONTROLES', d: data.general, icon: Layout, color: 'text-emerald-600' },
+                                    { t: 'SECCIÓN D: CARROCERÍA', d: data.bodywork, icon: Truck, color: 'text-rose-500' },
+                                    { t: 'SECCIÓN E: INVENTARIO ACCESORIOS', d: data.accessories, icon: Zap, color: 'text-indigo-600' }
+                                ].map((section, sidx) => (
+                                    <div key={sidx} className="space-y-4">
+                                        <div className="flex items-center gap-3 border-b pb-2">
+                                            <section.icon className={section.color} size={18}/>
+                                            <h4 className="text-xs font-black text-slate-800 uppercase italic tracking-widest">{section.t}</h4>
+                                        </div>
+                                        <div className="space-y-1">
+                                            {section.d.map((item, iidx) => (
+                                                <PreviewItem key={iidx} item={item} />
+                                            ))}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-10 pt-10 border-t-2 border-slate-100">
+                                <div className="space-y-4">
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Observaciones Generales</p>
+                                    <div className="p-6 bg-slate-50 rounded-3xl min-h-[120px] text-xs font-bold text-slate-600 leading-relaxed italic border border-slate-100">
+                                        {data.generalObservations ? `"${data.generalObservations}"` : "Sin anotaciones adicionales de campo."}
+                                    </div>
+                                </div>
+                                <div className="space-y-4">
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Firma de Conformidad</p>
+                                    <div className="h-40 bg-slate-50 border-2 border-slate-100 rounded-[2.5rem] flex items-center justify-center overflow-hidden shadow-inner relative group">
+                                        {data.signature ? (
+                                            <img src={data.signature} className="h-full object-contain mix-blend-multiply" alt="Firma" />
+                                        ) : (
+                                            <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.3em] italic">Sin firma digital</p>
+                                        )}
+                                        <div className="absolute bottom-4 left-0 right-0 text-center">
+                                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">{data.clarification}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="p-8 bg-slate-50 border-t flex justify-between items-center shrink-0">
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest italic flex items-center gap-2"><LucideShieldCheck className="text-blue-600" size={14}/> Certificación Digital FleetPro</p>
+                    <button onClick={onClose} className="px-12 py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-indigo-700 transition-all shadow-lg flex items-center gap-2"><LucideX size={16}/> Cerrar Vista</button>
+                </div>
+            </div>
         </div>
     );
 
     if (viewMode === 'LIST') {
         return (
             <div className="space-y-8 animate-fadeIn pb-10">
+                {viewingChecklist && (
+                    <DossierView 
+                        data={viewingChecklist} 
+                        onDownload={() => handleGeneratePDF(viewingChecklist)} 
+                        onClose={() => setViewingChecklist(null)} 
+                    />
+                )}
                 <div className="flex justify-between items-center">
-                    <h1 className="text-4xl font-black text-slate-800 uppercase italic flex items-center gap-3"><FileText className="text-blue-600" size={36}/> Inspecciones v19.3.0</h1>
+                    <h1 className="text-4xl font-black text-slate-800 uppercase italic flex items-center gap-3"><FileText className="text-blue-600" size={36}/> Inspecciones</h1>
                     <button onClick={() => setViewMode('CREATE')} className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black flex items-center gap-3 hover:bg-blue-700 shadow-2xl transition-all text-[11px] uppercase tracking-widest"><Plus size={24}/> Nueva Auditoría</button>
                 </div>
                 <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden">
                     <div className="p-8 border-b border-slate-50 flex items-center gap-4 bg-slate-50/50"><Search className="text-slate-400" size={24}/><input type="text" placeholder="Buscar patente..." className="bg-transparent border-none outline-none font-bold text-slate-700 w-full text-lg uppercase" value={searchTerm} onChange={e => setSearchTerm(e.target.value)}/></div>
                     <div className="divide-y divide-slate-50">
                         {checklists.filter(c => c.vehiclePlate.includes(searchTerm.toUpperCase())).map(c => (
-                            <div key={c.id} className="p-6 hover:bg-slate-50 transition-all flex justify-between items-center cursor-pointer">
-                                <div className="flex items-center gap-6"><div className={`w-12 h-12 rounded-xl flex items-center justify-center text-white font-black ${c.canCirculate ? 'bg-emerald-500' : 'bg-rose-500'}`}>{c.vehiclePlate.substring(0,2)}</div><div><h3 className="text-xl font-black text-slate-800 uppercase italic">{c.vehiclePlate}</h3><p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">{format(parseISO(c.date), 'dd/MM/yyyy HH:mm')} • {c.userName}</p></div></div>
-                                <div className="flex items-center gap-2">
-                                    <button onClick={() => { setViewingChecklist(c); setViewMode('VIEW'); }} className="p-3 text-slate-400 hover:text-blue-600 rounded-xl"><Eye size={20}/></button>
+                            <div key={c.id} onClick={() => setViewingChecklist(c)} className="p-6 hover:bg-slate-50 transition-all flex justify-between items-center cursor-pointer group">
+                                <div className="flex items-center gap-6">
+                                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-white font-black ${c.canCirculate ? 'bg-emerald-500' : 'bg-rose-500'}`}>
+                                        {c.vehiclePlate.substring(0,2)}
+                                    </div>
+                                    <div>
+                                        <h3 className="text-xl font-black text-slate-800 uppercase italic group-hover:text-blue-600 transition-colors">{c.vehiclePlate}</h3>
+                                        <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">{format(parseISO(c.date), 'dd/MM/yyyy HH:mm')} • {c.userName}</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-4">
+                                    <div className="p-2 bg-slate-100 text-slate-400 rounded-lg group-hover:bg-blue-600 group-hover:text-white transition-all shadow-sm">
+                                        <Eye size={20}/>
+                                    </div>
+                                    <LucideChevronRight className="text-slate-200 group-hover:text-blue-600 transition-all" size={24}/>
                                 </div>
                             </div>
                         ))}
@@ -393,57 +544,89 @@ export const Checklist = () => {
         );
     }
 
-    if (viewMode === 'VIEW' && viewingChecklist) {
-        return (
-            <div className="fixed inset-0 z-[2000] bg-slate-950/95 backdrop-blur-xl flex items-center justify-center p-4">
-                <div className="bg-white rounded-[3.5rem] shadow-2xl w-full max-w-4xl overflow-hidden animate-fadeIn flex flex-col max-h-[90vh]">
-                    <div className="bg-slate-950 p-8 text-white flex justify-between items-center shrink-0">
-                        <div className="flex items-center gap-4"><div className="p-3 bg-blue-600 rounded-2xl shadow-lg"><FileSearch size={24}/></div><h3 className="text-xl font-black uppercase italic tracking-tighter text-white">Visualización de Registro</h3></div>
-                        <button onClick={() => setViewMode('LIST')} className="text-white hover:text-rose-500"><X size={24}/></button>
-                    </div>
-                    <div className="flex-1 overflow-y-auto p-10 space-y-10 custom-scrollbar">
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                            <div className="space-y-1"><p className="text-[8px] font-black text-slate-400 uppercase">Kilometraje</p><p className="text-xl font-black text-slate-900">{viewingChecklist.km.toLocaleString()} KM</p></div>
-                            <div className="space-y-1"><p className="text-[8px] font-black text-slate-400 uppercase">Tipo</p><p className="text-sm font-black text-slate-900 uppercase">{viewingChecklist.type}</p></div>
-                            <div className="space-y-1"><p className="text-[8px] font-black text-slate-400 uppercase">Unidad</p><p className="text-sm font-black text-slate-900 uppercase">{viewingChecklist.vehiclePlate}</p></div>
-                        </div>
-                        <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100"><p className="text-[9px] font-black text-slate-400 uppercase mb-3">Veredicto Operativo</p><p className={`font-black uppercase text-base ${viewingChecklist.canCirculate ? 'text-emerald-600' : 'text-rose-600'}`}>{viewingChecklist.canCirculate ? 'APTA PARA CIRCULAR' : 'FUERA DE SERVICIO'}</p></div>
-                    </div>
-                    <div className="p-8 bg-slate-50 border-t shrink-0"><button onClick={() => setViewMode('LIST')} className="w-full py-5 rounded-2xl font-black text-slate-400 uppercase text-[10px] tracking-widest border border-slate-200">Volver al Listado</button></div>
-                </div>
-            </div>
-        );
-    }
+    const currentChecklistDataForPreview: ChecklistType = {
+        id: 'PREVIEW',
+        vehiclePlate: plateSearch,
+        userId: user?.id || 'sys',
+        userName: clarification,
+        date: new Date().toISOString(),
+        type: checkType,
+        km: km,
+        costCenter: selectedVehicle?.costCenter || 'S/A',
+        currentProvince: province,
+        canCirculate: canCirculate,
+        motor: motorItems,
+        lights: lightItems,
+        general: generalItems,
+        bodywork: bodyworkItems,
+        accessories: accessoryItems,
+        signature: signature,
+        clarification: clarification,
+        generalObservations: generalObservations
+    };
 
     return (
         <div className="max-w-4xl mx-auto pb-24 animate-fadeIn px-4 space-y-8">
+            {zoomedImage && <ImageZoomModal url={zoomedImage.url} label={zoomedImage.label} onClose={() => setZoomedImage(null)} />}
+            
+            {showHtmlPreview && (
+                <DossierView 
+                    data={currentChecklistDataForPreview} 
+                    onClose={() => setShowHtmlPreview(false)} 
+                />
+            )}
+
             <div className="flex items-center gap-4">
                 <button onClick={() => setViewMode('LIST')} className="p-4 bg-white rounded-2xl shadow-sm border border-slate-100 text-slate-500 hover:text-slate-800 transition-all"><ArrowLeft size={24}/></button>
-                <div><h1 className="text-3xl font-black text-slate-800 tracking-tight uppercase italic leading-none">Inspección Operativa</h1><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">SISTEMA EMPRESARIAL v19.3.0</p></div>
+                <div><h1 className="text-3xl font-black text-slate-800 tracking-tight uppercase italic leading-none">Inspección Operativa</h1><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">SISTEMA EMPRESARIAL</p></div>
             </div>
 
-            <section className={`bg-white p-10 rounded-[3rem] text-slate-800 shadow-2xl relative overflow-hidden border-t-8 transition-all ${errors.plate_input || errors.km_input ? 'border-rose-500' : 'border-blue-600'}`}>
+            <section className={`bg-white p-10 rounded-[3rem] text-slate-800 shadow-2xl relative border-t-8 transition-all ${errors.plate_input || errors.km_input || errors.travel_inputs || errors.province_input ? 'border-rose-500' : 'border-blue-600'}`}>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div className="space-y-3 relative">
                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Unidad (Patente)</label>
-                        <div className="relative">
-                            <input id="plate_input" type="text" className={`w-full px-6 py-5 bg-slate-50 border rounded-2xl font-black text-2xl uppercase outline-none focus:ring-4 focus:ring-blue-100 transition-all ${errors.plate_input ? 'border-rose-500 bg-rose-50' : 'border-slate-200'}`} placeholder="BUSCAR..." value={plateSearch} onChange={e => { setPlateSearch(e.target.value.toUpperCase()); setShowSuggestions(true); }} onFocus={() => setShowSuggestions(true)}/>
-                            <Search className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-300" size={24}/>
-                        </div>
-                        {showSuggestions && (<div className="absolute z-[100] w-full mt-2 bg-white rounded-2xl shadow-2xl border border-slate-200 max-h-60 overflow-y-auto">{filteredVehicles.map(v => (<div key={v.plate} className="p-4 hover:bg-blue-50 cursor-pointer flex justify-between items-center border-b border-slate-50" onClick={() => { setPlateSearch(v.plate); setShowSuggestions(false); }}><span className="text-slate-900 font-black text-lg italic">{v.plate}</span><div className="text-right"><p className="text-slate-400 font-bold text-[9px] uppercase">{v.make} {v.model}</p></div></div>))}</div>)}
+                        <input id="plate_input" type="text" className={`w-full px-6 py-5 bg-slate-50 border rounded-2xl font-black text-2xl uppercase outline-none focus:ring-4 focus:ring-blue-100 ${errors.plate_input ? 'border-rose-500 bg-rose-50' : 'border-slate-200'}`} placeholder="BUSCAR..." value={plateSearch} onChange={e => { setPlateSearch(e.target.value.toUpperCase()); setShowSuggestions(true); }} onFocus={() => setShowSuggestions(true)}/>
+                        {showSuggestions && (<div className="absolute z-[100] w-full mt-2 bg-white rounded-2xl shadow-2xl border border-slate-200 max-h-60 overflow-y-auto">{filteredVehicles.map(v => (<div key={v.plate} className="p-4 hover:bg-blue-50 cursor-pointer flex justify-between items-center border-b border-slate-50" onClick={() => { setPlateSearch(v.plate); setShowSuggestions(false); }}><span className="text-slate-900 font-black text-lg italic">{v.plate}</span><span className="text-slate-400 font-bold text-[9px] uppercase">{v.make} {v.model}</span></div>))}</div>)}
                     </div>
                     <div className="space-y-3">
                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Kilometraje Auditado</label>
-                        <div className="relative">
-                            <Gauge className={`absolute left-6 top-1/2 -translate-y-1/2 ${errors.km_input ? 'text-rose-500' : 'text-slate-300'}`} size={24}/>
-                            <input id="km_input" type="number" onFocus={(e) => e.target.select()} className={`w-full pl-16 pr-6 py-5 bg-slate-50 border rounded-2xl font-black text-4xl outline-none ${errors.km_input ? 'border-rose-500 text-rose-600' : 'border-slate-200 text-blue-600'}`} value={km || ''} onChange={e => setKm(Number(e.target.value))} />
-                        </div>
+                        <input id="km_input" type="number" onFocus={(e) => e.target.select()} className={`w-full px-8 py-5 bg-slate-50 border rounded-2xl font-black text-4xl outline-none ${errors.km_input ? 'border-rose-500 text-rose-600' : 'border-slate-200 text-blue-600'}`} value={km || ''} onChange={e => setKm(Number(e.target.value))} />
                     </div>
                 </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6 border-t border-slate-100 mt-6">
-                    <div className="space-y-1"><label className="text-[9px] font-black text-slate-400 uppercase ml-2">Tipo de Control</label><select className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-black uppercase text-[10px] outline-none" value={checkType} onChange={e => setCheckType(e.target.value)}><option value="DIARIO">DIARIO / RUTINA</option><option value="INGRESO">VIAJE DE INGRESO</option><option value="EGRESO">VIAJE DE EGRESO</option><option value="REEMPLAZO">POR REEMPLAZO</option><option value="TURNO">POR CAMBIO DE TURNO</option><option value="POR INGRESO A TALLER">POR INGRESO A TALLER</option></select></div>
-                    <div className="space-y-1"><label className="text-[9px] font-black text-slate-400 uppercase ml-2">Provincia Operativa</label><input type="text" className="w-full px-4 py-3 bg-slate-50 rounded-xl border border-slate-200 font-black text-[10px] text-slate-600 outline-none uppercase" value={province} onChange={e => setProvince(e.target.value)} /></div>
+                    <div className="space-y-1">
+                        <label className="text-[9px] font-black text-slate-400 uppercase ml-2">Tipo de Control</label>
+                        <select className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-black uppercase text-[10px] outline-none" value={checkType} onChange={e => setCheckType(e.target.value)}>
+                            {['DIARIO', 'VIAJE DE INGRESO', 'VIAJE DE EGRESO', 'REEMPLAZO', 'POR CAMBIO DE TURNO', 'ENTREGA / RECEPCIÓN'].map(t => <option key={t} value={t}>{t}</option>)}
+                        </select>
+                    </div>
+                    <div className="space-y-1">
+                        <label className="text-[9px] font-black text-slate-400 uppercase ml-2">Ubicación Actual (Manual)</label>
+                        <input id="province_input" type="text" className={`w-full px-4 py-3 rounded-xl border font-black text-[10px] uppercase outline-none ${errors.province_input ? 'border-rose-500 bg-rose-50' : 'bg-slate-50 border-slate-200 focus:bg-white'}`} placeholder="Ingrese lugar de auditoría..." value={province} onChange={e => setProvince(e.target.value.toUpperCase())} />
+                    </div>
                 </div>
+
+                {gpsCoords && (
+                    <div className="mt-4 p-4 bg-blue-600/5 border border-blue-200 rounded-2xl flex items-center gap-4 animate-fadeIn">
+                        <div className="p-2 bg-blue-600 text-white rounded-lg shadow-lg"><LucideLocate size={20} className="animate-pulse" /></div>
+                        <div className="flex-1"><p className="text-[8px] font-black text-blue-400 uppercase tracking-widest">Posición Real GPS (Automática)</p><p className="text-[11px] font-black text-blue-600 italic mt-1">{gpsCoords}</p></div>
+                        <span className="text-[7px] font-black text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-100 uppercase tracking-widest">Sincronizado</span>
+                    </div>
+                )}
+
+                {['VIAJE DE INGRESO', 'VIAJE DE EGRESO'].includes(checkType) && (
+                    <div id="travel_inputs" className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6 animate-fadeIn border-t border-slate-100 mt-6">
+                        <div className="space-y-1">
+                            <label className="text-[9px] font-black text-slate-400 uppercase ml-2 flex items-center gap-1"><LucideMapPinHouse size={10} className="text-blue-500"/> Lugar Origen</label>
+                            <input type="text" className={`w-full px-4 py-3 rounded-xl border font-bold text-[10px] uppercase outline-none transition-all ${errors.travel_inputs && !originSector ? 'border-rose-500 bg-rose-50' : 'bg-slate-50 border-slate-200 focus:bg-white'}`} placeholder="Punto de Salida..." value={originSector} onChange={e => setOriginSector(e.target.value.toUpperCase())} />
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-[9px] font-black text-slate-400 uppercase ml-2 flex items-center gap-1"><LucideMapPinCheck size={10} className="text-emerald-500"/> Lugar Destino</label>
+                            <input type="text" className={`w-full px-4 py-3 rounded-xl border font-bold text-[10px] uppercase outline-none transition-all ${errors.travel_inputs && !destinationSector ? 'border-rose-500 bg-rose-50' : 'bg-slate-50 border-slate-200 focus:bg-white'}`} placeholder="Punto de Llegada..." value={destinationSector} onChange={e => setDestinationSector(e.target.value.toUpperCase())} />
+                        </div>
+                    </div>
+                )}
             </section>
 
             {[
@@ -454,88 +637,124 @@ export const Checklist = () => {
             ].map(sec => (
                 <div id={sec.id} key={sec.id} className={`bg-white rounded-[2.5rem] shadow-sm border transition-all ${errors[sec.id] ? 'border-rose-500 ring-4 ring-rose-50' : 'border-slate-100'} overflow-hidden`}>
                     <button onClick={() => setOpenSections(p => ({...p, [sec.id]: !p[sec.id]}))} className={`w-full p-6 flex justify-between items-center bg-slate-50 border-l-8 border-${sec.color}-500 hover:bg-slate-100 transition-all`}><div className="flex items-center gap-4"><sec.icon className={`text-${sec.color}-500`} size={24}/> <h3 className="font-black uppercase text-xs italic tracking-widest text-slate-800">{sec.label}</h3></div>{openSections[sec.id] ? <ChevronUp/> : <ChevronDown/>}</button>
-                    {openSections[sec.id] && (<div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4 animate-fadeIn">{sec.items.map((item, idx) => (<div key={idx} className="space-y-2"><div className={`p-4 rounded-2xl border flex justify-between items-center transition-all ${item.status === undefined && errors[sec.id] ? 'border-rose-500 bg-rose-50' : 'bg-slate-50 border-slate-100'}`}><div className="flex items-center gap-3"><h4 className={`font-black uppercase italic text-[10px] text-slate-800`}>{item.name}</h4></div><StatusPicker section={sec.id} index={idx} status={item.status} disabled={item.hasIt === false} /></div>{(item.status === 'REGULAR' || item.status === 'BAD') && item.hasIt !== false && (<EvidencePanel item={item} onUpdate={(u) => updateEvidence(sec.id, idx, u)} />)}</div>))}</div>)}
+                    {openSections[sec.id] && (
+                        <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4 animate-fadeIn">
+                            {sec.items.map((item, idx) => (
+                                <div key={idx} className="space-y-2">
+                                    <div className={`p-4 rounded-2xl border flex flex-col transition-all ${item.status === undefined && item.hasIt !== false && errors[sec.id] ? 'border-rose-500 bg-rose-50' : 'bg-slate-50 border-slate-100'}`}>
+                                        <div className="flex justify-between items-center w-full">
+                                            <div className="flex items-center gap-4">
+                                                {sec.id === 'general' && item.name === 'Equipo de Frío' && (
+                                                  <div className="flex bg-white p-1 rounded-lg border border-slate-200 shadow-sm shrink-0">
+                                                      <button 
+                                                          type="button"
+                                                          onClick={() => {
+                                                              const ni = [...generalItems];
+                                                              ni[idx].hasIt = true;
+                                                              setGeneralItems(ni);
+                                                          }}
+                                                          className={`px-2 py-1 rounded text-[7px] font-black transition-all ${item.hasIt !== false ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:bg-slate-50'}`}
+                                                      >SI</button>
+                                                      <button 
+                                                          type="button"
+                                                          onClick={() => {
+                                                              const ni = [...generalItems];
+                                                              ni[idx].hasIt = false;
+                                                              ni[idx].status = undefined;
+                                                              ni[idx].observation = '';
+                                                              setGeneralItems(ni);
+                                                          }}
+                                                          className={`px-2 py-1 rounded text-[7px] font-black transition-all ${item.hasIt === false ? 'bg-slate-600 text-white shadow-sm' : 'text-slate-400 hover:bg-slate-50'}`}
+                                                      >NO</button>
+                                                  </div>
+                                                )}
+                                                <div className="flex flex-col">
+                                                    <h4 className={`font-black uppercase italic text-[10px] text-slate-800`}>{item.name}</h4>
+                                                    <ThumbnailsRow images={item.images || []} />
+                                                </div>
+                                            </div>
+                                            <StatusPicker section={sec.id} index={idx} status={item.status} disabled={item.hasIt === false} />
+                                        </div>
+                                    </div>
+                                    {(item.status === 'REGULAR' || item.status === 'BAD') && item.hasIt !== false && (
+                                        <EvidencePanel id={`obs_${sec.id}_${idx}`} item={item} onUpdate={(u) => {
+                                            const setMap: any = { motor: setMotorItems, lights: setLightItems, general: setGeneralItems, bodywork: setBodyworkItems, accessories: setAccessoryItems };
+                                            const itemsMap: any = { motor: motorItems, lights: lightItems, general: generalItems, bodywork: bodyworkItems, accessories: accessoryItems };
+                                            const ni = [...itemsMap[sec.id]];
+                                            ni[idx] = { ...ni[idx], ...u };
+                                            setMap[sec.id](ni);
+                                            if (u.observation?.trim()) setErrors(prev => ({ ...prev, [`obs_${sec.id}_${idx}`]: false }));
+                                        }} error={errors[`obs_${sec.id}_${idx}`]} />
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
             ))}
 
             <div id="accessories" className={`bg-white rounded-[2.5rem] shadow-sm border transition-all ${errors.accessories ? 'border-rose-500 ring-4 ring-rose-50' : 'border-slate-100'} overflow-hidden`}>
                 <button onClick={() => setOpenSections(p => ({...p, accessories: !p.accessories}))} className="w-full p-6 flex justify-between items-center bg-slate-50 border-l-8 border-indigo-600 hover:bg-slate-100 transition-all"><div className="flex items-center gap-4"><Zap className="text-indigo-600" size={24}/> <h3 className="font-black uppercase text-xs italic tracking-widest text-slate-800">Sección E: Inventario y Seguridad</h3></div>{openSections.accessories ? <ChevronUp/> : <ChevronDown/>}</button>
-                {openSections.accessories && (<div className="p-6 space-y-3 animate-fadeIn">{accessoryItems.map((item, idx) => (<div key={idx} className="space-y-2 border-b border-slate-50 pb-4 last:border-0 last:pb-0"><div className={`p-5 rounded-[2rem] border transition-all ${item.status === undefined && errors.accessories ? 'border-rose-500 bg-rose-50 shadow-inner' : 'bg-slate-50 border-slate-100'}`}><div className="flex flex-col sm:flex-row items-center justify-between gap-6"><div className="flex-1 w-full sm:w-1/3"><h4 className="font-black text-slate-800 uppercase italic text-[11px] leading-tight">{item.name}</h4></div><div className="flex-1 flex justify-center items-center gap-3 w-full sm:w-1/3"><div className={`flex items-center gap-3 px-4 py-2 rounded-2xl border bg-white border-slate-200 shadow-sm`}><button type="button" onClick={() => updateManualItem(idx, 'quantityFound', Math.max(0, item.quantityFound - 1))} className="text-slate-400 hover:text-rose-500"><MinusCircle size={20}/></button><div className="flex flex-col items-center"><input type="number" min="0" onFocus={(e) => e.target.select()} className="w-12 text-center font-black text-xl bg-transparent outline-none text-blue-600" value={item.quantityFound} onChange={e => updateManualItem(idx, 'quantityFound', Number(e.target.value))} /></div><button type="button" onClick={() => updateManualItem(idx, 'quantityFound', item.quantityFound + 1)} className="text-slate-400 hover:text-rose-500"><PlusCircle size={20}/></button></div></div><div className="flex-1 flex justify-end w-full sm:w-1/3"><StatusPicker section="accessories" index={idx} status={item.status} /></div></div></div>{(item.status === 'REGULAR' || item.status === 'BAD' || item.quantityFound === 0) && (<EvidencePanel item={item} onUpdate={(u) => updateEvidence('accessories', idx, u)} />)}</div>))}</div>)}
+                {openSections.accessories && (
+                    <div className="p-6 space-y-3 animate-fadeIn">
+                        {accessoryItems.map((item, idx) => (
+                            <div key={idx} className="space-y-2 border-b border-slate-50 pb-4 last:border-0 last:pb-0">
+                                <div className={`p-5 rounded-[2rem] border transition-all ${item.status === undefined && errors.accessories ? 'border-rose-500 bg-rose-50 shadow-inner' : 'bg-slate-50 border-slate-100'}`}>
+                                    <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
+                                        <div className="flex-1 w-full sm:w-1/3">
+                                            <h4 className="font-black text-slate-800 uppercase italic text-[11px] leading-tight">{item.name}</h4>
+                                            <ThumbnailsRow images={item.images || []} />
+                                        </div>
+                                        <div className="flex-1 flex justify-center items-center gap-3 w-full sm:w-1/3"><div className={`flex items-center gap-3 px-4 py-2 rounded-2xl border bg-white border-slate-200 shadow-sm`}><button type="button" onClick={() => { const na = [...accessoryItems]; na[idx].quantityFound = Math.max(0, item.quantityFound - 1); setAccessoryItems(na); }} className="text-slate-400 hover:text-rose-500"><Plus size={16} className="rotate-45"/></button><input type="number" onFocus={(e) => e.target.select()} className="w-12 text-center font-black text-xl bg-transparent outline-none text-blue-600" value={item.quantityFound} onChange={e => { const na = [...accessoryItems]; na[idx].quantityFound = Number(e.target.value); setAccessoryItems(na); }} /><button type="button" onClick={() => { const na = [...accessoryItems]; na[idx].quantityFound = item.quantityFound + 1; setAccessoryItems(na); }} className="text-slate-400 hover:text-rose-500"><Plus size={16}/></button></div></div>
+                                        <div className="flex-1 flex justify-end w-full sm:w-1/3"><StatusPicker section="accessories" index={idx} status={item.status} /></div>
+                                    </div>
+                                </div>
+                                {(item.status === 'REGULAR' || item.status === 'BAD' || item.quantityFound < item.quantity) && (<EvidencePanel id={`obs_accessories_${idx}`} item={item} onUpdate={(u) => {
+                                    const na = [...accessoryItems];
+                                    na[idx] = { ...na[idx], ...u };
+                                    setAccessoryItems(na);
+                                    if (u.observation?.trim()) setErrors(prev => ({ ...prev, [`obs_accessories_${idx}`]: false }));
+                                }} error={errors[`obs_accessories_${idx}`]} />)}
+                            </div>
+                        ))}
+                    </div>
+                )}
             </div>
 
-            {/* SECCIÓN F: HALLAZGOS POR DIAGRAMA */}
-            {masterFindingsImage && (
-                <div id="findings" className={`bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden`}>
-                    <button onClick={() => setOpenSections(p => ({...p, findings: !p.findings}))} className="w-full p-6 flex justify-between items-center bg-slate-50 border-l-8 border-rose-600 hover:bg-slate-100 transition-all"><div className="flex items-center gap-4"><LucideCrosshair className="text-rose-600" size={24}/> <h3 className="font-black uppercase text-xs italic tracking-widest text-slate-800">Sección F: Hallazgos por Diagrama</h3></div>{openSections.findings ? <ChevronUp/> : <ChevronDown/>}</button>
-                    {openSections.findings && (
-                        <div className="p-8 space-y-10 animate-fadeIn">
-                            <div className="bg-slate-950 p-4 rounded-[3rem] shadow-2xl relative overflow-hidden group border-4 border-slate-900">
-                                <div className="p-4 border-b border-white/5 flex justify-between items-center text-white mb-4">
-                                    <div className="flex items-center gap-4"><span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Plano Técnico Maestro</span></div>
-                                    <p className="text-[9px] font-bold text-slate-400 italic">Haga clic en la imagen para marcar un punto de hallazgo</p>
-                                </div>
-                                <div ref={findingsImageRef} onClick={handleFindingsClick} className="relative cursor-crosshair flex items-center justify-center min-h-[400px]">
-                                    <img src={masterFindingsImage} className="max-w-full h-auto rounded-2xl select-none" alt="Diagrama Maestro" />
-                                    {findingsMarkers.map((marker) => (
-                                        <div key={marker.id} className="absolute w-8 h-8 -ml-4 -mt-4 bg-rose-600 border-2 border-white rounded-full flex items-center justify-center text-white font-black text-xs shadow-xl animate-fadeIn" style={{ left: `${marker.x}%`, top: `${marker.y}%` }}>
-                                            {marker.id}
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-1 gap-6">
-                                {findingsMarkers.map((marker) => (
-                                    <div key={marker.id} className="bg-slate-50 p-6 rounded-[2.5rem] border border-slate-200 space-y-4 animate-fadeIn">
-                                        <div className="flex justify-between items-center border-b border-slate-200 pb-4">
-                                            <div className="flex items-center gap-4">
-                                                <div className="w-10 h-10 bg-rose-600 text-white rounded-xl flex items-center justify-center font-black text-sm">#{marker.id}</div>
-                                                <h5 className="font-black uppercase italic text-slate-800 text-xs">Detalle Punto de Hallazgo {marker.id}</h5>
-                                            </div>
-                                            <button onClick={() => removeFindingMarker(marker.id)} className="p-2 text-slate-400 hover:text-rose-600 transition-colors"><Trash2 size={18}/></button>
-                                        </div>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                            <div className="space-y-2">
-                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4 flex items-center gap-2"><LucideMessageSquare size={12}/> Comentario Técnico</label>
-                                                <textarea rows={3} className="w-full p-4 bg-white border border-slate-200 rounded-2xl font-bold text-xs text-slate-700 outline-none focus:ring-4 focus:ring-rose-100 resize-none shadow-inner" placeholder="Describa el hallazgo en este punto..." value={marker.comment} onChange={e => updateFindingField(marker.id, 'comment', e.target.value)} />
-                                            </div>
-                                            <div className="space-y-2">
-                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4 flex items-center gap-2"><Camera size={14}/> Evidencia Fotográfica</label>
-                                                <div className="relative aspect-video rounded-2xl overflow-hidden border-2 border-dashed border-slate-200 group bg-white">
-                                                    {marker.photo ? (
-                                                        <>
-                                                            <img src={marker.photo} className="w-full h-full object-cover" alt={`Hallazgo ${marker.id}`} />
-                                                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                                                                <button onClick={() => updateFindingField(marker.id, 'photo', undefined)} className="p-3 bg-rose-600 text-white rounded-xl"><Trash2 size={20}/></button>
-                                                            </div>
-                                                        </>
-                                                    ) : (
-                                                        <label className="w-full h-full flex flex-col items-center justify-center cursor-pointer hover:bg-slate-50 transition-all text-slate-300">
-                                                            <Camera size={32} className="mb-2"/>
-                                                            <span className="text-[9px] font-black uppercase tracking-widest">Click para capturar</span>
-                                                            <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => handleFindingPhoto(marker.id, e)} />
-                                                        </label>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                                {findingsMarkers.length === 0 && (
-                                    <div className="py-12 text-center bg-slate-50 rounded-[2.5rem] border-2 border-dashed border-slate-100">
-                                        <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest italic">No se han marcado hallazgos sobre el plano aún</p>
-                                    </div>
-                                )}
-                            </div>
+            <section className={`bg-slate-950 p-12 rounded-[4rem] text-white space-y-12 shadow-2xl relative transition-all ${errors.received_by_input || errors.signature_pad ? 'ring-4 ring-rose-500/50' : ''}`}>
+                <div className="pt-6 border-b border-white/5 pb-12"><h4 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] mb-6 flex items-center gap-2"><Check size={16} className="text-emerald-500"/> VEREDICTO DE SEGURIDAD OPERATIVA</h4><div className="flex bg-slate-900/50 p-2 rounded-[2.5rem] border border-white/10 shadow-2xl"><button type="button" onClick={() => setCanCirculate(true)} className={`flex-1 py-6 rounded-[2rem] text-[11px] font-black uppercase transition-all flex items-center justify-center gap-3 ${canCirculate ? 'bg-emerald-600 text-white shadow-xl' : 'text-slate-500 hover:text-slate-300'}`}>APTA PARA CIRCULAR</button><button type="button" onClick={() => setCanCirculate(false)} className={`flex-1 py-6 rounded-[2rem] text-[11px] font-black uppercase transition-all flex items-center justify-center gap-3 ${!canCirculate ? 'bg-rose-600 text-white shadow-xl' : 'text-slate-500 hover:text-slate-300'}`}>FUERA DE SERVICIO</button></div></div>
+                
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 relative z-10">
+                    <div className="space-y-12 flex flex-col items-center">
+                        <div className="w-full space-y-4">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Firma del Inspector</label>
+                            <input className="w-full px-8 py-5 bg-white/5 border border-white/10 rounded-[2rem] font-black text-white outline-none focus:ring-4 focus:ring-blue-500/20" value={clarification} onChange={e => setClarification(e.target.value.toUpperCase())} />
                         </div>
-                    )}
-                </div>
-            )}
+                        <SignaturePad id="signature_pad" label="Área de Firma" onEnd={setSignature} error={errors.signature_pad} />
+                    </div>
 
-            <section className="bg-slate-950 p-12 rounded-[4rem] text-white space-y-12 shadow-2xl relative overflow-hidden">
-                <div className="pt-6 border-b border-white/5 pb-12"><h4 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] mb-6 flex items-center gap-2"><ShieldCheck size={16} className="text-emerald-500"/> VEREDICTO DE SEGURIDAD OPERATIVA</h4><div className="flex bg-slate-900/50 p-2 rounded-[2.5rem] border border-white/10 shadow-2xl"><button type="button" onClick={() => setCanCirculate(true)} className={`flex-1 py-6 rounded-[2rem] text-[11px] font-black uppercase transition-all flex items-center justify-center gap-3 ${canCirculate ? 'bg-emerald-600 text-white shadow-xl' : 'text-slate-500 hover:text-slate-300'}`}><ShieldCheck size={20}/> SÍ (APTA PARA CIRCULAR)</button><button type="button" onClick={() => setCanCirculate(false)} className={`flex-1 py-6 rounded-[2rem] text-[11px] font-black uppercase transition-all flex items-center justify-center gap-3 ${!canCirculate ? 'bg-rose-600 text-white shadow-xl' : 'text-slate-500 hover:text-slate-300'}`}><ShieldAlert size={20}/> NO (FUERA DE SERVICIO)</button></div></div>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 relative z-10"><div className="space-y-12 flex flex-col items-center"><SignaturePad id="signature_pad" label="Firma del Inspector" onEnd={setSignature} error={errors.signature_pad} /></div><div className="space-y-8 h-full flex flex-col"><div className="space-y-3"><label className="text-[10px] font-black text-slate-400 uppercase ml-4 tracking-widest">Aclaración Inspector</label><input className="w-full px-8 py-5 bg-white/5 border border-white/10 rounded-[2rem] font-black text-white outline-none focus:ring-4 focus:ring-blue-500/20" value={clarification} onChange={e => setClarification(e.target.value.toUpperCase())} /></div><div className="space-y-3 flex-1 flex flex-col"><label className="text-[10px] font-black text-slate-400 uppercase ml-4 tracking-widest">Observaciones Generales</label><textarea rows={6} className="w-full flex-1 px-8 py-6 bg-white/5 border border-white/10 rounded-[2.5rem] font-bold text-white outline-none resize-none custom-scrollbar focus:ring-4 focus:ring-indigo-50 shadow-inner" placeholder="NOTAS ADICIONALES PARA EL REPORTE..." value={generalObservations} onChange={e => setGeneralObservations(e.target.value)} /></div></div></div>
-                <div className="flex justify-end pt-10"><button onClick={handleSave} className="w-full md:w-auto px-20 py-8 bg-blue-600 hover:bg-blue-700 text-white rounded-[3rem] font-black uppercase text-xs shadow-2xl flex items-center justify-center gap-4 transition-all transform active:scale-95 group"><Save size={28}/> Generar Reporte v19.3.0</button></div>
+                    <div className="space-y-8 h-full flex flex-col">
+                        {['REEMPLAZO', 'POR CAMBIO DE TURNO', 'ENTREGA / RECEPCIÓN'].includes(checkType) && (
+                            <div id="received_by_input" className="space-y-10 animate-fadeIn bg-white/5 p-8 rounded-[3rem] border border-white/10">
+                                <div className="space-y-4">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Nombre Receptor</label>
+                                    <input className={`w-full px-8 py-5 bg-white/5 border rounded-[2rem] font-black text-white outline-none ${errors.received_by_input && !receivedBy ? 'border-rose-500' : 'border-white/10'}`} placeholder="NOMBRE DEL TERCERO..." value={receivedBy} onChange={e => setReceivedBy(e.target.value.toUpperCase())} />
+                                </div>
+                                <SignaturePad label="Firma Receptor" onEnd={setReceiverSignature} error={errors.received_by_input && !receiverSignature} />
+                            </div>
+                        )}
+                        <div className="space-y-3 flex-1 flex flex-col">
+                            <label className="text-[10px] font-black text-slate-400 uppercase ml-4 tracking-widest">Observaciones Generales</label>
+                            <textarea rows={6} className="w-full flex-1 px-8 py-6 bg-white/5 border border-white/10 rounded-[2.5rem] font-bold text-white outline-none resize-none custom-scrollbar" placeholder="NOTAS ADICIONALES..." value={generalObservations} onChange={e => setGeneralObservations(e.target.value)} />
+                        </div>
+                    </div>
+                </div>
+
+                <div className="flex flex-col md:flex-row justify-end items-center gap-4 pt-10 border-t border-white/5">
+                    <button onClick={() => setViewMode('LIST')} className="w-full md:w-auto px-10 py-5 bg-white/5 hover:bg-white/10 text-slate-400 rounded-[2rem] font-black uppercase text-[10px] tracking-widest transition-all flex items-center justify-center gap-3 border border-white/5"><LucideX size={18}/> Cancelar</button>
+                    <button onClick={() => { if(validateForm()) setShowHtmlPreview(true); }} className="w-full md:w-auto px-10 py-5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-[2rem] font-black uppercase text-[10px] tracking-widest shadow-xl flex items-center justify-center gap-3 transition-all transform active:scale-95"><LucideFileSearch2 size={18}/> Vista Previa Registro</button>
+                    <button onClick={handleSave} className="w-full md:w-auto px-16 py-8 bg-blue-600 hover:bg-blue-700 text-white rounded-[3rem] font-black uppercase text-xs shadow-2xl flex items-center justify-center gap-4 transition-all transform active:scale-95 group"><Save size={28}/> Generar Reporte</button>
+                </div>
             </section>
         </div>
     );

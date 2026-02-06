@@ -10,12 +10,11 @@ export type UserStatus = 'activo' | 'inactivo' | 'pendiente' | 'suspendido' | 'b
 
 export interface Permission {
   id: string;
-  seccion: string;
-  accion: 'ver' | 'crear' | 'editar' | 'eliminar' | 'aprobar';
-  nivel: 'propio' | 'centro_costo' | 'todos';
-  concedido: boolean;
-  fechaConcesion: string;
-  concedidoPor: string;
+  seccion: 'dashboard' | 'flota' | 'inspecciones' | 'documentacion' | 'reportes' | 'servicios' | 'usuarios';
+  ver: boolean;
+  crear: boolean;
+  editar: boolean;
+  eliminar: boolean;
 }
 
 export interface User {
@@ -39,6 +38,7 @@ export interface User {
   };
   costCenter?: string;
   role: UserRole;
+  level: 1 | 2 | 3; // 1: Básico, 2: Intermedio, 3: Full/Manager
   rolesSecundarios: string[];
   permisos: Permission[];
   notificaciones: {
@@ -59,7 +59,7 @@ export enum ServiceStage {
   APPOINTMENT_REQUESTED = 'SOLICITANDO TURNO',
   REVIEW = 'EN REVISIÓN',
   SCHEDULING = 'TURNO ASIGNADO',
-  RECEPCION = 'RECEPCIÓN', // MOD: 2024-05-24 22:30
+  RECEPCION = 'RECEPCIÓN',
   IN_WORKSHOP = 'EN TALLER',
   BUDGETING = 'PRESUPUESTANDO',
   EXECUTING = 'EN EJECUCIÓN',

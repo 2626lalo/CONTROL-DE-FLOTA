@@ -4,7 +4,8 @@ import {
   LucideLayoutDashboard, LucideCar, LucideClipboardCheck, 
   LucideLogOut, LucideUsers, LucideWifiOff,
   LucideBarChart3, LucideSearch, LucideFileText, LucideFlaskConical,
-  LucideShieldCheck, LucideGhost, LucideChevronDown, LucideXCircle, LucideUserCircle
+  LucideShieldCheck, LucideGhost, LucideChevronDown, LucideXCircle, LucideUserCircle,
+  LucideWrench
 } from 'lucide-react';
 import { useApp } from '../context/FleetContext';
 import { UserRole } from '../types';
@@ -35,10 +36,15 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
     { to: '/reports', icon: LucideBarChart3, label: 'Reportes' },
   ];
 
+  // GESTIÓN DE SERVICIOS: Visible para todos pero con etiquetas distintas
+  const serviceLabel = user?.role === UserRole.ADMIN ? 'Mesa de Control' : 
+                       user?.role === UserRole.USER ? 'Mis Servicios' : 'Gestión de Servicios';
+  
+  navItems.push({ to: '/test-sector', icon: LucideWrench, label: serviceLabel });
+
   if (user?.role === UserRole.ADMIN) {
     navItems.push({ to: '/users-management', icon: LucideShieldCheck, label: 'Usuarios' });
     navItems.push({ to: '/users', icon: LucideUsers, label: 'Administración' });
-    navItems.push({ to: '/test-sector', icon: LucideFlaskConical, label: 'Gestión de Servicios' });
   }
 
   return (
