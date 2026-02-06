@@ -64,7 +64,12 @@ export const TestSector = () => {
   const userCC = (user?.centroCosto?.nombre || user?.costCenter || '').toUpperCase();
   const isSupervisorOrAdmin = userRole === UserRole.ADMIN || userRole === UserRole.SUPERVISOR;
   const isReadOnly = userRole === UserRole.AUDITOR;
-  const hasApiKey = !!process.env.API_KEY && process.env.API_KEY !== "";
+
+  // Validación robusta de API Key
+  const hasApiKey = useMemo(() => {
+    const key = process.env.API_KEY;
+    return typeof key === 'string' && key.trim() !== '' && key !== 'undefined' && key !== 'null';
+  }, []);
 
   const [activeView, setActiveView] = useState<ViewMode>('DASHBOARD');
   const [requestStep, setRequestStep] = useState(1); 
@@ -131,31 +136,44 @@ export const TestSector = () => {
 
   const filteredRequests = useMemo(() => {
     return serviceRequests.filter(r => {
-        // Validación de permisos base
         if (!isSupervisorOrAdmin && !isReadOnly) {
             if ((r.costCenter || '').toUpperCase() !== userCC) return false;
         }
-
-        // Filtro por Patente o Código (Evento)
         const term = searchQuery.toUpperCase();
         const matchSearch = r.vehiclePlate.includes(term) || r.code.toUpperCase().includes(term);
         if (!matchSearch) return false;
-
-        // Filtro por Estado
         if (filterStatus && r.stage !== filterStatus) return false;
-
-        // Filtro por Centro de Costo
         if (filterCC && r.costCenter !== filterCC) return false;
-
-        // Filtro por Rango de Fecha
         const rDate = parseISO(r.createdAt);
         const start = startOfDay(parseISO(filterDateFrom));
         const end = endOfDay(parseISO(filterDateTo));
         if (!isWithinInterval(rDate, { start, end })) return false;
-
         return true;
     }).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }, [serviceRequests, searchQuery, filterDateFrom, filterDateTo, filterStatus, filterCC, isSupervisorOrAdmin, isReadOnly, userCC]);
+
+  // --- FUNCIÓN DE GEOLOCALIZACIÓN NATIVA ---
+  const handleCaptureNativeLocation = () => {
+    if (!navigator.geolocation) {
+      addNotification("Geolocalización no soportada por este navegador", "error");
+      return;
+    }
+    addNotification("Obteniendo coordenadas GPS...", "warning");
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude, accuracy } = pos.coords;
+        // Formato profesional según guía
+        const locString = `${latitude.toFixed(6)}, ${longitude.toFixed(6)} (Precisión: ${accuracy.toFixed(0)}m)`;
+        setLocation(locString);
+        addNotification("Ubicación capturada con éxito", "success");
+      },
+      (error) => {
+        console.error("Error obteniendo ubicación:", error);
+        addNotification("Error: Habilite los permisos de ubicación en su dispositivo", "error");
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  };
 
   const startNewRequest = () => {
     setSearchQuery('');
@@ -572,7 +590,12 @@ export const TestSector = () => {
                             </div>
                             <div className="space-y-2" id="field-location">
                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Ubicación / Localidad (Requerido)</label>
-                                <input className={`w-full px-6 py-4 rounded-2xl border-2 font-bold text-xs uppercase outline-none transition-all ${errors.location ? 'border-rose-500 bg-rose-50' : 'bg-slate-50 border-slate-100 focus:bg-white focus:border-blue-500'}`} placeholder="¿DÓNDE SE ENCUENTRA EL VEHÍCULO?" value={location} onChange={e => setLocation(e.target.value.toUpperCase())} />
+                                <div className="flex gap-2">
+                                    <input className={`flex-1 px-6 py-4 rounded-2xl border-2 font-bold text-xs uppercase outline-none transition-all ${errors.location ? 'border-rose-500 bg-rose-50' : 'bg-slate-50 border-slate-100 focus:bg-white focus:border-blue-500'}`} placeholder="¿DÓNDE SE ENCUENTRA EL VEHÍCULO?" value={location} onChange={e => setLocation(e.target.value.toUpperCase())} />
+                                    <button type="button" onClick={handleCaptureNativeLocation} className="px-4 bg-blue-600 text-white rounded-2xl hover:bg-blue-700 shadow-lg flex items-center justify-center group" title="Capturar Ubicación GPS">
+                                        <LucideLocate size={20} className="group-active:animate-ping"/>
+                                    </button>
+                                </div>
                             </div>
                             <div className="pt-8 border-t border-slate-100 flex gap-4">
                                 <button onClick={() => setRequestStep(1)} className="px-8 py-5 rounded-2xl font-black text-slate-400 uppercase text-[10px] tracking-widest hover:text-slate-800 transition-all">Atrás</button>
@@ -752,8 +775,15 @@ export const TestSector = () => {
                                 <div className="space-y-4">
                                     <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Ubicación Georreferenciada</p>
                                     <div className="aspect-video bg-white rounded-3xl overflow-hidden border border-white/20 shadow-inner relative">
-                                        <iframe width="100%" height="100%" frameBorder="0" style={{border:0}} src={`https://www.google.com/maps/embed/v1/place?key=${process.env.API_KEY}&q=${encodeURIComponent((currentRequest.suggestedDates[0].nombreTaller || '') + ' ' + (currentRequest.suggestedDates[0].direccionTaller || ''))}`} allowFullScreen></iframe>
-                                        {!hasApiKey && <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-8 text-center text-[10px] font-black uppercase text-white">Mapa Interactivo Deshabilitado (Carga Manual)</div>}
+                                        {/* FIX DEFINITIVO: Uso de URL de búsqueda estándar que NO requiere API KEY y evita errores de rechazo */}
+                                        <iframe 
+                                            width="100%" 
+                                            height="100%" 
+                                            frameBorder="0" 
+                                            style={{border:0}} 
+                                            src={`https://maps.google.com/maps?q=${encodeURIComponent((currentRequest.suggestedDates[0].nombreTaller || '') + ' ' + (currentRequest.suggestedDates[0].direccionTaller || ''))}&t=&z=14&ie=UTF8&iwloc=&output=embed`} 
+                                            allowFullScreen
+                                        ></iframe>
                                     </div>
                                 </div>
                             </div>
@@ -862,7 +892,7 @@ export const TestSector = () => {
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-6">
                         <button onClick={() => setActiveView('DETAIL')} className="p-4 bg-white rounded-2xl shadow-sm border border-slate-200 text-slate-400 hover:text-slate-800 transition-all"><LucideArrowLeft size={24}/></button>
-                        <div><h2 className="text-3xl font-black text-slate-900 uppercase italic tracking-tighter leading-none">Agendamiento Técnico</h2><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">{hasApiKey ? 'Geolocalización Dinámica Activada' : 'Carga Manual de Dirección (Sin API Key)'}</p></div>
+                        <div><h2 className="text-3xl font-black text-slate-900 uppercase italic tracking-tighter leading-none">Agendamiento Técnico</h2><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Geolocalización Dinámica Activada (Sin API Key)</p></div>
                     </div>
                     <TurnCountdown date={turnDate} time={turnTime} />
                 </div>
@@ -904,47 +934,40 @@ export const TestSector = () => {
                             </div>
                         </div>
                         
-                        {hasApiKey ? (
-                            <div className="space-y-4 animate-fadeIn">
-                                {!isMapLoaded ? (
-                                    <button 
-                                        onClick={() => setIsMapLoaded(true)}
-                                        className="w-full py-12 border-4 border-dashed border-blue-100 rounded-[2.5rem] bg-blue-50/30 flex flex-col items-center justify-center gap-4 group transition-all hover:bg-blue-50"
-                                    >
-                                        <div className="p-4 bg-blue-600 text-white rounded-full shadow-xl group-hover:scale-110 transition-transform"><LucideNavigation2 size={32}/></div>
-                                        <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Visualizar Mapa Interactivo y Validar Punto GPS</span>
-                                    </button>
-                                ) : (
-                                    <div className="aspect-video bg-slate-100 rounded-[2.5rem] overflow-hidden border-2 border-slate-200 shadow-inner relative group animate-fadeIn">
-                                        <iframe 
-                                            width="100%" 
-                                            height="100%" 
-                                            frameBorder="0" 
-                                            style={{border:0}} 
-                                            src={`https://www.google.com/maps/embed/v1/place?key=${process.env.API_KEY}&q=${encodeURIComponent((workshopName || '') + ' ' + (workshopAddress || ''))}`} 
-                                            allowFullScreen
-                                        ></iframe>
-                                        <div className="absolute top-4 right-4 bg-white/95 backdrop-blur-md p-3 rounded-2xl shadow-xl border border-slate-200">
-                                            <button 
-                                                onClick={() => { setIsMapLoaded(false); setWorkshopAddress(''); }}
-                                                className="text-[9px] font-black text-rose-500 uppercase flex items-center gap-2"
-                                            >
-                                                <LucideTrash2 size={12}/> Limpiar Geolocalización
-                                            </button>
-                                        </div>
-                                        <div className="absolute bottom-4 left-4 right-4 bg-slate-900/90 backdrop-blur-sm p-4 rounded-2xl border border-white/10 text-center">
-                                            <p className="text-[8px] font-black text-blue-400 uppercase tracking-[0.2em]">Si el marcador es incorrecto, verifique la dirección ingresada arriba.</p>
-                                        </div>
+                        <div className="space-y-4 animate-fadeIn">
+                            {!isMapLoaded ? (
+                                <button 
+                                    onClick={() => setIsMapLoaded(true)}
+                                    className="w-full py-12 border-4 border-dashed border-blue-100 rounded-[2.5rem] bg-blue-50/30 flex flex-col items-center justify-center gap-4 group transition-all hover:bg-blue-50"
+                                >
+                                    <div className="p-4 bg-blue-600 text-white rounded-full shadow-xl group-hover:scale-110 transition-transform"><LucideNavigation2 size={32}/></div>
+                                    <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Visualizar Mapa Interactivo y Validar Punto GPS</span>
+                                </button>
+                            ) : (
+                                <div className="aspect-video bg-slate-100 rounded-[2.5rem] overflow-hidden border-2 border-slate-200 shadow-inner relative group animate-fadeIn">
+                                    {/* FIX DEFINITIVO: Uso de Standard Embed para evitar errores de API KEY */}
+                                    <iframe 
+                                        width="100%" 
+                                        height="100%" 
+                                        frameBorder="0" 
+                                        style={{border:0}} 
+                                        src={`https://maps.google.com/maps?q=${encodeURIComponent((workshopName || '') + ' ' + (workshopAddress || ''))}&t=&z=14&ie=UTF8&iwloc=&output=embed`} 
+                                        allowFullScreen
+                                    ></iframe>
+                                    <div className="absolute top-4 right-4 bg-white/95 backdrop-blur-md p-3 rounded-2xl shadow-xl border border-slate-200">
+                                        <button 
+                                            onClick={() => { setIsMapLoaded(false); setWorkshopAddress(''); }}
+                                            className="text-[9px] font-black text-rose-500 uppercase flex items-center gap-2"
+                                        >
+                                            <LucideTrash2 size={12}/> Limpiar Geolocalización
+                                        </button>
                                     </div>
-                                )}
-                            </div>
-                        ) : (
-                            <div className="p-8 border-2 border-dashed border-slate-200 rounded-[2.5rem] bg-slate-50 flex flex-col items-center justify-center text-center space-y-4">
-                                <LucideShieldAlert size={32} className="text-slate-300"/>
-                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Funciones de Mapa deshabilitadas (Falta API Key)</p>
-                                <p className="text-[8px] text-slate-300 font-bold uppercase">La carga de datos se realizará en modo manual para el registro histórico.</p>
-                            </div>
-                        )}
+                                    <div className="absolute bottom-4 left-4 right-4 bg-slate-900/90 backdrop-blur-sm p-4 rounded-2xl border border-white/10 text-center">
+                                        <p className="text-[8px] font-black text-blue-400 uppercase tracking-[0.2em]">Mapa de Referencia (Google Standard Embed)</p>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     </div>
 
                     <div className="space-y-2">
