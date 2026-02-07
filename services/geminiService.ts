@@ -5,13 +5,11 @@ import { GoogleGenAI, Type } from "@google/genai";
  * Cliente centralizado para servicios de IA generativa.
  */
 const getAiClient = () => {
-  // FIX: Access process.env.API_KEY directly for initialization as per guidelines
   return new GoogleGenAI({ apiKey: process.env.API_KEY });
 };
 
 export const isAiAvailable = () => {
   try {
-    // FIX: Simplified availability check without manual typeof process validation
     return !!process.env.API_KEY;
   } catch {
     return false;
@@ -20,9 +18,11 @@ export const isAiAvailable = () => {
 
 export const analyzeDocumentImage = async (base64: string, side: 'Frente' | 'Dorso') => {
   const ai = getAiClient();
+  
+  // Prompt optimizado para captura exhaustiva y diferenciación de campos
   const prompt = side === 'Frente' 
-    ? "Analiza el FRENTE de esta cédula vehicular. Extrae en JSON: plate (patente), make (marca), model (modelo)."
-    : "Analiza el DORSO de esta cédula vehicular. Extrae en JSON: ownerName (titular), ownerAddress (domicilio), motorNum (motor), vin (chasis).";
+    ? "Analiza el FRENTE de esta cédula vehicular. Extrae en JSON: plate (patente), make (marca), model (modelo), vin (número de chasis/chassis), motorNum (número de motor). Busca el chasis y motor aunque sea un texto pequeño."
+    : "Analiza el DORSO de esta cédula vehicular. Extrae en JSON: ownerName (nombre y apellido de la persona titular), ownerCompany (solo si es una empresa/razón social, si no dejar vacío), ownerAddress (domicilio), motorNum (motor), vin (chasis). Es CRÍTICO que no confundas a la persona titular con la empresa.";
 
   try {
     const response = await ai.models.generateContent({
@@ -44,12 +44,13 @@ export const analyzeDocumentImage = async (base64: string, side: 'Frente' | 'Dor
             vin: { type: Type.STRING },
             motorNum: { type: Type.STRING },
             ownerName: { type: Type.STRING },
+            ownerCompany: { type: Type.STRING },
             ownerAddress: { type: Type.STRING }
           }
         }
       }
     });
-    // FIX: Use the .text property accessor for GenerateContentResponse
+
     const text = response.text;
     if (!text) throw new Error("Respuesta vacía de IA");
     return { success: true as const, data: JSON.parse(text) };
@@ -83,7 +84,6 @@ export const analyzeBudgetImage = async (base64: string, mimeType: string) => {
         }
       }
     });
-    // FIX: Use the .text property accessor for GenerateContentResponse
     return response.text ? JSON.parse(response.text) : null;
   } catch (error) {
     console.error("AI Budget Error:", error);
@@ -100,7 +100,6 @@ export const getTechnicalAdvice = async (issue: string, vehicleInfo: string) => 
       Proporciona un diagnóstico técnico preliminar, sugiere repuestos probables y califica la urgencia (Baja/Media/Alta/Crítica). 
       Responde en español de forma profesional y concisa.`
     });
-    // FIX: Use the .text property accessor for GenerateContentResponse
     return response.text || "No se pudo generar el consejo técnico en este momento.";
   } catch (error) {
     console.error("AI Advice Error:", error);
@@ -117,7 +116,6 @@ export const getFleetHealthReport = async (vehiclesData: string) => {
       Identifica los 3 riesgos operativos principales (mantenimiento, legal/documental, antigüedad) y propón una acción correctiva prioritaria para el Fleet Manager.
       Utiliza un tono ejecutivo, profesional y estructurado en español.`
     });
-    // FIX: Use the .text property accessor for GenerateContentResponse
     return response.text || null;
   } catch (error) {
     console.error("AI Fleet Health Error:", error);

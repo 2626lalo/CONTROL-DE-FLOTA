@@ -18,14 +18,14 @@ import {
   LucideClipboardList, LucideAlertCircle, LucideFileDown, LucideFileSearch,
   LucideBriefcase, LucideDollarSign, LucidePlus, LucideFile,
   LucideRefreshCw, LucideGauge, LucideUnlock, LucideNavigation,
-  LucideMaximize
+  LucideMaximize, LucideFileCheck, LucideUserCheck
 } from 'lucide-react';
 import { useApp } from '../context/FleetContext';
 import { 
     ServiceStage, ServiceRequest, UserRole, MainServiceCategory, 
     SuggestedDate, ServiceMessage, Checklist, Vehicle
 } from '../types';
-import { format, parseISO, isBefore, startOfDay, endOfDay, subDays, isWithinInterval, differenceInDays, differenceInHours } from 'date-fns';
+import { format, parseISO, isBefore, startOfDay, endOfDay, subDays, isWithinInterval, differenceInDays, differenceInHours, isSameDay } from 'date-fns';
 import { es } from 'date-fns/locale/es';
 import { ImageZoomModal } from './ImageZoomModal';
 import { compressImage } from '../utils/imageCompressor'; 
@@ -57,7 +57,7 @@ const TurnCountdown = ({ date, time }: { date: string, time: string }) => {
 };
 
 export const TestSector = () => {
-  const { vehicles, user, serviceRequests, addServiceRequest, updateServiceRequest, addNotification, updateServiceStage } = useApp();
+  const { vehicles, user, serviceRequests, checklists, addServiceRequest, updateServiceRequest, addNotification, updateServiceStage } = useApp();
   const navigate = useNavigate();
   
   const userRole = user?.role || UserRole.USER;
@@ -99,7 +99,15 @@ export const TestSector = () => {
   const [chatMessage, setChatMessage] = useState('');
   const [isFinishing, setIsFinishing] = useState(false);
   const [finishComment, setFinishComment] = useState('');
-  const [selectedStageToTransition, setSelectedStageToTransition] = useState<ServiceStage | ''>('');
+  const [selectedStageToTransition, setSelectedStageToTransition] = useState<ServiceStage | 'INGRESO_TALLER' | ''>('');
+
+  // --- ESTADOS PARA INGRESO A TALLER ---
+  const [showIngresoModal, setShowIngresoModal] = useState(false);
+  const [ingresoData, setIngresoData] = useState({
+      workshopName: '',
+      receptorName: '',
+      observations: ''
+  });
 
   const [turnDate, setTurnDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [turnTime, setTurnTime] = useState('09:00');
@@ -112,6 +120,18 @@ export const TestSector = () => {
   const currentRequest = useMemo(() => 
     serviceRequests.find(r => r.id === selectedReqId), [serviceRequests, selectedReqId]
   );
+
+  const lastChecklist = useMemo(() => {
+    if (!currentRequest) return null;
+    return [...checklists]
+        .filter(c => c.vehiclePlate === currentRequest.vehiclePlate)
+        .sort((a, b) => b.date.localeCompare(a.date))[0] || null;
+  }, [checklists, currentRequest]);
+
+  const isChecklistUpToDate = useMemo(() => {
+    if (!lastChecklist) return false;
+    return isSameDay(parseISO(lastChecklist.date), new Date());
+  }, [lastChecklist]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -276,13 +296,30 @@ export const TestSector = () => {
 
   const handleConfirmStageTransition = () => {
     if (!currentRequest || !selectedStageToTransition) return;
+    
+    // FLUJO ESPECIAL: INGRESO A TALLER
+    if (selectedStageToTransition === 'INGRESO_TALLER') {
+        setShowIngresoModal(true);
+        return;
+    }
+
     if (selectedStageToTransition === ServiceStage.SCHEDULING) {
         setActiveView('ASSIGN_TURN');
         return;
     }
+
     if (selectedStageToTransition === currentRequest.stage) return;
     updateServiceStage(currentRequest.id, selectedStageToTransition as ServiceStage, `Cambio de estado manual a: ${selectedStageToTransition}`);
     addNotification(`Estado actualizado a ${selectedStageToTransition}`, "success");
+  };
+
+  const handleProcessIngresoTaller = () => {
+    if (!currentRequest || !isChecklistUpToDate) return;
+    const comment = `ACTA DE INGRESO: Taller [${ingresoData.workshopName}] - Receptor [${ingresoData.receptorName}] - Obs: ${ingresoData.observations}`;
+    updateServiceStage(currentRequest.id, ServiceStage.IN_WORKSHOP, comment);
+    addNotification("Unidad ingresada a taller correctamente", "success");
+    setShowIngresoModal(false);
+    setSelectedStageToTransition('');
   };
 
   const handleConfirmTurnAssignment = () => {
@@ -354,10 +391,129 @@ export const TestSector = () => {
     setChatMessage('');
   };
 
+  // Filtrar estados prohibidos para el selector manual
+  const filteredStagesForSelector = useMemo(() => {
+    const forbidden = [
+        ServiceStage.RECEPCION, 
+        ServiceStage.IN_WORKSHOP, 
+        ServiceStage.BUDGETING, 
+        ServiceStage.EXECUTING, 
+        ServiceStage.INVOICING
+    ];
+    return Object.values(ServiceStage).filter(s => !forbidden.includes(s));
+  }, []);
+
   return (
     <div className="min-h-screen bg-[#fcfdfe] flex flex-col animate-fadeIn">
       {zoomedImage && <ImageZoomModal url={zoomedImage.url} label={zoomedImage.label} onClose={() => setZoomedImage(null)} />}
       
+      {/* MODAL DE INGRESO A TALLER */}
+      {showIngresoModal && currentRequest && (
+          <div className="fixed inset-0 z-[2000] bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4">
+              <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-4xl overflow-hidden animate-fadeIn border-t-[12px] border-blue-600 flex flex-col max-h-[90vh]">
+                  <div className="bg-slate-950 p-8 text-white flex justify-between items-center shrink-0">
+                      <div className="flex items-center gap-4">
+                          <div className="p-3 bg-blue-600 rounded-2xl"><LucideWrench size={24}/></div>
+                          <div>
+                              <h3 className="text-xl font-black uppercase italic tracking-tighter">Acta de Ingreso a Taller</h3>
+                              <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Protocolo de Recepción Técnica de Unidad</p>
+                          </div>
+                      </div>
+                      <button onClick={() => setShowIngresoModal(false)} className="text-white hover:text-rose-500 transition-colors"><LucideX size={24}/></button>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto custom-scrollbar p-10 space-y-10">
+                      {/* VALIDACIÓN DE CHECKLIST */}
+                      <section className={`p-8 rounded-[2.5rem] border-2 transition-all ${isChecklistUpToDate ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50 border-rose-200'}`}>
+                          <div className="flex items-center justify-between mb-6">
+                              <div className="flex items-center gap-4">
+                                  {isChecklistUpToDate ? <LucideShieldCheck className="text-emerald-600" size={32}/> : <LucideShieldAlert className="text-rose-600 animate-pulse" size={32}/>}
+                                  <div>
+                                      <h4 className="font-black text-slate-800 uppercase italic">Estado de Inspección Diaria</h4>
+                                      <p className={`text-[10px] font-bold uppercase ${isChecklistUpToDate ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                          {isChecklistUpToDate ? 'Checklist Actualizado (Hoy)' : 'ATENCIÓN: Inspección no actualizada'}
+                                      </p>
+                                  </div>
+                              </div>
+                              {lastChecklist && (
+                                  <div className="text-right">
+                                      <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Último Registro</p>
+                                      <p className="text-xs font-black text-slate-700 uppercase italic">{format(parseISO(lastChecklist.date), 'dd/MM/yyyy HH:mm')}hs</p>
+                                  </div>
+                              )}
+                          </div>
+
+                          {!isChecklistUpToDate && (
+                              <div className="p-4 bg-white/60 rounded-2xl border border-rose-100 mb-6 flex items-center gap-4">
+                                  <LucideAlertCircle className="text-rose-500 shrink-0" size={20}/>
+                                  <p className="text-[10px] font-bold text-rose-700 leading-relaxed uppercase">
+                                      Se requiere generar un nuevo registro de inspección para esta unidad antes de proceder con el ingreso al taller. El acta de ingreso debe vincularse a una auditoría técnica del día actual.
+                                  </p>
+                              </div>
+                          )}
+
+                          {lastChecklist && (
+                              <button onClick={() => setZoomedImage({url: lastChecklist.signature, label: `Acta del ${lastChecklist.date}`})} className="w-full py-4 bg-white border border-slate-200 rounded-2xl font-black text-[9px] uppercase text-slate-500 flex items-center justify-center gap-3 hover:bg-slate-50 transition-all">
+                                  <LucideFileSearch size={16}/> Visualizar Último Registro PDF
+                              </button>
+                          )}
+                      </section>
+
+                      {/* FORMULARIO DE RECEPCIÓN */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                          <div className="space-y-6">
+                              <div className="space-y-1">
+                                  <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-2 flex items-center gap-1"><LucideUserCheck size={10}/> Quien entrega unidad (Auto-carga)</label>
+                                  <input disabled className="w-full px-5 py-4 bg-slate-100 border border-slate-200 rounded-2xl font-black text-xs uppercase text-slate-500 italic" value={currentRequest.userName} />
+                              </div>
+                              <div className="space-y-1">
+                                  <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-2 flex items-center gap-1"><LucideBuilding2 size={10}/> Nombre del Taller Receptor</label>
+                                  <input 
+                                    className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-xs uppercase outline-none focus:ring-4 focus:ring-blue-100" 
+                                    placeholder="NOMBRE ESTABLECIMIENTO..." 
+                                    value={ingresoData.workshopName}
+                                    onChange={e => setIngresoData({...ingresoData, workshopName: e.target.value.toUpperCase()})}
+                                  />
+                              </div>
+                          </div>
+                          <div className="space-y-6">
+                              <div className="space-y-1">
+                                  <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-2 flex items-center gap-1"><LucideUser size={10}/> Nombre del Receptor (Taller)</label>
+                                  <input 
+                                    className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-xs uppercase outline-none focus:ring-4 focus:ring-blue-100" 
+                                    placeholder="NOMBRE Y APELLIDO..." 
+                                    value={ingresoData.receptorName}
+                                    onChange={e => setIngresoData({...ingresoData, receptorName: e.target.value.toUpperCase()})}
+                                  />
+                              </div>
+                              <div className="space-y-1">
+                                  <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-2 flex items-center gap-1"><LucideMessageSquare size={10}/> Observaciones de Recepción</label>
+                                  <textarea 
+                                    rows={2}
+                                    className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-xs outline-none focus:ring-4 focus:ring-blue-100 resize-none" 
+                                    placeholder="DETALLES TÉCNICOS AL MOMENTO DEL INGRESO..." 
+                                    value={ingresoData.observations}
+                                    onChange={e => setIngresoData({...ingresoData, observations: e.target.value})}
+                                  />
+                              </div>
+                          </div>
+                      </div>
+                  </div>
+
+                  <div className="p-8 bg-slate-50 border-t flex gap-4 shrink-0">
+                      <button onClick={() => setShowIngresoModal(false)} className="flex-1 py-5 rounded-2xl font-black text-slate-400 uppercase text-[10px] tracking-widest">Cancelar</button>
+                      <button 
+                        disabled={!isChecklistUpToDate || !ingresoData.workshopName || !ingresoData.receptorName}
+                        onClick={handleProcessIngresoTaller}
+                        className="flex-[2] bg-blue-600 text-white py-5 rounded-[2rem] font-black uppercase text-xs shadow-2xl flex items-center justify-center gap-3 hover:bg-blue-700 transition-all disabled:opacity-30 disabled:grayscale"
+                      >
+                          <LucideFileCheck size={20}/> Generar Registro y Pasar a Taller
+                      </button>
+                  </div>
+              </div>
+          </div>
+      )}
+
       <main className="flex-1 p-8 max-w-7xl mx-auto w-full space-y-12">
         {activeView === 'DASHBOARD' && (
           <div className="space-y-10 animate-fadeIn">
@@ -698,9 +854,10 @@ export const TestSector = () => {
                             <div className="flex flex-col md:flex-row gap-4 items-end">
                                 <div className="flex-1 w-full space-y-2">
                                     <label className="text-[8px] font-black text-slate-500 uppercase ml-4">Seleccionar Nuevo Estado</label>
-                                    <select className="w-full px-6 py-4 bg-slate-900 border border-white/20 rounded-2xl text-xs font-black uppercase text-white outline-none focus:ring-2 focus:ring-blue-500/50" value={selectedStageToTransition} onChange={e => setSelectedStageToTransition(e.target.value as ServiceStage)}>
+                                    <select className="w-full px-6 py-4 bg-slate-900 border border-white/20 rounded-2xl text-xs font-black uppercase text-white outline-none focus:ring-2 focus:ring-blue-500/50" value={selectedStageToTransition} onChange={e => setSelectedStageToTransition(e.target.value as any)}>
                                         <option value="">ELIJA UN ESTADO...</option>
-                                        {Object.values(ServiceStage).map(s => <option key={s} value={s}>{s === ServiceStage.SCHEDULING ? 'ASIGNAR TURNO' : s}</option>)}
+                                        <option value="INGRESO_TALLER">INGRESO A TALLER (ACTA)</option>
+                                        {filteredStagesForSelector.map(s => <option key={s} value={s}>{s === ServiceStage.SCHEDULING ? 'ASIGNAR TURNO' : s}</option>)}
                                     </select>
                                 </div>
                                 <button onClick={handleConfirmStageTransition} disabled={!selectedStageToTransition} className="px-10 py-4 bg-blue-600 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl hover:bg-blue-500 transition-all disabled:opacity-30">Confirmar</button>
