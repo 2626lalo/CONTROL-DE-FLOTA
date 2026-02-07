@@ -1,5 +1,6 @@
 import { User, Vehicle, ServiceRequest, Checklist, AuditLog } from '../types';
 import { MOCK_USERS } from '../constants';
+import { galleryService } from './galleryService';
 
 const DB_KEYS = {
   USERS: 'fp_users',
@@ -13,14 +14,38 @@ const DB_KEYS = {
 };
 
 /**
- * MOTOR DE BASE DE DATOS LOCAL v36.0 (Enterprise Persistence)
- * Implementa guardado seguro y gestión de transacciones simuladas.
+ * UTILIDADES DE TRANSFORMACIÓN (RECURSIVAS)
  */
+const processImages = (obj: any, action: 'NORMALIZAR' | 'DESNORMALIZAR'): any => {
+  if (!obj || typeof obj !== 'object') return obj;
+
+  if (Array.isArray(obj)) {
+    return obj.map(item => processImages(item, action));
+  }
+
+  const newObj = { ...obj };
+  for (const key in newObj) {
+    const val = newObj[key];
+    
+    if (typeof val === 'string') {
+      if (action === 'NORMALIZAR' && val.startsWith('data:image')) {
+        newObj[key] = galleryService.storeImage(val);
+      } else if (action === 'DESNORMALIZAR' && val.startsWith('gallery://')) {
+        newObj[key] = galleryService.resolveImage(val);
+      }
+    } else if (typeof val === 'object') {
+      newObj[key] = processImages(val, action);
+    }
+  }
+  return newObj;
+};
+
 const safeGet = <T>(key: string, fallback: T): T => {
   try {
     const item = localStorage.getItem(key);
     if (!item) return fallback;
-    return JSON.parse(item) as T;
+    const data = JSON.parse(item);
+    return processImages(data, 'DESNORMALIZAR') as T;
   } catch (e) {
     console.error(`[DB_ERROR] Fallo al leer ${key}:`, e);
     return fallback;
@@ -29,9 +54,10 @@ const safeGet = <T>(key: string, fallback: T): T => {
 
 const safeSave = <T>(key: string, data: T) => {
   try {
-    localStorage.setItem(key, JSON.stringify(data));
+    const optimizedData = processImages(data, 'NORMALIZAR');
+    localStorage.setItem(key, JSON.stringify(optimizedData));
   } catch (e) {
-    console.error(`[DB_ERROR] No se pudo guardar ${key}. Es posible que el almacenamiento esté lleno.`);
+    console.error(`[DB_ERROR] No se pudo guardar ${key}.`);
   }
 };
 
@@ -54,13 +80,9 @@ export const databaseService = {
   getAudit: async (): Promise<AuditLog[]> => safeGet<AuditLog[]>(DB_KEYS.AUDIT, []),
   saveAudit: (audit: AuditLog[]) => safeSave(DB_KEYS.AUDIT, audit),
 
-  // FIX: Changed Provider[] to any[] as Provider type is not defined
   getProviders: async (): Promise<any[]> => safeGet<any[]>(DB_KEYS.PROVIDERS, []),
   saveProviders: (providers: any[]) => safeSave(DB_KEYS.PROVIDERS, providers),
 
-  /**
-   * Exporta un Snapshot completo de la base de datos para auditorías legales o backups.
-   */
   exportFullBackup: () => {
     const data = {
       users: safeGet(DB_KEYS.USERS, []),
@@ -70,9 +92,10 @@ export const databaseService = {
       audit: safeGet(DB_KEYS.AUDIT, []),
       providers: safeGet(DB_KEYS.PROVIDERS, []),
       docTypes: safeGet(DB_KEYS.DOC_TYPES, []),
+      gallery: galleryService.getRawGallery(), // Incluimos la galería en el backup
       metadata: {
         timestamp: new Date().toISOString(),
-        version: "36.0-PRO-FINAL",
+        version: "36.0-PRO-NORMALIZED",
         author: "Fleet Intelligence Engine",
         integrity: "CRC_CHECK_PASSED"
       }
@@ -85,6 +108,8 @@ export const databaseService = {
       const data = JSON.parse(jsonString);
       if (!data.vehicles || !data.users) throw new Error("Formato inválido");
       
+      if (data.gallery) galleryService.importGallery(data.gallery);
+
       safeSave(DB_KEYS.USERS, data.users);
       safeSave(DB_KEYS.VEHICLES, data.vehicles);
       safeSave(DB_KEYS.REQUESTS, data.requests || []);
