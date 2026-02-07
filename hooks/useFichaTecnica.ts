@@ -16,13 +16,23 @@ export const useFichaTecnica = ({ vehiculo }: UseFichaTecnicaProps) => {
     const initFichaTecnica = () => {
       setLoading(true);
       if (vehiculo.fichaTecnica && vehiculo.fichaTecnica.neumaticos) {
+        const existingFicha = { ...vehiculo.fichaTecnica };
+        
+        // Asegurar que los campos de auxilio existan en el objeto neumaticos para la interfaz
+        if (!existingFicha.neumaticos.auxilio1) {
+            existingFicha.neumaticos.auxilio1 = { marca: '', medidas: '', presion: 35, estado: 'nuevo' };
+        }
+        if (!existingFicha.neumaticos.auxilio2) {
+            existingFicha.neumaticos.auxilio2 = { marca: '', medidas: '', presion: 35, estado: 'nuevo' };
+        }
+
         // Migración de datos viejos: Si no tiene accesoriosEstandar, inicializarlos
-        if (!vehiculo.fichaTecnica.equipamiento.accesoriosEstandar) {
-            vehiculo.fichaTecnica.equipamiento.accesoriosEstandar = CHECKLIST_SECTIONS.accessories.map(name => ({
+        if (!existingFicha.equipamiento.accesoriosEstandar) {
+            existingFicha.equipamiento.accesoriosEstandar = CHECKLIST_SECTIONS.accessories.map(name => ({
                 name, isEquipped: false, quantity: 1
             }));
         }
-        setFicha(vehiculo.fichaTecnica);
+        setFicha(existingFicha);
       } else {
         const nuevaFicha: FichaTecnica = {
           id: `ficha_${vehiculo.plate}_${Date.now()}`,
@@ -48,6 +58,8 @@ export const useFichaTecnica = ({ vehiculo }: UseFichaTecnicaProps) => {
             delanteroDerecho: { marca: '', medidas: '', presion: 35, estado: 'nuevo' },
             traseroIzquierdo: { marca: '', medidas: '', presion: 35, estado: 'nuevo' },
             traseroDerecho: { marca: '', medidas: '', presion: 35, estado: 'nuevo' },
+            auxilio1: { marca: '', medidas: '', presion: 35, estado: 'nuevo' },
+            auxilio2: { marca: '', medidas: '', presion: 35, estado: 'nuevo' },
           },
           neumaticosAuxiliares: {
             auxiliar1: { marca: '', medidas: '', estado: 'nuevo', ubicacion: 'externa', presion: 35 },
@@ -66,7 +78,6 @@ export const useFichaTecnica = ({ vehiculo }: UseFichaTecnicaProps) => {
             alternador: { marca: '', amperaje: 120 }
           },
           equipamiento: {
-            // FIX: Removed invalid properties from equipamiento to match interface definition
             accesoriosEstandar: CHECKLIST_SECTIONS.accessories.map(name => ({
                 name, isEquipped: false, quantity: 1
             })),

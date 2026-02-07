@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback } from 'react';
 import { Vehicle, FichaTecnica as FichaType, StandardAccessory } from '../types';
 import { useFichaTecnica } from '../hooks/useFichaTecnica';
@@ -27,7 +26,7 @@ export const FichaTecnica: React.FC<Props> = ({ vehicle, onSave }) => {
   const [activeSection, setActiveSection] = useState<'general' | 'neumaticos' | 'equipamiento'>('general');
   
   const [tireIdx, setTireIdx] = useState(0);
-  const tireKeys = ['delanteroIzquierdo', 'delanteroDerecho', 'traseroIzquierdo', 'traseroDerecho'] as const;
+  const tireKeys = ['delanteroIzquierdo', 'delanteroDerecho', 'traseroIzquierdo', 'traseroDerecho', 'auxilio1', 'auxilio2'] as const;
 
   const updateField = useCallback((path: string, value: any) => {
     setFicha(prev => {
@@ -104,8 +103,8 @@ export const FichaTecnica: React.FC<Props> = ({ vehicle, onSave }) => {
     addNotification(`"${newStandard.name}" promovido a Dotación Estándar`, "success");
   };
 
-  const nextTire = () => setTireIdx(prev => (prev + 1) % 4);
-  const prevTire = () => setTireIdx(prev => (prev - 1 + 4) % 4);
+  const nextTire = () => setTireIdx(prev => (prev + 1) % 6);
+  const prevTire = () => setTireIdx(prev => (prev - 1 + 6) % 6);
 
   return (
     <div className="space-y-10 animate-fadeIn">
@@ -154,8 +153,8 @@ export const FichaTecnica: React.FC<Props> = ({ vehicle, onSave }) => {
          )}
 
          {activeSection === 'neumaticos' && (
-           <div className="space-y-12 animate-fadeIn"><div className="bg-slate-900 p-10 rounded-[3.5rem] shadow-2xl space-y-10"><div className="relative flex items-center justify-center py-10"><button onClick={prevTire} className="absolute left-0 p-5 bg-white/10 text-white rounded-full hover:bg-white/20 transition-all"><LucideChevronLeft size={32}/></button><div className="w-full max-w-xl p-10 rounded-[3.5rem] bg-white/5 border border-white/10 animate-fadeIn"><p className="text-blue-400 font-black uppercase tracking-widest italic mb-6">{tireKeys[tireIdx].replace(/([A-Z])/g, ' $1')}</p>
-                       <div className="space-y-6"><input disabled={!editMode} placeholder="Marca" className={`w-full px-8 py-5 rounded-[2rem] font-black text-white bg-white/10 outline-none`} value={ficha.neumaticos[tireKeys[tireIdx]].marca} onChange={e => updateField(`neumaticos.${tireKeys[tireIdx]}.marca`, e.target.value)} /><input disabled={!editMode} placeholder="Medidas" className={`w-full px-8 py-5 rounded-[2rem] font-black text-white bg-white/10 outline-none`} value={ficha.neumaticos[tireKeys[tireIdx]].medidas} onChange={e => updateField(`neumaticos.${tireKeys[tireIdx]}.medidas`, e.target.value)} /><div className="grid grid-cols-2 gap-4"><input disabled={!editMode} type="number" onFocus={(e) => e.target.select()} placeholder="PSI" className={`w-full px-8 py-5 rounded-[2rem] font-black text-blue-400 bg-white/10 text-center outline-none`} value={ficha.neumaticos[tireKeys[tireIdx]].presion} onChange={e => updateField(`neumaticos.${tireKeys[tireIdx]}.presion`, Number(e.target.value))} /><select disabled={!editMode} className={`w-full px-4 py-5 rounded-[2rem] font-black text-white bg-slate-800 outline-none`} value={ficha.neumaticos[tireKeys[tireIdx]].estado} onChange={e => updateField(`neumaticos.${tireKeys[tireIdx]}.estado`, e.target.value)}><option value="nuevo">NUEVO</option><option value="usado">USADO OK</option><option value="desgastado">DESGASTADO</option><option value="critico">CRÍTICO</option></select></div></div>
+           <div className="space-y-12 animate-fadeIn"><div className="bg-slate-900 p-10 rounded-[3.5rem] shadow-2xl space-y-10"><div className="relative flex items-center justify-center py-10"><button onClick={prevTire} className="absolute left-0 p-5 bg-white/10 text-white rounded-full hover:bg-white/20 transition-all"><LucideChevronLeft size={32}/></button><div className="w-full max-w-xl p-10 rounded-[3.5rem] bg-white/5 border border-white/10 animate-fadeIn"><p className="text-blue-400 font-black uppercase tracking-widest italic mb-6">{tireKeys[tireIdx].replace(/([A-Z])/g, ' $1').replace(/(\d)/g, ' $1')}</p>
+                       <div className="space-y-6"><input disabled={!editMode} placeholder="Marca" className={`w-full px-8 py-5 rounded-[2rem] font-black text-white bg-white/10 outline-none`} value={ficha.neumaticos[tireKeys[tireIdx]]?.marca || ''} onChange={e => updateField(`neumaticos.${tireKeys[tireIdx]}.marca`, e.target.value)} /><input disabled={!editMode} placeholder="Medidas" className={`w-full px-8 py-5 rounded-[2rem] font-black text-white bg-white/10 outline-none`} value={ficha.neumaticos[tireKeys[tireIdx]]?.medidas || ''} onChange={e => updateField(`neumaticos.${tireKeys[tireIdx]}.medidas`, e.target.value)} /><div className="grid grid-cols-2 gap-4"><input disabled={!editMode} type="number" onFocus={(e) => e.target.select()} placeholder="PSI" className={`w-full px-8 py-5 rounded-[2rem] font-black text-blue-400 bg-white/10 text-center outline-none`} value={ficha.neumaticos[tireKeys[tireIdx]]?.presion || 35} onChange={e => updateField(`neumaticos.${tireKeys[tireIdx]}.presion`, Number(e.target.value))} /><select disabled={!editMode} className={`w-full px-4 py-5 rounded-[2rem] font-black text-white bg-slate-800 outline-none`} value={ficha.neumaticos[tireKeys[tireIdx]]?.estado || 'nuevo'} onChange={e => updateField(`neumaticos.${tireKeys[tireIdx]}.estado`, e.target.value)}><option value="nuevo">NUEVO</option><option value="usado">USADO OK</option><option value="desgastado">DESGASTADO</option><option value="critico">CRÍTICO</option></select></div></div>
                     </div><button onClick={nextTire} className="absolute right-0 p-5 bg-white/10 text-white rounded-full hover:bg-white/20 transition-all"><LucideChevronRight size={32}/></button></div></div></div>
          )}
 

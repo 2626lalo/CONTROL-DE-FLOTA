@@ -1,7 +1,7 @@
 import { GoogleGenAI, Type } from "@google/genai";
 
 /**
- * PROTOCOLO DE INTELIGENCIA v36.0
+ * PROTOCOLO DE INTELIGENCIA v37.0
  * Cliente centralizado para servicios de IA generativa.
  */
 const getAiClient = () => {
@@ -19,10 +19,10 @@ export const isAiAvailable = () => {
 export const analyzeDocumentImage = async (base64: string, side: 'Frente' | 'Dorso') => {
   const ai = getAiClient();
   
-  // Prompt optimizado para captura exhaustiva y diferenciación de campos
+  // Prompt optimizado: Se eliminó empresa y se renombró titular para alineación total
   const prompt = side === 'Frente' 
-    ? "Analiza el FRENTE de esta cédula vehicular. Extrae en JSON: plate (patente), make (marca), model (modelo), vin (número de chasis/chassis), motorNum (número de motor). Busca el chasis y motor aunque sea un texto pequeño."
-    : "Analiza el DORSO de esta cédula vehicular. Extrae en JSON: ownerName (nombre y apellido de la persona titular), ownerCompany (solo si es una empresa/razón social, si no dejar vacío), ownerAddress (domicilio), motorNum (motor), vin (chasis). Es CRÍTICO que no confundas a la persona titular con la empresa.";
+    ? "Analiza el FRENTE de esta cédula vehicular. Extrae en JSON: plate (patente), make (marca), model (modelo), vin (número de chasis), motorNum (número de motor). Si no puedes leer el chasis o motor con total claridad, NO los incluyas en el JSON."
+    : "Analiza el DORSO de esta cédula vehicular. Extrae en JSON: titular (nombre y apellido de la persona), ownerAddress (dirección/domicilio), motorNum (motor), vin (chasis). IMPORTANTE: Si un dato no es legible o es genérico, NO lo incluyas para no sobreescribir datos previos.";
 
   try {
     const response = await ai.models.generateContent({
@@ -43,8 +43,7 @@ export const analyzeDocumentImage = async (base64: string, side: 'Frente' | 'Dor
             model: { type: Type.STRING },
             vin: { type: Type.STRING },
             motorNum: { type: Type.STRING },
-            ownerName: { type: Type.STRING },
-            ownerCompany: { type: Type.STRING },
+            titular: { type: Type.STRING },
             ownerAddress: { type: Type.STRING }
           }
         }

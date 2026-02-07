@@ -1,14 +1,14 @@
-import React, { useState, useEffect } from 'react';
+// FIX: Added useMemo to React imports to resolve line 51 error
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/FleetContext';
 import { Vehicle, VehicleStatus, OwnershipType, FuelType, TransmissionType } from '../types';
 import { 
   LucideArrowLeft, LucideCar, LucideCheck, LucideCamera, LucideTrash2, 
-  LucideRefreshCw, LucideSettings2, LucideHash, LucideBuilding2, 
+  LucideRefreshCw, LucideSettings2, LucideHash, 
   LucideCpu, LucideCreditCard, LucideLock, LucideDollarSign, 
   LucideFileCheck2, LucideScanText, LucideLoader2, LucideUser,
-  LucideMapPin, LucideImage, LucideEdit3, LucideRefreshCcw, LucideMaximize,
-  LucideBuilding
+  LucideMapPin, LucideImage, LucideEdit3, LucideRefreshCcw, LucideMaximize
 } from 'lucide-react';
 import { analyzeDocumentImage, isAiAvailable } from '../services/geminiService';
 import { compressImage } from '../utils/imageCompressor';
@@ -31,7 +31,7 @@ export const VehicleForm = () => {
     currentKm: 0, serviceIntervalKm: 10000, nextServiceKm: 10000,
     costCenter: '', vin: '', motorNum: '', province: 'Mendoza',
     fuelType: FuelType.DIESEL, transmission: TransmissionType.MANUAL,
-    ownerName: '', ownerAddress: '', ownerCompany: '',
+    ownerName: '', ownerAddress: '',
     images: { front: '', rear: '', leftSide: '', rightSide: '', list: [] }, 
     documents: [], mileageHistory: []
   });
@@ -40,10 +40,24 @@ export const VehicleForm = () => {
     if (isEdit) {
       const found = vehicles.find(v => v.plate === plate);
       if (found) {
-        setFormData({ ...found });
+        setFormData({ 
+            ...found, 
+            ownerName: found.adminData?.propietario || '',
+            ownerAddress: found.adminData?.direccion || ''
+        });
       }
     }
   }, [isEdit, plate, vehicles]);
+
+  // FIX: isFormValid now uses useMemo which is correctly imported
+  const isFormValid = useMemo(() => {
+    return (
+      formData.plate.trim() !== '' &&
+      formData.version.trim() !== '' &&
+      formData.ownerName.trim() !== '' &&
+      formData.ownerAddress.trim() !== ''
+    );
+  }, [formData.plate, formData.version, formData.ownerName, formData.ownerAddress]);
 
   const runAnalysis = async (base64: string, side: 'Frente' | 'Dorso') => {
     if (!isAiAvailable()) {
@@ -61,18 +75,17 @@ export const VehicleForm = () => {
         const newData = { ...prev };
         const extracted = result.data;
 
-        // Fusión inteligente: Siempre intenta capturar VIN y Motor sin importar la cara
-        if (extracted.vin) newData.vin = extracted.vin.toUpperCase();
-        if (extracted.motorNum) newData.motorNum = extracted.motorNum.toUpperCase();
+        const isValidData = (val: any) => val && val.length > 5 && !['S/N', 'N/A', 'SIN DATOS', '---'].includes(val.toUpperCase());
+
+        if (isValidData(extracted.vin)) newData.vin = extracted.vin.toUpperCase();
+        if (isValidData(extracted.motorNum)) newData.motorNum = extracted.motorNum.toUpperCase();
 
         if (side === 'Frente') {
           if (extracted.plate) newData.plate = extracted.plate.toUpperCase().replace(/[^A-Z0-9]/g, '');
           if (extracted.make) newData.make = extracted.make.toUpperCase();
           if (extracted.model) newData.model = extracted.model.toUpperCase();
         } else {
-          // El dorso prioriza titularidad y empresa
-          if (extracted.ownerName) newData.ownerName = extracted.ownerName.toUpperCase();
-          if (extracted.ownerCompany) newData.ownerCompany = extracted.ownerCompany.toUpperCase();
+          if (extracted.titular) newData.ownerName = extracted.titular.toUpperCase();
           if (extracted.ownerAddress) newData.ownerAddress = extracted.ownerAddress.toUpperCase();
         }
         
@@ -115,10 +128,37 @@ export const VehicleForm = () => {
     addNotification(`${side} de cédula eliminado`, "warning");
   };
 
+  const scrollToField = (id: string) => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.focus();
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.plate) return addNotification("Patente obligatoria", "error");
-    if (!formData.version) return addNotification("Debe seleccionar una Versión", "warning");
+    
+    if (!formData.plate) {
+      addNotification("La Patente es obligatoria", "error");
+      scrollToField('field-plate');
+      return;
+    }
+    if (!formData.version) {
+      addNotification("Debe seleccionar una Versión", "warning");
+      scrollToField('field-version');
+      return;
+    }
+    if (!formData.ownerName) {
+      addNotification("El Titular es obligatorio", "error");
+      scrollToField('field-owner');
+      return;
+    }
+    if (!formData.ownerAddress) {
+      addNotification("La Dirección es obligatoria", "error");
+      scrollToField('field-address');
+      return;
+    }
     
     const structuredVehicle: Vehicle = {
       ...formData,
@@ -131,16 +171,18 @@ export const VehicleForm = () => {
         tarjetaTelepase: formData.adminData?.tarjetaTelepase || { numero: '', pin: '', proveedor: '', limiteMensual: 0, saldoActual: 0, fechaVencimiento: '', estado: 'activa' },
         unidadActiva: formData.adminData?.unidadActiva ?? true,
         propietario: formData.ownerName,
-        operandoPara: formData.ownerCompany
+        direccion: formData.ownerAddress
       }
     };
 
     if (isEdit) { 
       updateVehicle(structuredVehicle); 
       logAudit('UPDATE', 'VEHICLE', formData.plate, 'Actualización de ficha integral'); 
+      addNotification("Unidad actualizada correctamente", "success");
     } else { 
       addVehicle(structuredVehicle); 
       logAudit('CREATE', 'VEHICLE', formData.plate, 'Alta de activo en inventario corporativo'); 
+      addNotification("Unidad sincronizada en flota corporativa", "success");
     }
     navigate('/vehicles');
   };
@@ -156,7 +198,6 @@ export const VehicleForm = () => {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-8">
-        {/* SECCIÓN: CAPTURA DE CÉDULA INTELIGENTE */}
         {!isEdit && (
           <div className="bg-white p-12 rounded-[3.5rem] shadow-sm border border-slate-100 space-y-10">
             <div className="flex justify-between items-center border-b pb-6">
@@ -174,7 +215,6 @@ export const VehicleForm = () => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-              {/* CARGA FRENTE */}
               <div className="space-y-4">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4 flex items-center gap-2">
                   Imagen Frontal (Patente/Marca/Modelo)
@@ -211,7 +251,6 @@ export const VehicleForm = () => {
                 </div>
               </div>
 
-              {/* CARGA DORSO */}
               <div className="space-y-4">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4 flex items-center gap-2">
                   Imagen Trasera (VIN/Chasis/Motor/Titular)
@@ -257,7 +296,7 @@ export const VehicleForm = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 <div className="space-y-2">
                     <label className="text-[10px] font-black text-slate-500 uppercase ml-4">Patente</label>
-                    <input type="text" className="w-full px-8 py-5 rounded-[2rem] border border-white/10 bg-white/5 font-black text-4xl uppercase outline-none focus:ring-4 focus:ring-blue-500/30 text-blue-400" value={formData.plate} onChange={e => setFormData({...formData, plate: e.target.value.toUpperCase()})} />
+                    <input id="field-plate" type="text" className={`w-full px-8 py-5 rounded-[2rem] border bg-white/5 font-black text-4xl uppercase outline-none focus:ring-4 transition-all ${!formData.plate.trim() ? 'border-rose-500/30' : 'border-white/10 focus:ring-blue-500/30 text-blue-400'}`} value={formData.plate} onChange={e => setFormData({...formData, plate: e.target.value.toUpperCase()})} />
                 </div>
                 <div className="space-y-2">
                     <label className="text-[10px] font-black text-slate-500 uppercase ml-4">Marca</label>
@@ -282,12 +321,12 @@ export const VehicleForm = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-500 uppercase ml-4 flex items-center gap-2"><LucideUser size={12}/> Titularidad</label>
-                    <input type="text" className="w-full px-8 py-4 rounded-2xl border border-white/10 bg-white/5 font-bold uppercase outline-none" value={formData.ownerName} onChange={e => setFormData({...formData, ownerName: e.target.value.toUpperCase()})} placeholder="NOMBRE DEL TITULAR" />
+                    <label className="text-[10px] font-black text-slate-500 uppercase ml-4 flex items-center gap-2"><LucideUser size={12}/> Titular</label>
+                    <input id="field-owner" type="text" className={`w-full px-8 py-4 rounded-2xl border bg-white/5 font-bold uppercase outline-none focus:ring-4 transition-all ${!formData.ownerName.trim() ? 'border-rose-500/30' : 'border-white/10 focus:ring-blue-500/30'}`} value={formData.ownerName} onChange={e => setFormData({...formData, ownerName: e.target.value.toUpperCase()})} placeholder="NOMBRE DEL TITULAR" />
                 </div>
                 <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-500 uppercase ml-4 flex items-center gap-2"><LucideBuilding2 size={12}/> Empresa</label>
-                    <input type="text" className="w-full px-8 py-4 rounded-2xl border border-white/10 bg-white/5 font-bold uppercase outline-none" value={formData.ownerCompany} onChange={e => setFormData({...formData, ownerCompany: e.target.value.toUpperCase()})} placeholder="RAZÓN SOCIAL" />
+                    <label className="text-[10px] font-black text-slate-500 uppercase ml-4 flex items-center gap-2"><LucideMapPin size={12}/> Dirección</label>
+                    <input id="field-address" type="text" className={`w-full px-8 py-4 rounded-2xl border bg-white/5 font-bold uppercase outline-none focus:ring-4 transition-all ${!formData.ownerAddress.trim() ? 'border-rose-500/30' : 'border-white/10 focus:ring-blue-500/30'}`} value={formData.ownerAddress} onChange={e => setFormData({...formData, ownerAddress: e.target.value.toUpperCase()})} placeholder="DOMICILIO LEGAL" />
                 </div>
             </div>
 
@@ -302,7 +341,7 @@ export const VehicleForm = () => {
                 </div>
                 <div className="space-y-2">
                     <label className="text-[10px] font-black text-slate-500 uppercase ml-4">Versión Sistema</label>
-                    <select className="w-full px-8 py-5 rounded-[2rem] border border-white/10 bg-white/5 font-bold uppercase outline-none appearance-none" value={formData.version} onChange={e => setFormData({...formData, version: e.target.value})}>
+                    <select id="field-version" className={`w-full px-8 py-5 rounded-[2rem] border bg-white/5 font-bold uppercase outline-none appearance-none transition-all focus:ring-4 ${!formData.version.trim() ? 'border-rose-500/30' : 'border-white/10 focus:ring-blue-500/30'}`} value={formData.version} onChange={e => setFormData({...formData, version: e.target.value})}>
                         <option value="">Seleccione...</option>
                         {vehicleVersions.map(v => <option key={v} value={v} className="text-slate-900">{v}</option>)}
                     </select>
@@ -314,39 +353,13 @@ export const VehicleForm = () => {
             </div>
         </div>
 
-        {formData.ownership === OwnershipType.LEASING && (
-          <div className="bg-gradient-to-br from-indigo-700 to-violet-900 p-12 rounded-[3.5rem] shadow-2xl text-white space-y-10 animate-fadeIn">
-            <div className="flex justify-between items-center border-b border-white/20 pb-4">
-               <h3 className="text-xl font-black uppercase italic tracking-widest flex items-center gap-3"><LucideFileCheck2 size={24}/> Gestión Integral de Leasing</h3>
-               <span className="bg-white/20 px-4 py-1 rounded-full text-[9px] font-black uppercase tracking-widest">Contrato Bancario Activo</span>
-            </div>
-
-            <div className="space-y-12">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    <div className="space-y-2">
-                        <label className="text-[10px] font-black text-indigo-100 uppercase ml-4">Empresa Leasing</label>
-                        <input type="text" className="w-full px-6 py-4 rounded-2xl bg-white/10 border border-white/20 font-bold outline-none" value={formData.leasing?.provider} onChange={e => setFormData({...formData, leasing: {...formData.leasing!, provider: e.target.value}})} />
-                    </div>
-                    <div className="space-y-2">
-                        <label className="text-[10px] font-black text-indigo-100 uppercase ml-4">Canon Mensual ($)</label>
-                        <input type="number" onFocus={(e) => e.target.select()} className="w-full px-6 py-4 rounded-2xl bg-white/10 border border-white/20 font-black outline-none" value={formData.leasing?.monthlyCost} onChange={e => setFormData({...formData, leasing: {...formData.leasing!, monthlyCost: Number(e.target.value)}})} />
-                    </div>
-                    <div className="space-y-2">
-                        <label className="text-[10px] font-black text-indigo-100 uppercase ml-4">Valor Residual</label>
-                        <input type="number" onFocus={(e) => e.target.select()} className="w-full px-6 py-4 rounded-2xl bg-white/10 border border-white/20 font-black outline-none" value={formData.leasing?.residualValue} onChange={e => setFormData({...formData, leasing: {...formData.leasing!, residualValue: Number(e.target.value)}})} />
-                    </div>
-                    <div className="space-y-2">
-                        <label className="text-[10px] font-black text-indigo-100 uppercase ml-4">Límite Km Anual</label>
-                        <input type="number" onFocus={(e) => e.target.select()} className="w-full px-6 py-4 rounded-2xl bg-white/10 border border-white/20 font-black outline-none" value={formData.leasing?.allowedAnnualMileage} onChange={e => setFormData({...formData, leasing: {...formData.leasing!, allowedAnnualMileage: Number(e.target.value)}})} />
-                    </div>
-                </div>
-            </div>
-          </div>
-        )}
-
         <div className="flex justify-end gap-6 pt-10 border-t border-slate-100">
           <button type="button" onClick={() => navigate('/vehicles')} className="px-12 py-6 rounded-[2.5rem] font-black text-slate-400 uppercase text-[11px] tracking-widest hover:text-slate-600">Cancelar</button>
-          <button type="submit" className="px-20 py-6 rounded-[2.5rem] font-black bg-slate-900 text-white hover:bg-blue-600 shadow-2xl transition-all uppercase text-xs tracking-widest transform active:scale-95">
+          <button 
+            type="submit" 
+            disabled={!isFormValid}
+            className={`px-20 py-6 rounded-[2.5rem] font-black transition-all uppercase text-xs tracking-widest transform active:scale-95 ${isFormValid ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-2xl shadow-blue-200' : 'bg-slate-200 text-slate-400 cursor-not-allowed opacity-50'}`}
+          >
             {isEdit ? 'Actualizar Ficha Técnica' : 'Sincronizar Alta de Unidad'}
           </button>
         </div>
