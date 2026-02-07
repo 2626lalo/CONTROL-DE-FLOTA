@@ -9,7 +9,7 @@ import {
   Camera, X, AlertTriangle, Gauge, LucideLocate, LucideMaximize2,
   LucideFileSearch2, LucideX, LucideChevronRight, LucideMapPinCheck, LucideMapPinHouse,
   LucideMessageSquare, Trash2, Layout, Truck, LucideDownload, LucideClock,
-  LucideShieldCheck
+  LucideShieldCheck, Mail
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale/es';
@@ -188,6 +188,11 @@ export const Checklist = () => {
     const [generalObservations, setGeneralObservations] = useState('');
     const [errors, setErrors] = useState<Record<string, boolean>>({});
 
+    // ESTADOS PARA ENVÍO POR CORREO
+    const [sendEmail, setSendEmail] = useState(false);
+    const [emailRecipients, setEmailRecipients] = useState<string[]>([]);
+    const [currentEmail, setCurrentEmail] = useState('');
+
     const [motorItems, setMotorItems] = useState<ChecklistItem[]>([]);
     const [lightItems, setLightItems] = useState<ChecklistItem[]>([]);
     const [generalItems, setGeneralItems] = useState<any[]>([]);
@@ -275,6 +280,17 @@ export const Checklist = () => {
         return Object.keys(newErrors).length === 0;
     };
 
+    const addEmail = () => {
+        if (currentEmail && currentEmail.includes('@') && !emailRecipients.includes(currentEmail.toLowerCase())) {
+            setEmailRecipients([...emailRecipients, currentEmail.toLowerCase()]);
+            setCurrentEmail('');
+        }
+    };
+
+    const removeEmail = (email: string) => {
+        setEmailRecipients(emailRecipients.filter(e => e !== email));
+    };
+
     const handleSave = () => {
         if (!validateForm()) return;
         addChecklist({
@@ -284,7 +300,8 @@ export const Checklist = () => {
             motor: motorItems, lights: lightItems, general: generalItems, 
             bodywork: bodyworkItems, accessories: accessoryItems, 
             findingsMarkers, signature, clarification, generalObservations, 
-            receivedBy, receiverSignature, originSector, destinationSector
+            receivedBy, receiverSignature, originSector, destinationSector,
+            emailRecipients: sendEmail ? emailRecipients : []
         });
         addNotification("Reporte generado y guardado.", "success");
         setViewMode('LIST');
@@ -722,7 +739,50 @@ export const Checklist = () => {
             </div>
 
             <section className={`bg-slate-950 p-12 rounded-[4rem] text-white space-y-12 shadow-2xl relative transition-all ${errors.received_by_input || errors.signature_pad ? 'ring-4 ring-rose-500/50' : ''}`}>
-                <div className="pt-6 border-b border-white/5 pb-12"><h4 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] mb-6 flex items-center gap-2"><Check size={16} className="text-emerald-500"/> VEREDICTO DE SEGURIDAD OPERATIVA</h4><div className="flex bg-slate-900/50 p-2 rounded-[2.5rem] border border-white/10 shadow-2xl"><button type="button" onClick={() => setCanCirculate(true)} className={`flex-1 py-6 rounded-[2rem] text-[11px] font-black uppercase transition-all flex items-center justify-center gap-3 ${canCirculate ? 'bg-emerald-600 text-white shadow-xl' : 'text-slate-500 hover:text-slate-300'}`}>APTA PARA CIRCULAR</button><button type="button" onClick={() => setCanCirculate(false)} className={`flex-1 py-6 rounded-[2rem] text-[11px] font-black uppercase transition-all flex items-center justify-center gap-3 ${!canCirculate ? 'bg-rose-600 text-white shadow-xl' : 'text-slate-500 hover:text-slate-300'}`}>FUERA DE SERVICIO</button></div></div>
+                <div className="pt-6 border-b border-white/5 pb-12">
+                    <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] mb-6 flex items-center gap-2">
+                        <Check size={16} className="text-emerald-500"/> VEREDICTO DE SEGURIDAD OPERATIVA
+                    </h4>
+                    <div className="flex bg-slate-900/50 p-2 rounded-[2.5rem] border border-white/10 shadow-2xl">
+                        <button type="button" onClick={() => setCanCirculate(true)} className={`flex-1 py-6 rounded-[2rem] text-[11px] font-black uppercase transition-all flex items-center justify-center gap-3 ${canCirculate ? 'bg-emerald-600 text-white shadow-xl' : 'text-slate-500 hover:text-slate-300'}`}>APTA PARA CIRCULAR</button>
+                        <button type="button" onClick={() => setCanCirculate(false)} className={`flex-1 py-6 rounded-[2rem] text-[11px] font-black uppercase transition-all flex items-center justify-center gap-3 ${!canCirculate ? 'bg-rose-600 text-white shadow-xl' : 'text-slate-500 hover:text-slate-300'}`}>FUERA DE SERVICIO</button>
+                    </div>
+                </div>
+
+                {/* NUEVA BURBUJA: ENVÍO POR CORREO ELECTRÓNICO */}
+                <div className="pt-6 border-b border-white/5 pb-12 animate-fadeIn">
+                    <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] mb-6 flex items-center gap-2">
+                        <Mail size={16} className="text-blue-400"/> ¿DESEA ENVIAR EL REGISTRO POR CORREO ELECTRÓNICO?
+                    </h4>
+                    <div className="flex bg-slate-900/50 p-2 rounded-[2.5rem] border border-white/10 shadow-2xl">
+                        <button type="button" onClick={() => { setSendEmail(false); setEmailRecipients([]); }} className={`flex-1 py-6 rounded-[2rem] text-[11px] font-black uppercase transition-all flex items-center justify-center gap-3 ${!sendEmail ? 'bg-slate-700 text-white shadow-xl' : 'text-slate-500 hover:text-slate-300'}`}>NO</button>
+                        <button type="button" onClick={() => setSendEmail(true)} className={`flex-1 py-6 rounded-[2rem] text-[11px] font-black uppercase transition-all flex items-center justify-center gap-3 ${sendEmail ? 'bg-blue-600 text-white shadow-xl' : 'text-slate-500 hover:text-slate-300'}`}>SÍ</button>
+                    </div>
+                    
+                    {sendEmail && (
+                        <div className="mt-8 space-y-4 animate-fadeIn">
+                            <div className="flex gap-2">
+                                <input 
+                                    type="email" 
+                                    placeholder="CORREO@EJEMPLO.COM" 
+                                    className="flex-1 px-6 py-4 bg-white/5 border border-white/10 rounded-2xl font-bold text-xs text-white outline-none focus:ring-2 focus:ring-blue-500 transition-all uppercase"
+                                    value={currentEmail}
+                                    onChange={e => setCurrentEmail(e.target.value)}
+                                    onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addEmail())}
+                                />
+                                <button type="button" onClick={addEmail} className="p-4 bg-blue-600 text-white rounded-2xl hover:bg-blue-700 transition-all shadow-lg"><Plus size={20}/></button>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                                {emailRecipients.map(e => (
+                                    <div key={e} className="px-4 py-2 bg-white/10 rounded-xl border border-white/10 flex items-center gap-3 group animate-fadeIn">
+                                        <span className="text-[10px] font-black text-blue-400 uppercase tracking-tight italic">{e}</span>
+                                        <button type="button" onClick={() => removeEmail(e)} className="text-slate-500 hover:text-rose-500 transition-all"><X size={12}/></button>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
                 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 relative z-10">
                     <div className="space-y-12 flex flex-col items-center">
