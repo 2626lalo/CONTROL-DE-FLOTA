@@ -124,7 +124,7 @@ const EvidencePanel = ({
 
 const PreviewItem: React.FC<{ item: any }> = ({ item }) => (
     <div className="py-3 border-b border-slate-100 last:border-0">
-        <div className="flex justify-between items-start">
+        <div className="flex justify-between items-start gap-4">
             <div className="flex-1">
                 <p className="text-[10px] font-black text-slate-700 uppercase tracking-tight">{item.name}</p>
                 {item.observation && (
@@ -140,7 +140,7 @@ const PreviewItem: React.FC<{ item: any }> = ({ item }) => (
                     </div>
                 )}
             </div>
-            <div className="shrink-0 text-right ml-4">
+            <div className="shrink-0 text-right">
                 <span className={`px-3 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest border ${
                     item.hasIt === false ? 'bg-slate-100 text-slate-400 border-slate-200' :
                     item.status === 'GOOD' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
@@ -188,7 +188,6 @@ export const Checklist = () => {
     const [generalObservations, setGeneralObservations] = useState('');
     const [errors, setErrors] = useState<Record<string, boolean>>({});
 
-    // ESTADOS PARA ENVÍO POR CORREO
     const [sendEmail, setSendEmail] = useState(false);
     const [emailRecipients, setEmailRecipients] = useState<string[]>([]);
     const [currentEmail, setCurrentEmail] = useState('');
@@ -374,7 +373,7 @@ export const Checklist = () => {
 
     const StatusPicker = ({ section, index, status, disabled }: { section: string, index: number, status: any, disabled?: boolean }) => (
         <div className={`flex items-center gap-2 ${disabled ? 'opacity-20 pointer-events-none grayscale' : ''}`}>
-            <div className="flex bg-white p-1 rounded-xl border border-slate-200">
+            <div className="flex bg-white p-1 rounded-xl border border-slate-200 flex-wrap">
                 {['GOOD', 'REGULAR', 'BAD'].map((s: any) => (
                     <button key={s} type="button" onClick={() => {
                         const setMap: any = { motor: setMotorItems, lights: setLightItems, general: setGeneralItems, bodywork: setBodyworkItems, accessories: setAccessoryItems };
@@ -383,7 +382,7 @@ export const Checklist = () => {
                         ni[index].status = s;
                         setMap[section](ni);
                         if (s === 'BAD') setCanCirculate(false);
-                    }} className={`px-4 py-1.5 rounded-lg text-[8px] font-black transition-all ${status === s ? (s === 'GOOD' ? 'bg-emerald-500' : s === 'REGULAR' ? 'bg-amber-500' : 'bg-rose-500') + ' text-white shadow-md' : 'text-slate-400 hover:bg-slate-50'}`}>
+                    }} className={`px-3 md:px-4 py-1.5 rounded-lg text-[8px] font-black transition-all ${status === s ? (s === 'GOOD' ? 'bg-emerald-500' : s === 'REGULAR' ? 'bg-amber-500' : 'bg-rose-500') + ' text-white shadow-md' : 'text-slate-400 hover:bg-slate-50'}`}>
                         {s === 'GOOD' ? 'OK' : s === 'REGULAR' ? 'REG' : 'DEF'}
                     </button>
                 ))}
@@ -406,12 +405,12 @@ export const Checklist = () => {
     );
 
     const DossierView = ({ data, onDownload, onClose }: { data: ChecklistType, onDownload?: () => void, onClose: () => void }) => (
-        <div className="fixed inset-0 z-[2100] bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-2 md:p-4 lg:p-4 animate-fadeIn">
+        <div className="fixed inset-0 z-[2100] bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-2 animate-fadeIn">
             <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-[98vw] lg:max-w-6xl h-[95vh] flex flex-col overflow-hidden border-t-[12px] border-indigo-600">
-                <div className="bg-slate-950 p-6 md:p-8 text-white flex justify-between items-center shrink-0">
+                <div className="bg-slate-950 p-4 md:p-8 text-white flex justify-between items-center shrink-0">
                     <div className="flex items-center gap-4">
                         <div className="p-3 md:p-4 bg-indigo-600 rounded-2xl md:rounded-3xl shadow-xl"><LucideFileSearch2 size={24}/></div>
-                        <div>
+                        <div className="hidden sm:block">
                             <h3 className="text-lg md:text-xl font-black uppercase italic tracking-tighter leading-none">Hoja de Inspección</h3>
                             <p className="text-[8px] md:text-[10px] font-black text-slate-500 uppercase tracking-widest mt-1">Sincronización de Campo Digital</p>
                         </div>
@@ -426,24 +425,24 @@ export const Checklist = () => {
                     </div>
                 </div>
                 
-                <div className="flex-1 bg-slate-100 p-4 md:p-10 overflow-auto custom-scrollbar font-sans w-full">
-                    <div className="mx-auto bg-white shadow-inner rounded-[2rem] overflow-hidden border border-slate-200 min-w-[750px] lg:min-w-0 lg:max-w-4xl">
-                        <div className="p-8 md:p-12 space-y-10">
-                            <div className="flex justify-between items-start border-b-4 border-slate-900 pb-6">
+                <div className="flex-1 bg-slate-100 p-2 md:p-10 overflow-auto custom-scrollbar font-sans w-full">
+                    <div className="mx-auto bg-white shadow-inner rounded-[2rem] overflow-hidden border border-slate-200 min-w-[320px] lg:max-w-4xl">
+                        <div className="p-4 md:p-12 space-y-10">
+                            <div className="flex flex-col sm:flex-row justify-between items-start border-b-4 border-slate-900 pb-6 gap-4">
                                 <div>
-                                    <h2 className="text-2xl font-black uppercase italic tracking-tighter text-slate-900">Hoja de Inspección Técnica</h2>
+                                    <h2 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter text-slate-900">Hoja de Inspección Técnica</h2>
                                     <div className="flex items-center gap-2 mt-1">
                                         <LucideClock size={12} className="text-blue-600"/>
                                         <p className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em] italic">{format(parseISO(data.date), "dd 'de' MMMM, yyyy HH:mm'hs'", {locale: es})}</p>
                                     </div>
                                 </div>
-                                <div className="text-right">
+                                <div className="sm:text-right">
                                     <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Unidad Auditada</p>
-                                    <p className="text-4xl font-black text-slate-900 italic uppercase leading-none">{data.vehiclePlate}</p>
+                                    <p className="text-3xl md:text-4xl font-black text-slate-900 italic uppercase leading-none">{data.vehiclePlate}</p>
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-10">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                                 <div className="space-y-4">
                                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-1">Contexto de Operación</p>
                                     <div className="grid grid-cols-1 gap-2 text-xs font-bold text-slate-700">
@@ -511,9 +510,9 @@ export const Checklist = () => {
                     </div>
                 </div>
 
-                <div className="p-8 bg-slate-50 border-t flex justify-between items-center shrink-0">
+                <div className="p-4 md:p-8 bg-slate-50 border-t flex flex-col sm:flex-row justify-between items-center shrink-0 gap-4">
                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest italic flex items-center gap-2"><LucideShieldCheck className="text-blue-600" size={14}/> Certificación Digital FleetPro</p>
-                    <button onClick={onClose} className="px-12 py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-indigo-700 transition-all shadow-lg flex items-center gap-2"><LucideX size={16}/> Cerrar Vista</button>
+                    <button onClick={onClose} className="w-full sm:w-auto px-12 py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-indigo-700 transition-all shadow-lg flex items-center justify-center gap-2"><LucideX size={16}/> Cerrar Vista</button>
                 </div>
             </div>
         </div>
@@ -529,26 +528,26 @@ export const Checklist = () => {
                         onClose={() => setViewingChecklist(null)} 
                     />
                 )}
-                <div className="flex justify-between items-center">
-                    <h1 className="text-4xl font-black text-slate-800 uppercase italic flex items-center gap-3"><FileText className="text-blue-600" size={36}/> Inspecciones</h1>
-                    <button onClick={() => setViewMode('CREATE')} className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black flex items-center gap-3 hover:bg-blue-700 shadow-2xl transition-all text-[11px] uppercase tracking-widest"><Plus size={24}/> Nueva Auditoría</button>
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                    <h1 className="text-3xl md:text-4xl font-black text-slate-800 uppercase italic flex items-center gap-3"><FileText className="text-blue-600" size={36}/> Inspecciones</h1>
+                    <button onClick={() => setViewMode('CREATE')} className="w-full md:w-auto bg-blue-600 text-white px-8 py-4 rounded-2xl font-black flex items-center justify-center gap-3 hover:bg-blue-700 shadow-2xl transition-all text-[11px] uppercase tracking-widest"><Plus size={24}/> Nueva Auditoría</button>
                 </div>
                 <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden">
-                    <div className="p-8 border-b border-slate-50 flex items-center gap-4 bg-slate-50/50"><Search className="text-slate-400" size={24}/><input type="text" placeholder="Buscar patente..." className="bg-transparent border-none outline-none font-bold text-slate-700 w-full text-lg uppercase" value={searchTerm} onChange={e => setSearchTerm(e.target.value)}/></div>
+                    <div className="p-6 md:p-8 border-b border-slate-50 flex items-center gap-4 bg-slate-50/50"><Search className="text-slate-400" size={24}/><input type="text" placeholder="Buscar patente..." className="bg-transparent border-none outline-none font-bold text-slate-700 w-full text-lg uppercase" value={searchTerm} onChange={e => setSearchTerm(e.target.value)}/></div>
                     <div className="divide-y divide-slate-50">
                         {checklists.filter(c => c.vehiclePlate.includes(searchTerm.toUpperCase())).map(c => (
                             <div key={c.id} onClick={() => setViewingChecklist(c)} className="p-6 hover:bg-slate-50 transition-all flex justify-between items-center cursor-pointer group">
-                                <div className="flex items-center gap-6">
-                                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-white font-black ${c.canCirculate ? 'bg-emerald-500' : 'bg-rose-500'}`}>
+                                <div className="flex items-center gap-4 md:gap-6">
+                                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-white font-black shrink-0 ${c.canCirculate ? 'bg-emerald-500' : 'bg-rose-500'}`}>
                                         {c.vehiclePlate.substring(0,2)}
                                     </div>
                                     <div>
-                                        <h3 className="text-xl font-black text-slate-800 uppercase italic group-hover:text-blue-600 transition-colors">{c.vehiclePlate}</h3>
+                                        <h3 className="text-lg md:text-xl font-black text-slate-800 uppercase italic group-hover:text-blue-600 transition-colors">{c.vehiclePlate}</h3>
                                         <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">{format(parseISO(c.date), 'dd/MM/yyyy HH:mm')} • {c.userName}</p>
                                     </div>
                                 </div>
-                                <div className="flex items-center gap-4">
-                                    <div className="p-2 bg-slate-100 text-slate-400 rounded-lg group-hover:bg-blue-600 group-hover:text-white transition-all shadow-sm">
+                                <div className="flex items-center gap-2 md:gap-4">
+                                    <div className="hidden sm:block p-2 bg-slate-100 text-slate-400 rounded-lg group-hover:bg-blue-600 group-hover:text-white transition-all shadow-sm">
                                         <Eye size={20}/>
                                     </div>
                                     <LucideChevronRight className="text-slate-200 group-hover:text-blue-600 transition-all" size={24}/>
@@ -583,7 +582,7 @@ export const Checklist = () => {
     };
 
     return (
-        <div className="max-w-4xl mx-auto pb-24 animate-fadeIn px-4 space-y-8">
+        <div className="max-w-4xl mx-auto pb-24 animate-fadeIn px-2 md:px-4 space-y-8">
             {zoomedImage && <ImageZoomModal url={zoomedImage.url} label={zoomedImage.label} onClose={() => setZoomedImage(null)} />}
             
             {showHtmlPreview && (
@@ -594,11 +593,11 @@ export const Checklist = () => {
             )}
 
             <div className="flex items-center gap-4">
-                <button onClick={() => setViewMode('LIST')} className="p-4 bg-white rounded-2xl shadow-sm border border-slate-100 text-slate-500 hover:text-slate-800 transition-all"><ArrowLeft size={24}/></button>
-                <div><h1 className="text-3xl font-black text-slate-800 tracking-tight uppercase italic leading-none">Inspección Operativa</h1><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">SISTEMA EMPRESARIAL</p></div>
+                <button onClick={() => setViewMode('LIST')} className="p-3 md:p-4 bg-white rounded-2xl shadow-sm border border-slate-100 text-slate-500 hover:text-slate-800 transition-all"><ArrowLeft size={24}/></button>
+                <div><h1 className="text-2xl md:text-3xl font-black text-slate-800 tracking-tight uppercase italic leading-none">Inspección Operativa</h1><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">SISTEMA EMPRESARIAL</p></div>
             </div>
 
-            <section className={`bg-white p-10 rounded-[3rem] text-slate-800 shadow-2xl relative border-t-8 transition-all ${errors.plate_input || errors.km_input || errors.travel_inputs || errors.province_input ? 'border-rose-500' : 'border-blue-600'}`}>
+            <section className={`bg-white p-6 md:p-10 rounded-[3rem] text-slate-800 shadow-2xl relative border-t-8 transition-all ${errors.plate_input || errors.km_input || errors.travel_inputs || errors.province_input ? 'border-rose-500' : 'border-blue-600'}`}>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div className="space-y-3 relative">
                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Unidad (Patente)</label>
@@ -655,11 +654,11 @@ export const Checklist = () => {
                 <div id={sec.id} key={sec.id} className={`bg-white rounded-[2.5rem] shadow-sm border transition-all ${errors[sec.id] ? 'border-rose-500 ring-4 ring-rose-50' : 'border-slate-100'} overflow-hidden`}>
                     <button onClick={() => setOpenSections(p => ({...p, [sec.id]: !p[sec.id]}))} className={`w-full p-6 flex justify-between items-center bg-slate-50 border-l-8 border-${sec.color}-500 hover:bg-slate-100 transition-all`}><div className="flex items-center gap-4"><sec.icon className={`text-${sec.color}-500`} size={24}/> <h3 className="font-black uppercase text-xs italic tracking-widest text-slate-800">{sec.label}</h3></div>{openSections[sec.id] ? <ChevronUp/> : <ChevronDown/>}</button>
                     {openSections[sec.id] && (
-                        <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4 animate-fadeIn">
+                        <div className="p-4 md:p-6 grid grid-cols-1 md:grid-cols-2 gap-4 animate-fadeIn">
                             {sec.items.map((item, idx) => (
                                 <div key={idx} className="space-y-2">
                                     <div className={`p-4 rounded-2xl border flex flex-col transition-all ${item.status === undefined && item.hasIt !== false && errors[sec.id] ? 'border-rose-500 bg-rose-50' : 'bg-slate-50 border-slate-100'}`}>
-                                        <div className="flex justify-between items-center w-full">
+                                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 w-full">
                                             <div className="flex items-center gap-4">
                                                 {sec.id === 'general' && item.name === 'Equipo de Frío' && (
                                                   <div className="flex bg-white p-1 rounded-lg border border-slate-200 shadow-sm shrink-0">
@@ -713,17 +712,23 @@ export const Checklist = () => {
             <div id="accessories" className={`bg-white rounded-[2.5rem] shadow-sm border transition-all ${errors.accessories ? 'border-rose-500 ring-4 ring-rose-50' : 'border-slate-100'} overflow-hidden`}>
                 <button onClick={() => setOpenSections(p => ({...p, accessories: !p.accessories}))} className="w-full p-6 flex justify-between items-center bg-slate-50 border-l-8 border-indigo-600 hover:bg-slate-100 transition-all"><div className="flex items-center gap-4"><Zap className="text-indigo-600" size={24}/> <h3 className="font-black uppercase text-xs italic tracking-widest text-slate-800">Sección E: Inventario y Seguridad</h3></div>{openSections.accessories ? <ChevronUp/> : <ChevronDown/>}</button>
                 {openSections.accessories && (
-                    <div className="p-6 space-y-3 animate-fadeIn">
+                    <div className="p-4 md:p-6 space-y-3 animate-fadeIn">
                         {accessoryItems.map((item, idx) => (
                             <div key={idx} className="space-y-2 border-b border-slate-50 pb-4 last:border-0 last:pb-0">
-                                <div className={`p-5 rounded-[2rem] border transition-all ${item.status === undefined && errors.accessories ? 'border-rose-500 bg-rose-50 shadow-inner' : 'bg-slate-50 border-slate-100'}`}>
-                                    <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
-                                        <div className="flex-1 w-full sm:w-1/3">
+                                <div className={`p-4 md:p-5 rounded-[2rem] border transition-all ${item.status === undefined && errors.accessories ? 'border-rose-500 bg-rose-50 shadow-inner' : 'bg-slate-50 border-slate-100'}`}>
+                                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 md:gap-6">
+                                        <div className="flex-1 w-full sm:w-1/3 text-center sm:text-left">
                                             <h4 className="font-black text-slate-800 uppercase italic text-[11px] leading-tight">{item.name}</h4>
                                             <ThumbnailsRow images={item.images || []} />
                                         </div>
-                                        <div className="flex-1 flex justify-center items-center gap-3 w-full sm:w-1/3"><div className={`flex items-center gap-3 px-4 py-2 rounded-2xl border bg-white border-slate-200 shadow-sm`}><button type="button" onClick={() => { const na = [...accessoryItems]; na[idx].quantityFound = Math.max(0, item.quantityFound - 1); setAccessoryItems(na); }} className="text-slate-400 hover:text-rose-500"><Plus size={16} className="rotate-45"/></button><input type="number" onFocus={(e) => e.target.select()} className="w-12 text-center font-black text-xl bg-transparent outline-none text-blue-600" value={item.quantityFound} onChange={e => { const na = [...accessoryItems]; na[idx].quantityFound = Number(e.target.value); setAccessoryItems(na); }} /><button type="button" onClick={() => { const na = [...accessoryItems]; na[idx].quantityFound = item.quantityFound + 1; setAccessoryItems(na); }} className="text-slate-400 hover:text-rose-500"><Plus size={16}/></button></div></div>
-                                        <div className="flex-1 flex justify-end w-full sm:w-1/3"><StatusPicker section="accessories" index={idx} status={item.status} /></div>
+                                        <div className="flex-1 flex justify-center items-center gap-3 w-full sm:w-1/3">
+                                            <div className={`flex items-center gap-3 px-4 py-2 rounded-2xl border bg-white border-slate-200 shadow-sm`}>
+                                                <button type="button" onClick={() => { const na = [...accessoryItems]; na[idx].quantityFound = Math.max(0, item.quantityFound - 1); setAccessoryItems(na); }} className="text-slate-400 hover:text-rose-500"><Plus size={16} className="rotate-45"/></button>
+                                                <input type="number" onFocus={(e) => e.target.select()} className="w-12 text-center font-black text-xl bg-transparent outline-none text-blue-600" value={item.quantityFound} onChange={e => { const na = [...accessoryItems]; na[idx].quantityFound = Number(e.target.value); setAccessoryItems(na); }} />
+                                                <button type="button" onClick={() => { const na = [...accessoryItems]; na[idx].quantityFound = item.quantityFound + 1; setAccessoryItems(na); }} className="text-slate-400 hover:text-rose-500"><Plus size={16}/></button>
+                                            </div>
+                                        </div>
+                                        <div className="flex-1 flex justify-center sm:justify-end w-full sm:w-1/3"><StatusPicker section="accessories" index={idx} status={item.status} /></div>
                                     </div>
                                 </div>
                                 {(item.status === 'REGULAR' || item.status === 'BAD' || item.quantityFound < item.quantity) && (<EvidencePanel id={`obs_accessories_${idx}`} item={item} onUpdate={(u) => {
@@ -738,23 +743,22 @@ export const Checklist = () => {
                 )}
             </div>
 
-            <section className={`bg-slate-950 p-12 rounded-[4rem] text-white space-y-12 shadow-2xl relative transition-all ${errors.received_by_input || errors.signature_pad ? 'ring-4 ring-rose-500/50' : ''}`}>
+            <section className={`bg-slate-950 p-8 md:p-12 rounded-[4rem] text-white space-y-12 shadow-2xl relative transition-all ${errors.received_by_input || errors.signature_pad ? 'ring-4 ring-rose-500/50' : ''}`}>
                 <div className="pt-6 border-b border-white/5 pb-12">
                     <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] mb-6 flex items-center gap-2">
                         <Check size={16} className="text-emerald-500"/> VEREDICTO DE SEGURIDAD OPERATIVA
                     </h4>
-                    <div className="flex bg-slate-900/50 p-2 rounded-[2.5rem] border border-white/10 shadow-2xl">
+                    <div className="flex flex-col sm:flex-row bg-slate-900/50 p-2 rounded-[2.5rem] border border-white/10 shadow-2xl gap-2">
                         <button type="button" onClick={() => setCanCirculate(true)} className={`flex-1 py-6 rounded-[2rem] text-[11px] font-black uppercase transition-all flex items-center justify-center gap-3 ${canCirculate ? 'bg-emerald-600 text-white shadow-xl' : 'text-slate-500 hover:text-slate-300'}`}>APTA PARA CIRCULAR</button>
                         <button type="button" onClick={() => setCanCirculate(false)} className={`flex-1 py-6 rounded-[2rem] text-[11px] font-black uppercase transition-all flex items-center justify-center gap-3 ${!canCirculate ? 'bg-rose-600 text-white shadow-xl' : 'text-slate-500 hover:text-slate-300'}`}>FUERA DE SERVICIO</button>
                     </div>
                 </div>
 
-                {/* NUEVA BURBUJA: ENVÍO POR CORREO ELECTRÓNICO */}
                 <div className="pt-6 border-b border-white/5 pb-12 animate-fadeIn">
                     <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] mb-6 flex items-center gap-2">
                         <Mail size={16} className="text-blue-400"/> ¿DESEA ENVIAR EL REGISTRO POR CORREO ELECTRÓNICO?
                     </h4>
-                    <div className="flex bg-slate-900/50 p-2 rounded-[2.5rem] border border-white/10 shadow-2xl">
+                    <div className="flex flex-col sm:flex-row bg-slate-900/50 p-2 rounded-[2.5rem] border border-white/10 shadow-2xl gap-2">
                         <button type="button" onClick={() => { setSendEmail(false); setEmailRecipients([]); }} className={`flex-1 py-6 rounded-[2rem] text-[11px] font-black uppercase transition-all flex items-center justify-center gap-3 ${!sendEmail ? 'bg-slate-700 text-white shadow-xl' : 'text-slate-500 hover:text-slate-300'}`}>NO</button>
                         <button type="button" onClick={() => setSendEmail(true)} className={`flex-1 py-6 rounded-[2rem] text-[11px] font-black uppercase transition-all flex items-center justify-center gap-3 ${sendEmail ? 'bg-blue-600 text-white shadow-xl' : 'text-slate-500 hover:text-slate-300'}`}>SÍ</button>
                     </div>
@@ -770,7 +774,7 @@ export const Checklist = () => {
                                     onChange={e => setCurrentEmail(e.target.value)}
                                     onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addEmail())}
                                 />
-                                <button type="button" onClick={addEmail} className="p-4 bg-blue-600 text-white rounded-2xl hover:bg-blue-700 transition-all shadow-lg"><Plus size={20}/></button>
+                                <button type="button" onClick={addEmail} className="p-4 bg-blue-600 text-white rounded-2xl hover:bg-blue-700 transition-all shadow-lg shrink-0"><Plus size={20}/></button>
                             </div>
                             <div className="flex flex-wrap gap-2">
                                 {emailRecipients.map(e => (
@@ -795,7 +799,7 @@ export const Checklist = () => {
 
                     <div className="space-y-8 h-full flex flex-col">
                         {['REEMPLAZO', 'POR CAMBIO DE TURNO', 'ENTREGA / RECEPCIÓN'].includes(checkType) && (
-                            <div id="received_by_input" className="space-y-10 animate-fadeIn bg-white/5 p-8 rounded-[3rem] border border-white/10">
+                            <div id="received_by_input" className="space-y-10 animate-fadeIn bg-white/5 p-6 md:p-8 rounded-[3rem] border border-white/10">
                                 <div className="space-y-4">
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Nombre Receptor</label>
                                     <input className={`w-full px-8 py-5 bg-white/5 border rounded-[2rem] font-black text-white outline-none ${errors.received_by_input && !receivedBy ? 'border-rose-500' : 'border-white/10'}`} placeholder="NOMBRE DEL TERCERO..." value={receivedBy} onChange={e => setReceivedBy(e.target.value.toUpperCase())} />
