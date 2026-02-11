@@ -1,4 +1,3 @@
-
 import { User, UserRole, Vehicle, FuelType, VehicleStatus, OwnershipType, TransmissionType, ServiceStage } from "./types";
 
 export const CHECKLIST_SECTIONS = {
@@ -25,7 +24,6 @@ export const MOCK_USERS: User[] = [
     email: 'alewilczek@gmail.com',
     telefono: '+5491100000000',
     role: UserRole.ADMIN,
-    // FIX: Added missing 'level' property for User interface compatibility
     level: 3,
     rolesSecundarios: [],
     estado: 'activo',
@@ -45,13 +43,35 @@ export const MOCK_USERS: User[] = [
     eliminado: false
   },
   {
+    id: 'u-proveedor-1',
+    nombre: 'Talleres',
+    apellido: 'El Rayo',
+    email: 'proveedor@taller.com',
+    telefono: '+5491199998888',
+    role: UserRole.PROVIDER,
+    level: 1,
+    rolesSecundarios: [],
+    estado: 'activo',
+    approved: true,
+    fechaRegistro: '2024-05-01T10:00:00Z',
+    password: 'admin',
+    centroCosto: { id: 'cc-prov', nombre: 'Servicios Externos', codigo: 'EXT-001' },
+    intentosFallidos: 0,
+    permisos: [],
+    notificaciones: { email: true, push: true, whatsapp: true },
+    creadoPor: 'u-master',
+    fechaCreacion: '2024-05-01T10:00:00Z',
+    actualizadoPor: 'u-master',
+    fechaActualizacion: '2024-05-01T10:00:00Z',
+    eliminado: false
+  },
+  {
     id: 'u-supervisor',
     nombre: 'Marcos',
     apellido: 'Logística',
     email: 'supervisor@empresa.com',
     telefono: '+5491122223333',
     role: UserRole.SUPERVISOR,
-    // FIX: Added missing 'level' property for User interface compatibility
     level: 2,
     rolesSecundarios: [],
     estado: 'activo',
@@ -75,7 +95,6 @@ export const MOCK_USERS: User[] = [
     email: 'auditor@seguridad.com',
     telefono: '+5491144445555',
     role: UserRole.AUDITOR,
-    // FIX: Added missing 'level' property for User interface compatibility
     level: 2,
     rolesSecundarios: [],
     estado: 'activo',
@@ -99,7 +118,6 @@ export const MOCK_USERS: User[] = [
     email: 'chofer@empresa.com',
     telefono: '+5491166667777',
     role: UserRole.USER,
-    // FIX: Added missing 'level' property for User interface compatibility
     level: 1,
     rolesSecundarios: [],
     estado: 'activo',
@@ -194,7 +212,6 @@ export const INITIAL_VEHICLES: Vehicle[] = [
     costCenter: 'Operaciones Regionales',
     province: 'Neuquén',
     transmission: TransmissionType.AUTOMATIC,
-    // Fix: Added missing required property 'documents' to satisfy Vehicle interface
     documents: [],
     images: { 
         front: 'https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?auto=format&fit=crop&q=80&w=1000', 
@@ -323,14 +340,15 @@ export const GOLDEN_MASTER_SNAPSHOT = {
                 { id: 'msg-1', userId: 'u-chofer-1', userName: 'Miguel Chofer', text: '¿Tienen fecha estimada de entrega? Necesitamos la unidad para el lunes.', timestamp: '2024-05-16T09:00:00Z', role: UserRole.USER }
             ],
             budgets: [
-                { id: 'B-1', version: 1, providerId: 'prov-1', providerName: 'Taller El Rayo', totalAmount: 450000, status: 'APPROVED', createdAt: '2024-05-15T12:00:00Z', items: [] }
+                { id: 'B-1', version: 1, providerId: 'u-proveedor-1', providerName: 'Talleres El Rayo', totalAmount: 450000, status: 'APPROVED', createdAt: '2024-05-15T12:00:00Z', items: [] }
             ],
             history: [
                 { id: 'h1', date: '2024-05-15T10:00:00Z', toStage: ServiceStage.REQUESTED, comment: 'Chofer reporta incidente por checklist de ingreso.', userId: 'u-chofer-1', userName: 'Miguel Chofer' },
                 { id: 'h2', date: '2024-05-15T15:00:00Z', toStage: ServiceStage.IN_WORKSHOP, comment: 'Ingreso efectivo a taller chapa y pintura.', userId: 'u-master', userName: 'Ale Wilczek' }
             ],
             createdAt: '2024-05-15T10:00:00Z',
-            updatedAt: '2024-05-16T09:00:00Z'
+            updatedAt: '2024-05-16T09:00:00Z',
+            providerId: 'u-proveedor-1'
         },
         {
             id: 'SR-3',

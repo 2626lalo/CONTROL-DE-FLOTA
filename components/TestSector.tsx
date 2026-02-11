@@ -18,7 +18,9 @@ import {
   LucideClipboardList, LucideAlertCircle, LucideFileDown, LucideFileSearch,
   LucideBriefcase, LucideDollarSign, LucidePlus, LucideFile,
   LucideRefreshCw, LucideGauge, LucideUnlock, LucideNavigation,
-  LucideMaximize, LucideFileCheck, LucideUserCheck
+  LucideMaximize, LucideFileCheck, LucideUserCheck,
+  // Iconos necesarios para el Dossier
+  LucideCpu, LucideLightbulb, LucideLayout, LucideTruck
 } from 'lucide-react';
 import { useApp } from '../context/FleetContext';
 import { 
@@ -30,7 +32,121 @@ import { es } from 'date-fns/locale/es';
 import { ImageZoomModal } from './ImageZoomModal';
 import { compressImage } from '../utils/imageCompressor'; 
 
-type ViewMode = 'DASHBOARD' | 'NEW_REQUEST' | 'DETAIL' | 'ASSIGN_TURN';
+type ViewMode = 'DASHBOARD' | 'NEW_REQUEST' | 'DETAIL' | 'ASSIGN_TURN' | 'LOAD_BUDGET';
+
+// --- SUBCOMPONENTE DE VISTA PREVIA DOSSIER ---
+const PreviewItem: React.FC<{ item: any }> = ({ item }) => (
+    <div className="py-3 border-b border-slate-100 last:border-0">
+        <div className="flex justify-between items-start gap-4">
+            <div className="flex-1">
+                <p className="text-[10px] font-black text-slate-700 uppercase tracking-tight">{item.name}</p>
+                {item.observation && (
+                    <p className="text-[9px] font-bold text-slate-400 italic mt-1 leading-relaxed">Nota: {item.observation}</p>
+                )}
+                {item.images && item.images.length > 0 && (
+                    <div className="flex gap-1 mt-2">
+                        {item.images.map((img: string, i: number) => (
+                            <div key={i} className="w-10 h-10 rounded-lg overflow-hidden border border-slate-200">
+                                <img src={img} className="w-full h-full object-cover" alt="Evidencia" />
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+            <div className="shrink-0 text-right">
+                <span className={`px-3 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest border ${
+                    item.hasIt === false ? 'bg-slate-100 text-slate-400 border-slate-200' :
+                    item.status === 'GOOD' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                    item.status === 'REGULAR' ? 'bg-amber-50 text-amber-600 border-amber-100' :
+                    item.status === 'BAD' ? 'bg-rose-50 text-rose-600 border-rose-100' : 'bg-slate-50 text-slate-300 border-slate-100'
+                }`}>
+                    {item.hasIt === false ? 'NO POSEE' : 
+                         item.status === 'GOOD' ? 'OK' : 
+                         item.status === 'REGULAR' ? 'REGULAR' : 
+                         item.status === 'BAD' ? 'DEFECTUOSO' : 'SIN EVALUAR'}
+                </span>
+            </div>
+        </div>
+    </div>
+);
+
+// --- COMPONENTE DOSSIER EMERGENTE ---
+const DossierView = ({ data, onClose }: { data: Checklist, onClose: () => void }) => (
+    <div className="fixed inset-0 z-[3000] bg-slate-950/95 backdrop-blur-xl flex items-center justify-center p-2 animate-fadeIn">
+        <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-4xl h-[90vh] flex flex-col overflow-hidden border-t-[12px] border-indigo-600">
+            <div className="bg-slate-950 p-6 text-white flex justify-between items-center shrink-0">
+                <div className="flex items-center gap-4">
+                    <LucideFileSearch size={24}/>
+                    <h3 className="text-xl font-black uppercase italic tracking-tighter">Hoja de Inspección Técnica</h3>
+                </div>
+                <button onClick={onClose} className="p-3 hover:bg-rose-600 text-white rounded-2xl transition-all shadow-xl"><LucideX size={20}/></button>
+            </div>
+            
+            <div className="flex-1 bg-slate-100 p-4 md:p-10 overflow-auto custom-scrollbar">
+                <div className="mx-auto bg-white shadow-inner rounded-[2rem] overflow-hidden border border-slate-200 p-8 md:p-12 space-y-10">
+                    <div className="flex justify-between items-start border-b-4 border-slate-900 pb-6">
+                        <div>
+                            <h2 className="text-2xl font-black uppercase italic text-slate-900 leading-none">Reporte de Auditoría</h2>
+                            <p className="text-[10px] font-black text-blue-600 uppercase mt-2 italic">{format(parseISO(data.date), "dd 'de' MMMM, yyyy HH:mm'hs'", {locale: es})}</p>
+                        </div>
+                        <div className="text-right">
+                            <p className="text-4xl font-black text-slate-900 italic uppercase leading-none">{data.vehiclePlate}</p>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                        <div className="space-y-4">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-1">Responsable</p>
+                            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                                <p className="text-sm font-black text-slate-900 uppercase italic">{data.clarification}</p>
+                                <p className="text-[9px] font-bold text-slate-400 uppercase mt-1">{data.costCenter}</p>
+                            </div>
+                        </div>
+                        <div className="space-y-4">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-1">Veredicto</p>
+                            <div className={`p-4 rounded-2xl text-center font-black uppercase text-xs border-2 shadow-sm ${data.canCirculate ? 'bg-emerald-50 border-emerald-500 text-emerald-600' : 'bg-rose-50 border-rose-500 text-rose-600'}`}>
+                                {data.canCirculate ? 'APTA PARA CIRCULAR' : 'FUERA DE SERVICIO'}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="space-y-10">
+                        {[
+                            { t: 'SECCIÓN A: MECÁNICA Y NIVELES', d: data.motor, icon: LucideCpu },
+                            { t: 'SECCIÓN B: ILUMINACIÓN', d: data.lights, icon: LucideLightbulb },
+                            { t: 'SECCIÓN C: CABINA Y CONTROLES', d: data.general, icon: LucideLayout },
+                            { t: 'SECCIÓN D: CARROCERÍA', d: data.bodywork, icon: LucideTruck },
+                            { t: 'SECCIÓN E: INVENTARIO ACCESORIOS', d: data.accessories, icon: LucideZap }
+                        ].map((section, sidx) => (
+                            <div key={sidx} className="space-y-4">
+                                <div className="flex items-center gap-3 border-b pb-2">
+                                    <section.icon className="text-blue-600" size={18}/>
+                                    <h4 className="text-xs font-black text-slate-800 uppercase italic tracking-widest">{section.t}</h4>
+                                </div>
+                                <div className="space-y-1">
+                                    {section.d?.map((item: any, iidx: number) => (
+                                        <PreviewItem key={iidx} item={item} />
+                                    ))}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="pt-10 border-t-2 border-slate-100">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Firma de Conformidad</p>
+                        <div className="h-40 bg-slate-50 border-2 border-slate-100 rounded-[2.5rem] flex items-center justify-center overflow-hidden">
+                            {data.signature ? (
+                                <img src={data.signature} className="h-full object-contain mix-blend-multiply" alt="Firma" />
+                            ) : (
+                                <p className="text-[10px] font-black text-slate-300 uppercase italic">Sin firma digital</p>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+);
 
 // --- COMPONENTE CONTADOR ---
 const TurnCountdown = ({ date, time }: { date: string, time: string }) => {
@@ -57,13 +173,14 @@ const TurnCountdown = ({ date, time }: { date: string, time: string }) => {
 };
 
 export const TestSector = () => {
-  const { vehicles, user, serviceRequests, checklists, addServiceRequest, updateServiceRequest, addNotification, updateServiceStage } = useApp();
+  const { vehicles, user, registeredUsers, serviceRequests, checklists, addServiceRequest, updateServiceRequest, addNotification, updateServiceStage } = useApp();
   const navigate = useNavigate();
   
   const userRole = user?.role || UserRole.USER;
   const userCC = (user?.centroCosto?.nombre || user?.costCenter || '').toUpperCase();
   const isSupervisorOrAdmin = userRole === UserRole.ADMIN || userRole === UserRole.SUPERVISOR;
   const isReadOnly = userRole === UserRole.AUDITOR;
+  const isProvider = userRole === UserRole.PROVIDER;
 
   // Validación robusta de API Key
   const hasApiKey = useMemo(() => {
@@ -75,6 +192,8 @@ export const TestSector = () => {
   const [requestStep, setRequestStep] = useState(1); 
   const [selectedReqId, setSelectedReqId] = useState<string | null>(null);
   const [zoomedImage, setZoomedImage] = useState<{url: string, label: string} | null>(null);
+  // Estado para la ventana emergente del Checklist completo
+  const [showFullChecklistModal, setShowFullChecklistModal] = useState<Checklist | null>(null);
   const [isMapLoaded, setIsMapLoaded] = useState(false);
 
   // --- ESTADOS DE FILTRO ---
@@ -114,6 +233,11 @@ export const TestSector = () => {
   const [workshopName, setWorkshopName] = useState('');
   const [workshopAddress, setWorkshopAddress] = useState('');
   const [turnComments, setTurnComments] = useState('');
+  const [selectedProviderId, setSelectedProviderId] = useState('');
+
+  // --- ESTADOS DE CARGA DE PRESUPUESTO ---
+  const [budgetDetail, setBudgetDetail] = useState('');
+  const [budgetAmount, setBudgetAmount] = useState(0);
 
   const chatEndRef = useRef<HTMLDivElement>(null);
 
@@ -148,6 +272,8 @@ export const TestSector = () => {
     return [];
   }, [mainCategory]);
 
+  const providers = useMemo(() => registeredUsers.filter(u => u.role === UserRole.PROVIDER), [registeredUsers]);
+
   // Lista de Centros de Costo únicos para el filtro
   const allCostCenters = useMemo(() => {
     const set = new Set(serviceRequests.map(r => r.costCenter).filter(Boolean));
@@ -157,7 +283,16 @@ export const TestSector = () => {
   const filteredRequests = useMemo(() => {
     return serviceRequests.filter(r => {
         if (!isSupervisorOrAdmin && !isReadOnly) {
-            if ((r.costCenter || '').toUpperCase() !== userCC) return false;
+            // FIX: Implement explicit role-based filtering for USER and PROVIDER
+            if (userRole === UserRole.PROVIDER) {
+                // Al proveedor se le muestran las unidades asignadas a él
+                if (r.providerId !== user?.id) return false;
+                // Además, solo una vez que el flujo ha avanzado al menos al agendamiento o ingreso
+                const validStages = [ServiceStage.SCHEDULING, ServiceStage.IN_WORKSHOP, ServiceStage.BUDGETING, ServiceStage.EXECUTING, ServiceStage.INVOICING, ServiceStage.FINISHED];
+                if (!validStages.includes(r.stage)) return false;
+            } else if (userRole === UserRole.USER) {
+                if ((r.costCenter || '').toUpperCase() !== userCC) return false;
+            }
         }
         const term = searchQuery.toUpperCase();
         const matchSearch = r.vehiclePlate.includes(term) || r.code.toUpperCase().includes(term);
@@ -170,7 +305,7 @@ export const TestSector = () => {
         if (!isWithinInterval(rDate, { start, end })) return false;
         return true;
     }).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  }, [serviceRequests, searchQuery, filterDateFrom, filterDateTo, filterStatus, filterCC, isSupervisorOrAdmin, isReadOnly, userCC]);
+  }, [serviceRequests, searchQuery, filterDateFrom, filterDateTo, filterStatus, filterCC, isSupervisorOrAdmin, isReadOnly, userCC, userRole, user?.id]);
 
   // --- FUNCIÓN DE GEOLOCALIZACIÓN NATIVA ---
   const handleCaptureNativeLocation = () => {
@@ -205,7 +340,7 @@ export const TestSector = () => {
     setLocation('');
     setAttachments([]);
     setErrors({});
-    setActiveView('NEW_REQUEST');
+    setActiveView('DASHBOARD');
   };
 
   const handleOpenDetail = (req: ServiceRequest) => {
@@ -309,6 +444,12 @@ export const TestSector = () => {
     }
 
     if (selectedStageToTransition === currentRequest.stage) return;
+
+    if (selectedStageToTransition === ServiceStage.BUDGETING && isProvider) {
+        setActiveView('LOAD_BUDGET');
+        return;
+    }
+
     updateServiceStage(currentRequest.id, selectedStageToTransition as ServiceStage, `Cambio de estado manual a: ${selectedStageToTransition}`);
     addNotification(`Estado actualizado a ${selectedStageToTransition}`, "success");
   };
@@ -335,10 +476,15 @@ export const TestSector = () => {
         nombreTaller: workshopName, direccionTaller: workshopAddress,
         comentarios: turnComments
     };
+    
+    const provUser = registeredUsers.find(u => u.id === selectedProviderId);
+
     updateServiceRequest({
         ...currentRequest,
         stage: ServiceStage.SCHEDULING,
         suggestedDates: [turnData],
+        providerId: selectedProviderId,
+        providerName: provUser ? `${provUser.nombre} ${provUser.apellido}` : '',
         updatedAt: new Date().toISOString(),
         history: [...(currentRequest.history || []), { 
             id: `HIST-${Date.now()}`, 
@@ -347,7 +493,7 @@ export const TestSector = () => {
             userName: user?.nombre || 'Supervisor', 
             fromStage: currentRequest.stage, 
             toStage: ServiceStage.SCHEDULING, 
-            comment: `Turno asignado: ${workshopName} (${turnTime}hs).` 
+            comment: `Turno asignado: ${workshopName} (${turnTime}hs). Proveedor vinculado.` 
         }]
     });
     addNotification("Turno agendado y notificado al chofer", "success");
@@ -362,12 +508,48 @@ export const TestSector = () => {
     setFinishComment('');
   };
 
+  const handlePublishBudget = () => {
+    if (!currentRequest || !budgetDetail.trim() || budgetAmount <= 0) return;
+    
+    const newBudget = {
+        id: `BUD-${Date.now()}`,
+        providerId: user?.id,
+        providerName: user?.nombre,
+        details: budgetDetail,
+        totalAmount: budgetAmount,
+        status: 'PENDING',
+        createdAt: new Date().toISOString()
+    };
+
+    updateServiceRequest({
+        ...currentRequest,
+        stage: ServiceStage.BUDGETING,
+        budgets: [...(currentRequest.budgets || []), newBudget],
+        updatedAt: new Date().toISOString(),
+        history: [...(currentRequest.history || []), {
+            id: `H-${Date.now()}`,
+            date: new Date().toISOString(),
+            userId: user?.id || 'prov',
+            userName: user?.nombre || 'Proveedor',
+            toStage: ServiceStage.BUDGETING,
+            comment: `Presupuesto publicado por proveedor por $${budgetAmount.toLocaleString()}`
+        }]
+    });
+
+    addNotification("Presupuesto publicado correctamente", "success");
+    setBudgetDetail('');
+    setBudgetAmount(0);
+    setActiveView('DETAIL');
+  };
+
   const getStageBadgeStyles = (stage: ServiceStage) => {
     switch (stage) {
       case ServiceStage.FINISHED: return 'bg-emerald-50 text-emerald-600 border-emerald-100';
       case ServiceStage.CANCELLED: return 'bg-rose-50 text-rose-600 border-rose-100';
       case ServiceStage.SCHEDULING: return 'bg-amber-50 text-amber-600 border-amber-100';
       case ServiceStage.REQUESTED: return 'bg-blue-50 text-blue-600 border-blue-100';
+      case ServiceStage.IN_WORKSHOP: return 'bg-indigo-50 text-indigo-600 border-indigo-100';
+      case ServiceStage.BUDGETING: return 'bg-purple-50 text-purple-600 border-purple-100';
       default: return 'bg-slate-50 text-slate-600 border-slate-200';
     }
   };
@@ -396,7 +578,6 @@ export const TestSector = () => {
     const forbidden = [
         ServiceStage.RECEPCION, 
         ServiceStage.IN_WORKSHOP, 
-        ServiceStage.BUDGETING, 
         ServiceStage.EXECUTING, 
         ServiceStage.INVOICING
     ];
@@ -453,7 +634,7 @@ export const TestSector = () => {
                           )}
 
                           {lastChecklist && (
-                              <button onClick={() => setZoomedImage({url: lastChecklist.signature, label: `Acta del ${lastChecklist.date}`})} className="w-full py-4 bg-white border border-slate-200 rounded-2xl font-black text-[9px] uppercase text-slate-500 flex items-center justify-center gap-3 hover:bg-slate-50 transition-all">
+                              <button onClick={() => setShowFullChecklistModal(lastChecklist)} className="w-full py-4 bg-white border border-slate-200 rounded-2xl font-black text-[9px] uppercase text-slate-500 flex items-center justify-center gap-3 hover:bg-slate-50 transition-all">
                                   <LucideFileSearch size={16}/> Visualizar Último Registro PDF
                               </button>
                           )}
@@ -514,6 +695,9 @@ export const TestSector = () => {
           </div>
       )}
 
+      {/* Visualización del Dossier completo */}
+      {showFullChecklistModal && <DossierView data={showFullChecklistModal} onClose={() => setShowFullChecklistModal(null)} />}
+
       <main className="flex-1 p-8 max-w-7xl mx-auto w-full space-y-12">
         {activeView === 'DASHBOARD' && (
           <div className="space-y-10 animate-fadeIn">
@@ -529,7 +713,7 @@ export const TestSector = () => {
                     </p>
                   </div>
                </div>
-               {!isReadOnly && (
+               {!isReadOnly && !isProvider && (
                  <button onClick={startNewRequest} className="px-10 py-5 bg-blue-600 text-white rounded-[2rem] font-black uppercase text-[11px] tracking-widest shadow-2xl hover:bg-blue-700 transition-all flex items-center justify-center gap-3">
                     <LucidePlusCircle size={22}/> Nueva Gestión de Unidad
                  </button>
@@ -565,7 +749,7 @@ export const TestSector = () => {
                 <div className="space-y-1">
                     <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-2">C. Costo</label>
                     <select 
-                        className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl font-bold text-[10px] uppercase outline-none focus:ring-4 focus:ring-blue-50"
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl font-bold text-[10px] uppercase outline-none focus:ring-4 focus:ring-blue-100"
                         value={filterCC}
                         onChange={e => setFilterCC(e.target.value)}
                     >
@@ -844,8 +1028,8 @@ export const TestSector = () => {
 
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
                  <div className="lg:col-span-8 space-y-10">
-                    {/* CONSOLA DE GESTIÓN (SOLO SUPERVISOR) - POSICIONADA ARRIBA */}
-                    {!isReadOnly && isSupervisorOrAdmin && (currentRequest.stage !== ServiceStage.FINISHED && currentRequest.stage !== ServiceStage.CANCELLED) && (
+                    {/* CONSOLA DE GESTIÓN (SOLO SUPERVISOR O PROVEEDOR) - POSICIONADA ARRIBA */}
+                    {!isReadOnly && (isSupervisorOrAdmin || isProvider) && (currentRequest.stage !== ServiceStage.FINISHED && currentRequest.stage !== ServiceStage.CANCELLED) && (
                       <div className="bg-slate-950 p-10 rounded-[3.5rem] text-white space-y-10 shadow-3xl border border-white/5 animate-fadeIn">
                          <div className="flex items-center gap-6"><div className="p-4 bg-blue-600 rounded-2xl shadow-xl"><LucideShield size={28}/></div><h4 className="text-2xl font-black uppercase italic tracking-tighter">Burbuja de Gestión Operativa</h4></div>
                          
@@ -857,22 +1041,27 @@ export const TestSector = () => {
                                     <select className="w-full px-6 py-4 bg-slate-900 border border-white/20 rounded-2xl text-xs font-black uppercase text-white outline-none focus:ring-2 focus:ring-blue-500/50" value={selectedStageToTransition} onChange={e => setSelectedStageToTransition(e.target.value as any)}>
                                         <option value="">ELIJA UN ESTADO...</option>
                                         <option value="INGRESO_TALLER">INGRESO A TALLER (ACTA)</option>
-                                        {filteredStagesForSelector.map(s => <option key={s} value={s}>{s === ServiceStage.SCHEDULING ? 'ASIGNAR TURNO' : s}</option>)}
+                                        {isProvider && currentRequest.stage === ServiceStage.IN_WORKSHOP && (
+                                            <option value={ServiceStage.BUDGETING}>CARGAR PRESUPUESTO</option>
+                                        )}
+                                        {isSupervisorOrAdmin && filteredStagesForSelector.map(s => <option key={s} value={s}>{s === ServiceStage.SCHEDULING ? 'ASIGNAR TURNO' : s}</option>)}
                                     </select>
                                 </div>
                                 <button onClick={handleConfirmStageTransition} disabled={!selectedStageToTransition} className="px-10 py-4 bg-blue-600 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl hover:bg-blue-500 transition-all disabled:opacity-30">Confirmar</button>
                             </div>
                          </div>
 
-                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <button onClick={() => updateServiceRequest({ ...currentRequest, isDialogueOpen: !currentRequest.isDialogueOpen })} className={`py-6 rounded-[1.8rem] font-black uppercase text-[10px] tracking-widest transition-all flex items-center justify-center gap-3 shadow-xl ${currentRequest.isDialogueOpen ? 'bg-amber-600' : 'bg-blue-600'}`}>
-                               {currentRequest.isDialogueOpen ? <LucideLock size={20}/> : <LucideMessageCircle size={20}/>} {currentRequest.isDialogueOpen ? 'Cerrar Chat' : 'Abrir Diálogo'}
-                            </button>
-                            <button onClick={() => setIsFinishing(true)} className="py-6 bg-emerald-600 rounded-[1.8rem] font-black uppercase text-[10px] tracking-widest shadow-xl hover:bg-emerald-700 flex items-center justify-center gap-3"><LucideCheckCircle2 size={20}/> Finalizar Solicitud</button>
-                         </div>
+                         {isSupervisorOrAdmin && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <button onClick={() => updateServiceRequest({ ...currentRequest, isDialogueOpen: !currentRequest.isDialogueOpen })} className={`py-6 rounded-[1.8rem] font-black uppercase text-[10px] tracking-widest transition-all flex items-center justify-center gap-3 shadow-xl ${currentRequest.isDialogueOpen ? 'bg-amber-600' : 'bg-blue-600'}`}>
+                                {currentRequest.isDialogueOpen ? <LucideLock size={20}/> : <LucideMessageCircle size={20}/>} {currentRequest.isDialogueOpen ? 'Cerrar Chat' : 'Abrir Diálogo'}
+                                </button>
+                                <button onClick={() => setIsFinishing(true)} className="py-6 bg-emerald-600 rounded-[1.8rem] font-black uppercase text-[10px] tracking-widest shadow-xl hover:bg-emerald-700 flex items-center justify-center gap-3"><LucideCheckCircle2 size={20}/> Finalizar Solicitud</button>
+                            </div>
+                         )}
 
                          {/* MESA DE DIÁLOGO INTEGRADA (DEBAJO DE LOS BOTONES PARA SUPERVISOR) */}
-                         {currentRequest.isDialogueOpen && (
+                         {currentRequest.isDialogueOpen && isSupervisorOrAdmin && (
                             <div className="bg-slate-900 rounded-[2.5rem] border border-white/10 flex flex-col h-[450px] overflow-hidden animate-fadeIn mt-6 shadow-2xl">
                                 <div className="p-5 border-b border-white/5 flex items-center justify-between">
                                     <div className="flex items-center gap-3">
@@ -905,7 +1094,7 @@ export const TestSector = () => {
                             </div>
                          )}
 
-                         {isFinishing && (
+                         {isFinishing && isSupervisorOrAdmin && (
                             <div className="bg-slate-900 p-8 rounded-[2.5rem] border-2 border-emerald-500 shadow-2xl space-y-6 animate-fadeIn mt-6">
                                 <textarea rows={3} className="w-full p-6 bg-white/5 border border-white/10 rounded-2xl text-sm font-bold text-white outline-none focus:border-emerald-500 resize-none" placeholder="Informe final técnico..." value={finishComment} onChange={e => setFinishComment(e.target.value)} />
                                 <div className="flex gap-4"><button onClick={handleConfirmFinish} disabled={!finishComment.trim()} className="flex-1 py-4 bg-emerald-600 text-white rounded-xl font-black uppercase text-xs">Cerrar Caso</button><button onClick={() => setIsFinishing(false)} className="px-8 py-4 bg-white/10 text-white rounded-xl font-black uppercase text-[10px]">Cancelar</button></div>
@@ -927,7 +1116,7 @@ export const TestSector = () => {
                                 <div className="space-y-6">
                                     <div className="p-6 bg-white/5 border border-white/10 rounded-3xl"><p className="text-[8px] font-black text-indigo-400 uppercase tracking-widest mb-1">Cita Técnica</p><p className="text-2xl font-black italic">{format(parseISO(currentRequest.suggestedDates[0].fecha), "dd 'de' MMMM, yyyy", {locale: es}).toUpperCase()} • {currentRequest.suggestedDates[0].hora} HS</p></div>
                                     <div className="p-6 bg-white/5 border border-white/10 rounded-3xl"><p className="text-[8px] font-black text-indigo-400 uppercase tracking-widest mb-1">Taller Autorizado</p><p className="text-lg font-black uppercase">{currentRequest.suggestedDates[0].nombreTaller}</p><p className="text-[10px] text-indigo-200 mt-2 flex items-center gap-2"><LucideMapPin size={12}/> {currentRequest.suggestedDates[0].direccionTaller}</p></div>
-                                    <button onClick={() => handleGetDirections(currentRequest.suggestedDates[0].direccionTaller || '')} className="w-full py-5 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-black uppercase text-xs tracking-widest flex items-center justify-center gap-3 shadow-xl transform active:scale-95"><LucideNavigation size={18}/> ¿Cómo llegar? (GPS)</button>
+                                    <button onClick={() => handleGetDirections(currentRequest.suggestedDates[0].direccionTaller || '')} className="w-full py-5 bg-blue-600 hover:bg-blue-50 text-white rounded-2xl font-black uppercase text-xs tracking-widest flex items-center justify-center gap-3 shadow-xl transform active:scale-95"><LucideNavigation size={18}/> ¿Cómo llegar? (GPS)</button>
                                 </div>
                                 <div className="space-y-4">
                                     <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Ubicación Georreferenciada</p>
@@ -990,6 +1179,31 @@ export const TestSector = () => {
                             </div>
                         )}
                     </div>
+
+                    {currentRequest.budgets && currentRequest.budgets.length > 0 && (
+                        <div className="bg-white p-12 rounded-[4rem] border border-slate-200 shadow-sm space-y-10 animate-fadeIn">
+                             <h4 className="text-xl font-black uppercase italic tracking-widest text-slate-800 border-b pb-4 flex items-center gap-3">
+                                <LucideDollarSign className="text-emerald-500" size={24}/> Propuestas de Proveedor
+                             </h4>
+                             <div className="grid grid-cols-1 gap-6">
+                                {currentRequest.budgets.map((b: any, idx: number) => (
+                                    <div key={b.id} className="p-8 rounded-[3rem] bg-slate-50 border border-slate-100 flex flex-col md:flex-row justify-between items-center gap-8">
+                                        <div className="flex items-center gap-6">
+                                            <div className="p-4 bg-emerald-50 text-emerald-600 rounded-2xl"><LucideUser size={24}/></div>
+                                            <div>
+                                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Cotización {idx + 1} - Por {b.providerName}</p>
+                                                <p className="text-lg font-bold text-slate-700 mt-1 italic">"{b.details}"</p>
+                                            </div>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-[10px] font-black text-slate-400 uppercase">Monto Total</p>
+                                            <p className="text-3xl font-black text-emerald-600 italic tracking-tighter">${b.totalAmount.toLocaleString()}</p>
+                                        </div>
+                                    </div>
+                                ))}
+                             </div>
+                        </div>
+                    )}
                  </div>
 
                  <div className="lg:col-span-4 space-y-10">
@@ -1032,6 +1246,7 @@ export const TestSector = () => {
                             <div className="grid grid-cols-2 gap-4"><div className="p-4 bg-white/5 rounded-2xl border border-white/10"><p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1">KM Solicitud</p><p className="text-xl font-black italic">{currentRequest.odometerAtRequest.toLocaleString()} KM</p></div><div className="p-4 bg-white/5 rounded-2xl border border-white/10"><p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1">C. Costo</p><p className="text-[10px] font-black truncate">{currentRequest.costCenter}</p></div></div>
                             <div className="space-y-4">
                                 <div className="flex justify-between items-center text-[10px] font-bold border-b border-white/5 pb-2"><span className="text-slate-500 uppercase">Solicitante</span><span className="uppercase">{currentRequest.userName}</span></div>
+                                <div className="flex justify-between items-center text-[10px] font-bold border-b border-white/5 pb-2"><span className="text-slate-500 uppercase">Proveedor</span><span className="uppercase text-blue-400 font-black">{currentRequest.providerName || 'NO ASIGNADO'}</span></div>
                                 <div className="flex justify-between items-center text-[10px] font-bold"><span className="text-slate-500 uppercase">Ubicación</span><span className="uppercase">{currentRequest.location}</span></div>
                             </div>
                         </div><LucideDatabase className="absolute -right-8 -bottom-8 opacity-5" size={160}/>
@@ -1067,7 +1282,7 @@ export const TestSector = () => {
                     </div>
 
                     <div className="space-y-6">
-                        <h4 className="text-[10px] font-black text-blue-600 uppercase tracking-widest flex items-center gap-2 border-b pb-2"><LucideBuilding2 size={14}/> Establecimiento / Taller</h4>
+                        <h4 className="text-[10px] font-black text-blue-600 uppercase tracking-widest flex items-center gap-2 border-b pb-2"><LucideBuilding2 size={14}/> Establecimiento / Proveedor</h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="relative">
                                 <LucideWrench className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={20}/>
@@ -1080,15 +1295,26 @@ export const TestSector = () => {
                                 />
                             </div>
                             <div className="relative">
-                                <LucideMapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={20}/>
-                                <input 
-                                    type="text" 
-                                    placeholder="DIRECCIÓN COMPLETA..." 
-                                    className="w-full pl-12 pr-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold uppercase outline-none focus:ring-4 focus:ring-blue-100" 
-                                    value={workshopAddress} 
-                                    onChange={e => setWorkshopAddress(e.target.value.toUpperCase())} 
-                                />
+                                <LucideUser className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={20}/>
+                                <select 
+                                    className="w-full pl-12 pr-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-black text-xs uppercase outline-none focus:ring-4 focus:ring-blue-100"
+                                    value={selectedProviderId}
+                                    onChange={e => setSelectedProviderId(e.target.value)}
+                                >
+                                    <option value="">VINCULAR PROVEEDOR (USUARIO)...</option>
+                                    {providers.map(p => <option key={p.id} value={p.id}>{p.nombre} {p.apellido}</option>)}
+                                </select>
                             </div>
+                        </div>
+                        <div className="relative">
+                            <LucideMapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={20}/>
+                            <input 
+                                type="text" 
+                                placeholder="DIRECCIÓN COMPLETA..." 
+                                className="w-full pl-12 pr-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold uppercase outline-none focus:ring-4 focus:ring-blue-100" 
+                                value={workshopAddress} 
+                                onChange={e => setWorkshopAddress(e.target.value.toUpperCase())} 
+                            />
                         </div>
                         
                         <div className="space-y-4 animate-fadeIn">
@@ -1102,7 +1328,6 @@ export const TestSector = () => {
                                 </button>
                             ) : (
                                 <div className="aspect-video bg-slate-100 rounded-[2.5rem] overflow-hidden border-2 border-slate-200 shadow-inner relative group animate-fadeIn">
-                                    {/* FIX DEFINITIVO: Uso de Standard Embed para evitar errores de API KEY */}
                                     <iframe 
                                         width="100%" 
                                         height="100%" 
@@ -1133,6 +1358,60 @@ export const TestSector = () => {
                     </div>
 
                     <button onClick={handleConfirmTurnAssignment} className="w-full py-6 bg-indigo-600 text-white rounded-[2rem] font-black uppercase text-xs tracking-widest shadow-2xl hover:bg-indigo-700 transition-all flex items-center justify-center gap-4 transform active:scale-95"><LucideShieldCheck size={24}/> Confirmar Turno y Notificar Chofer</button>
+                </div>
+            </div>
+        )}
+
+        {activeView === 'LOAD_BUDGET' && currentRequest && (
+            <div className="max-w-4xl mx-auto space-y-10 animate-fadeIn pb-24">
+                <div className="flex items-center gap-6">
+                    <button onClick={() => setActiveView('DETAIL')} className="p-4 bg-white rounded-2xl shadow-sm border border-slate-200 text-slate-400 hover:text-slate-800 transition-all"><LucideArrowLeft size={24}/></button>
+                    <div>
+                        <h2 className="text-3xl font-black text-slate-900 uppercase italic tracking-tighter leading-none">Carga de Presupuesto</h2>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Propuesta Comercial para Auditoría</p>
+                    </div>
+                </div>
+
+                <div className="bg-white p-10 rounded-[3.5rem] shadow-2xl border border-slate-100 space-y-10">
+                    <div className="space-y-4">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Detalle Técnico de la Propuesta</label>
+                        <textarea 
+                            rows={5} 
+                            className="w-full p-8 bg-slate-50 border-2 border-slate-200 rounded-[2.5rem] font-bold text-sm outline-none focus:ring-4 focus:ring-indigo-100 resize-none shadow-inner" 
+                            placeholder="Detalle aquí las tareas a realizar, repuestos incluidos y tiempo estimado..." 
+                            value={budgetDetail}
+                            onChange={e => setBudgetDetail(e.target.value)}
+                        />
+                    </div>
+
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Importe Total Cotizado ($)</label>
+                        <div className="relative">
+                            <LucideDollarSign className="absolute left-6 top-1/2 -translate-y-1/2 text-emerald-600" size={24}/>
+                            <input 
+                                type="number" 
+                                onFocus={(e) => e.target.select()}
+                                className="w-full pl-16 pr-8 py-6 bg-emerald-50 border-2 border-emerald-200 rounded-[2rem] font-black text-4xl text-emerald-700 outline-none" 
+                                value={budgetAmount}
+                                onChange={e => setBudgetAmount(Number(e.target.value))}
+                            />
+                        </div>
+                    </div>
+
+                    <div className="p-8 bg-blue-50 border-2 border-dashed border-blue-200 rounded-[2.5rem] flex items-center gap-6">
+                        <LucideInfo className="text-blue-600" size={32}/>
+                        <p className="text-[10px] font-bold text-blue-800 uppercase leading-relaxed tracking-widest">
+                            Al publicar este presupuesto, el mismo será enviado automáticamente al sector de Auditoría para su revisión técnica. No podrá modificarlo una vez enviado.
+                        </p>
+                    </div>
+
+                    <button 
+                        onClick={handlePublishBudget}
+                        disabled={!budgetDetail.trim() || budgetAmount <= 0}
+                        className="w-full py-8 bg-slate-900 text-white rounded-[3rem] font-black uppercase text-sm tracking-widest shadow-2xl hover:bg-emerald-600 transition-all flex items-center justify-center gap-4 transform active:scale-95 disabled:opacity-30 disabled:grayscale"
+                    >
+                        <LucideSend size={24}/> Publicar Presupuesto para Auditoría
+                    </button>
                 </div>
             </div>
         )}
