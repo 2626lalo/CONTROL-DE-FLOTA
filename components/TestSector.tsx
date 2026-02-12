@@ -19,13 +19,13 @@ import {
   LucideBriefcase, LucideDollarSign, LucidePlus, LucideFile,
   LucideRefreshCw, LucideGauge, LucideUnlock, LucideNavigation,
   LucideMaximize, LucideFileCheck, LucideUserCheck,
-  // Iconos necesarios para el Dossier
-  LucideCpu, LucideLightbulb, LucideLayout, LucideTruck
+  LucideCpu, LucideLightbulb, LucideLayout, LucideTruck, LucideUnlockKeyhole,
+  LucideSave, LucideCalendarClock, LucideImage, LucideFactory
 } from 'lucide-react';
 import { useApp } from '../context/FleetContext';
 import { 
     ServiceStage, ServiceRequest, UserRole, MainServiceCategory, 
-    SuggestedDate, ServiceMessage, Checklist, Vehicle
+    SuggestedDate, ServiceMessage, Checklist, Vehicle, ServiceHistoryItem
 } from '../types';
 import { format, parseISO, isBefore, startOfDay, endOfDay, subDays, isWithinInterval, differenceInDays, differenceInHours, isSameDay } from 'date-fns';
 import { es } from 'date-fns/locale/es';
@@ -34,119 +34,148 @@ import { compressImage } from '../utils/imageCompressor';
 
 type ViewMode = 'DASHBOARD' | 'NEW_REQUEST' | 'DETAIL' | 'ASSIGN_TURN' | 'LOAD_BUDGET';
 
-// --- SUBCOMPONENTE DE VISTA PREVIA DOSSIER ---
-const PreviewItem: React.FC<{ item: any }> = ({ item }) => (
-    <div className="py-3 border-b border-slate-100 last:border-0">
-        <div className="flex justify-between items-start gap-4">
-            <div className="flex-1">
-                <p className="text-[10px] font-black text-slate-700 uppercase tracking-tight">{item.name}</p>
-                {item.observation && (
-                    <p className="text-[9px] font-bold text-slate-400 italic mt-1 leading-relaxed">Nota: {item.observation}</p>
-                )}
-                {item.images && item.images.length > 0 && (
-                    <div className="flex gap-1 mt-2">
-                        {item.images.map((img: string, i: number) => (
-                            <div key={i} className="w-10 h-10 rounded-lg overflow-hidden border border-slate-200">
-                                <img src={img} className="w-full h-full object-cover" alt="Evidencia" />
-                            </div>
-                        ))}
-                    </div>
-                )}
-            </div>
-            <div className="shrink-0 text-right">
-                <span className={`px-3 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest border ${
-                    item.hasIt === false ? 'bg-slate-100 text-slate-400 border-slate-200' :
-                    item.status === 'GOOD' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
-                    item.status === 'REGULAR' ? 'bg-amber-50 text-amber-600 border-amber-100' :
-                    item.status === 'BAD' ? 'bg-rose-50 text-rose-600 border-rose-100' : 'bg-slate-50 text-slate-300 border-slate-100'
-                }`}>
-                    {item.hasIt === false ? 'NO POSEE' : 
-                         item.status === 'GOOD' ? 'OK' : 
-                         item.status === 'REGULAR' ? 'REGULAR' : 
-                         item.status === 'BAD' ? 'DEFECTUOSO' : 'SIN EVALUAR'}
-                </span>
-            </div>
-        </div>
-    </div>
-);
-
-// --- COMPONENTE DOSSIER EMERGENTE ---
-const DossierView = ({ data, onClose }: { data: Checklist, onClose: () => void }) => (
-    <div className="fixed inset-0 z-[3000] bg-slate-950/95 backdrop-blur-xl flex items-center justify-center p-2 animate-fadeIn">
-        <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-4xl h-[90vh] flex flex-col overflow-hidden border-t-[12px] border-indigo-600">
-            <div className="bg-slate-950 p-6 text-white flex justify-between items-center shrink-0">
-                <div className="flex items-center gap-4">
-                    <LucideFileSearch size={24}/>
-                    <h3 className="text-xl font-black uppercase italic tracking-tighter">Hoja de Inspección Técnica</h3>
-                </div>
-                <button onClick={onClose} className="p-3 hover:bg-rose-600 text-white rounded-2xl transition-all shadow-xl"><LucideX size={20}/></button>
-            </div>
-            
-            <div className="flex-1 bg-slate-100 p-4 md:p-10 overflow-auto custom-scrollbar">
-                <div className="mx-auto bg-white shadow-inner rounded-[2rem] overflow-hidden border border-slate-200 p-8 md:p-12 space-y-10">
-                    <div className="flex justify-between items-start border-b-4 border-slate-900 pb-6">
-                        <div>
-                            <h2 className="text-2xl font-black uppercase italic text-slate-900 leading-none">Reporte de Auditoría</h2>
-                            <p className="text-[10px] font-black text-blue-600 uppercase mt-2 italic">{format(parseISO(data.date), "dd 'de' MMMM, yyyy HH:mm'hs'", {locale: es})}</p>
-                        </div>
-                        <div className="text-right">
-                            <p className="text-4xl font-black text-slate-900 italic uppercase leading-none">{data.vehiclePlate}</p>
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                        <div className="space-y-4">
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-1">Responsable</p>
+// --- COMPONENTE: DOSSIER DE ETAPA (MODAL DE REGISTRO HISTÓRICO) ---
+const StageRecordModal = ({ 
+    item, 
+    request, 
+    onClose 
+}: { 
+    item: ServiceHistoryItem, 
+    request: ServiceRequest, 
+    onClose: () => void 
+}) => {
+    const stage = item.toStage;
+    
+    const getStageContent = () => {
+        switch(stage) {
+            case ServiceStage.REQUESTED:
+                return (
+                    <div className="space-y-6">
+                        <div className="grid grid-cols-2 gap-4">
                             <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                                <p className="text-sm font-black text-slate-900 uppercase italic">{data.clarification}</p>
-                                <p className="text-[9px] font-bold text-slate-400 uppercase mt-1">{data.costCenter}</p>
+                                <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Categoría Principal</p>
+                                <p className="text-xs font-black text-slate-700 uppercase italic">{request.mainCategory}</p>
+                            </div>
+                            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                                <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Tipo Específico</p>
+                                <p className="text-xs font-black text-slate-700 uppercase italic">{request.specificType}</p>
                             </div>
                         </div>
-                        <div className="space-y-4">
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-1">Veredicto</p>
-                            <div className={`p-4 rounded-2xl text-center font-black uppercase text-xs border-2 shadow-sm ${data.canCirculate ? 'bg-emerald-50 border-emerald-500 text-emerald-600' : 'bg-rose-50 border-rose-500 text-rose-600'}`}>
-                                {data.canCirculate ? 'APTA PARA CIRCULAR' : 'FUERA DE SERVICIO'}
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                                <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Kilometraje Reportado</p>
+                                <p className="text-xs font-black text-slate-700 uppercase italic">{request.odometerAtRequest.toLocaleString()} KM</p>
+                            </div>
+                            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                                <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Ubicación</p>
+                                <p className="text-xs font-black text-slate-700 uppercase italic truncate">{request.location}</p>
+                            </div>
+                        </div>
+                        <div className="p-6 bg-slate-900 text-white rounded-3xl space-y-2">
+                            <p className="text-[8px] font-black text-blue-400 uppercase tracking-widest">Descripción del Problema</p>
+                            <p className="text-sm font-bold italic leading-relaxed">"{request.description}"</p>
+                        </div>
+                        {request.attachments && request.attachments.length > 0 && (
+                          <div className="space-y-2">
+                             <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Adjuntos del Registro</p>
+                             <div className="grid grid-cols-4 gap-2">
+                                {request.attachments.map((att, idx) => (
+                                  <div key={idx} className="aspect-square bg-slate-100 rounded-lg overflow-hidden border border-slate-200">
+                                    {att.type.includes('image') ? <img src={att.url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-slate-300"><LucideFileText size={20}/></div>}
+                                  </div>
+                                ))}
+                             </div>
+                          </div>
+                        )}
+                    </div>
+                );
+            case ServiceStage.SCHEDULING:
+                const turn = request.suggestedDates?.[request.suggestedDates.length - 1];
+                return turn ? (
+                    <div className="space-y-6">
+                        <div className="p-6 bg-amber-50 rounded-3xl border-2 border-amber-100 space-y-4">
+                            <div className="flex items-center gap-4 border-b border-amber-200 pb-3">
+                                <LucideCalendarClock className="text-amber-600" size={24}/>
+                                <h5 className="text-sm font-black text-amber-900 uppercase">Detalles del Turno Asignado</h5>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div><p className="text-[8px] font-black text-amber-500 uppercase">Fecha</p><p className="text-xs font-black text-slate-700">{format(parseISO(turn.fecha), 'dd/MM/yyyy')}</p></div>
+                                <div><p className="text-[8px] font-black text-amber-500 uppercase">Hora</p><p className="text-xs font-black text-slate-700">{turn.hora} HS</p></div>
+                            </div>
+                            <div><p className="text-[8px] font-black text-amber-500 uppercase">Taller Receptor</p><p className="text-xs font-black text-slate-700 uppercase italic">{turn.nombreTaller}</p></div>
+                            <div><p className="text-[8px] font-black text-amber-500 uppercase">Dirección</p><p className="text-xs font-bold text-slate-500 uppercase">{turn.direccionTaller}</p></div>
+                        </div>
+                    </div>
+                ) : <p className="text-xs text-slate-400 italic">No se encontraron detalles de agenda.</p>;
+            case ServiceStage.IN_WORKSHOP:
+                return (
+                    <div className="space-y-6">
+                        <div className="p-6 bg-blue-50 rounded-3xl border-2 border-blue-100 space-y-4">
+                             <div className="flex items-center gap-4 border-b border-blue-200 pb-3">
+                                <LucideFileCheck className="text-blue-600" size={24}/>
+                                <h5 className="text-sm font-black text-blue-900 uppercase">Acta de Ingreso a Taller</h5>
+                             </div>
+                             <p className="text-xs font-bold text-slate-600 leading-relaxed italic">{item.comment}</p>
+                        </div>
+                    </div>
+                );
+            case ServiceStage.BUDGETING:
+                const budget = request.budgets?.[request.budgets.length - 1];
+                return budget ? (
+                    <div className="space-y-6">
+                        <div className="p-6 bg-emerald-50 rounded-3xl border-2 border-emerald-100 space-y-4">
+                            <div className="flex justify-between items-center border-b border-emerald-200 pb-3">
+                                <h5 className="text-sm font-black text-emerald-900 uppercase italic">Presupuesto Presentado</h5>
+                                <span className="text-2xl font-black text-emerald-600 tracking-tighter">${budget.totalAmount.toLocaleString()}</span>
+                            </div>
+                            <div>
+                                <p className="text-[8px] font-black text-emerald-500 uppercase">Detalle de Trabajos</p>
+                                <p className="text-xs font-bold text-slate-700 italic mt-1 leading-relaxed">"{budget.details}"</p>
                             </div>
                         </div>
                     </div>
+                ) : <p className="text-xs text-slate-400 italic">Detalle de presupuesto no disponible.</p>;
+            default:
+                return <p className="text-xs font-bold text-slate-500 italic">"{item.comment}"</p>;
+        }
+    };
 
-                    <div className="space-y-10">
-                        {[
-                            { t: 'SECCIÓN A: MECÁNICA Y NIVELES', d: data.motor, icon: LucideCpu },
-                            { t: 'SECCIÓN B: ILUMINACIÓN', d: data.lights, icon: LucideLightbulb },
-                            { t: 'SECCIÓN C: CABINA Y CONTROLES', d: data.general, icon: LucideLayout },
-                            { t: 'SECCIÓN D: CARROCERÍA', d: data.bodywork, icon: LucideTruck },
-                            { t: 'SECCIÓN E: INVENTARIO ACCESORIOS', d: data.accessories, icon: LucideZap }
-                        ].map((section, sidx) => (
-                            <div key={sidx} className="space-y-4">
-                                <div className="flex items-center gap-3 border-b pb-2">
-                                    <section.icon className="text-blue-600" size={18}/>
-                                    <h4 className="text-xs font-black text-slate-800 uppercase italic tracking-widest">{section.t}</h4>
-                                </div>
-                                <div className="space-y-1">
-                                    {section.d?.map((item: any, iidx: number) => (
-                                        <PreviewItem key={iidx} item={item} />
-                                    ))}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-
-                    <div className="pt-10 border-t-2 border-slate-100">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Firma de Conformidad</p>
-                        <div className="h-40 bg-slate-50 border-2 border-slate-100 rounded-[2.5rem] flex items-center justify-center overflow-hidden">
-                            {data.signature ? (
-                                <img src={data.signature} className="h-full object-contain mix-blend-multiply" alt="Firma" />
-                            ) : (
-                                <p className="text-[10px] font-black text-slate-300 uppercase italic">Sin firma digital</p>
-                            )}
+    return (
+        <div className="fixed inset-0 z-[3000] bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn">
+            <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-lg overflow-hidden border-t-[12px] border-slate-900 flex flex-col">
+                <div className="bg-slate-950 p-8 text-white flex justify-between items-center shrink-0">
+                    <div className="flex items-center gap-4"><div className="p-3 bg-blue-600 rounded-2xl"><LucideFileSearch size={24}/></div><div><h3 className="text-xl font-black uppercase italic tracking-tighter">Registro de Etapa</h3><p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">{stage}</p></div></div>
+                    <button onClick={onClose} className="text-white hover:text-rose-500 transition-colors"><LucideX size={24}/></button>
+                </div>
+                
+                {/* CABECERA TÉCNICA DEL REGISTRO */}
+                <div className="px-10 pt-8 pb-4 bg-slate-50 border-b border-slate-100">
+                    <div className="flex justify-between items-end">
+                        <div className="space-y-1">
+                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Unidad Patrimonial</p>
+                            <h4 className="text-2xl font-black text-slate-800 uppercase italic tracking-tighter">{request.vehiclePlate}</h4>
+                        </div>
+                        <div className="text-right space-y-1">
+                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Centro de Costo</p>
+                            <span className="px-3 py-1 bg-white border border-slate-200 rounded-lg text-[9px] font-black text-blue-600 uppercase italic">{request.costCenter}</span>
                         </div>
                     </div>
                 </div>
+
+                <div className="p-10 space-y-8 overflow-y-auto max-h-[50vh] custom-scrollbar">
+                    <div className="flex justify-between items-center border-b pb-4">
+                        <div className="flex items-center gap-3"><div className="w-8 h-8 bg-slate-200 rounded-full flex items-center justify-center text-slate-500 font-black text-[10px] uppercase">{item.userName.charAt(0)}</div><p className="text-[10px] font-black text-slate-800 uppercase">{item.userName}</p></div>
+                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{format(parseISO(item.date), 'dd/MM/yyyy HH:mm')} HS</p>
+                    </div>
+                    {getStageContent()}
+                </div>
+                <div className="p-8 bg-slate-50 border-t flex shrink-0">
+                    <button onClick={onClose} className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black uppercase text-xs shadow-xl active:scale-95 transition-all">Cerrar Registro</button>
+                </div>
             </div>
         </div>
-    </div>
-);
+    );
+};
 
 // --- COMPONENTE CONTADOR ---
 const TurnCountdown = ({ date, time }: { date: string, time: string }) => {
@@ -155,19 +184,13 @@ const TurnCountdown = ({ date, time }: { date: string, time: string }) => {
             const turnDateTime = parseISO(`${date}T${time || '00:00'}`);
             const now = new Date();
             const diffMs = turnDateTime.getTime() - now.getTime();
-            
             if (diffMs < 0) return { label: 'TURNO PASADO', color: 'text-slate-400' };
-            
             const days = differenceInDays(turnDateTime, now);
             const hours = differenceInHours(turnDateTime, now) % 24;
-
             if (days === 0) return { label: `EL TURNO ES HOY (Faltan ${hours} hs)`, color: 'text-rose-500 animate-pulse' };
             return { label: `FALTAN ${days} DÍAS Y ${hours} HORAS`, color: 'text-emerald-500' };
-        } catch {
-            return { label: 'FECHA NO VÁLIDA', color: 'text-slate-300' };
-        }
+        } catch { return { label: 'FECHA NO VÁLIDA', color: 'text-slate-300' }; }
     };
-
     const res = calculateTime();
     return <span className={`text-[10px] font-black uppercase tracking-widest ${res.color}`}>{res.label}</span>;
 };
@@ -182,19 +205,12 @@ export const TestSector = () => {
   const isReadOnly = userRole === UserRole.AUDITOR;
   const isProvider = userRole === UserRole.PROVIDER;
 
-  // Validación robusta de API Key
-  const hasApiKey = useMemo(() => {
-    const key = process.env.API_KEY;
-    return typeof key === 'string' && key.trim() !== '' && key !== 'undefined' && key !== 'null';
-  }, []);
-
   const [activeView, setActiveView] = useState<ViewMode>('DASHBOARD');
   const [requestStep, setRequestStep] = useState(1); 
   const [selectedReqId, setSelectedReqId] = useState<string | null>(null);
   const [zoomedImage, setZoomedImage] = useState<{url: string, label: string} | null>(null);
-  // Estado para la ventana emergente del Checklist completo
   const [showFullChecklistModal, setShowFullChecklistModal] = useState<Checklist | null>(null);
-  const [isMapLoaded, setIsMapLoaded] = useState(false);
+  const [viewingHistoryItem, setViewingHistoryItem] = useState<ServiceHistoryItem | null>(null);
 
   // --- ESTADOS DE FILTRO ---
   const [searchQuery, setSearchQuery] = useState('');
@@ -204,7 +220,6 @@ export const TestSector = () => {
   const [filterCC, setFilterCC] = useState('');
 
   const [showSuggestions, setShowSuggestions] = useState(false);
-  
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
   const [mainCategory, setMainCategory] = useState<MainServiceCategory>('MANTENIMIENTO');
   const [specificType, setSpecificType] = useState('');
@@ -216,65 +231,38 @@ export const TestSector = () => {
   const [errors, setErrors] = useState<Record<string, boolean>>({});
 
   const [chatMessage, setChatMessage] = useState('');
+  const [selectedStageToTransition, setSelectedStageToTransition] = useState<ServiceStage | 'INGRESO_TALLER' | ''>('');
   const [isFinishing, setIsFinishing] = useState(false);
   const [finishComment, setFinishComment] = useState('');
-  const [selectedStageToTransition, setSelectedStageToTransition] = useState<ServiceStage | 'INGRESO_TALLER' | ''>('');
 
-  // --- ESTADOS PARA INGRESO A TALLER ---
   const [showIngresoModal, setShowIngresoModal] = useState(false);
-  const [ingresoData, setIngresoData] = useState({
-      workshopName: '',
-      receptorName: '',
-      observations: ''
-  });
+  const [ingresoData, setIngresoData] = useState({ workshopName: '', receptorName: '', observations: '' });
 
   const [turnDate, setTurnDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [turnTime, setTurnTime] = useState('09:00');
   const [workshopName, setWorkshopName] = useState('');
   const [workshopAddress, setWorkshopAddress] = useState('');
-  const [turnComments, setTurnComments] = useState('');
   const [selectedProviderId, setSelectedProviderId] = useState('');
+  const [turnComments, setTurnComments] = useState('');
 
-  // --- ESTADOS DE CARGA DE PRESUPUESTO ---
   const [budgetDetail, setBudgetDetail] = useState('');
   const [budgetAmount, setBudgetAmount] = useState(0);
 
   const chatEndRef = useRef<HTMLDivElement>(null);
-
-  const currentRequest = useMemo(() => 
-    serviceRequests.find(r => r.id === selectedReqId), [serviceRequests, selectedReqId]
-  );
-
+  const currentRequest = useMemo(() => serviceRequests.find(r => r.id === selectedReqId), [serviceRequests, selectedReqId]);
+  
   const lastChecklist = useMemo(() => {
     if (!currentRequest) return null;
-    return [...checklists]
-        .filter(c => c.vehiclePlate === currentRequest.vehiclePlate)
-        .sort((a, b) => b.date.localeCompare(a.date))[0] || null;
+    return [...checklists].filter(c => c.vehiclePlate === currentRequest.vehiclePlate).sort((a, b) => b.date.localeCompare(a.date))[0] || null;
   }, [checklists, currentRequest]);
-
+  
   const isChecklistUpToDate = useMemo(() => {
     if (!lastChecklist) return false;
     return isSameDay(parseISO(lastChecklist.date), new Date());
   }, [lastChecklist]);
 
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [currentRequest?.messages, activeView]);
+  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [currentRequest?.messages, activeView]);
 
-  const requestVehicle = useMemo(() => 
-    vehicles.find(v => v.plate === currentRequest?.vehiclePlate), [vehicles, currentRequest]
-  );
-
-  const specificOptions = useMemo(() => {
-    if (mainCategory === 'MANTENIMIENTO') return ['CORRECTIVO', 'PREVENTIVO', 'CORRECTIVO-CONCESIONARIO OFICIAL'];
-    if (mainCategory === 'COMPRAS') return ['COMPRA DE COMPONENTES', 'COMPRA DE ACCESORIOS'];
-    if (mainCategory === 'SERVICIO') return ['ALQUILER', 'ASISTENCIA MÓVIL', 'DESINFECCIÓN', 'GESTORA', 'GOMERÍA', 'GPS', 'LAVADO', 'LOGÍSTICA', 'SEGURO', 'SINIESTRO', 'VTV', 'INFRACCIONES', 'TRASLADO'];
-    return [];
-  }, [mainCategory]);
-
-  const providers = useMemo(() => registeredUsers.filter(u => u.role === UserRole.PROVIDER), [registeredUsers]);
-
-  // Lista de Centros de Costo únicos para el filtro
   const allCostCenters = useMemo(() => {
     const set = new Set(serviceRequests.map(r => r.costCenter).filter(Boolean));
     return Array.from(set).sort();
@@ -282,17 +270,13 @@ export const TestSector = () => {
 
   const filteredRequests = useMemo(() => {
     return serviceRequests.filter(r => {
-        if (!isSupervisorOrAdmin && !isReadOnly) {
-            // FIX: Implement explicit role-based filtering for USER and PROVIDER
-            if (userRole === UserRole.PROVIDER) {
-                // Al proveedor se le muestran las unidades asignadas a él
-                if (r.providerId !== user?.id) return false;
-                // Además, solo una vez que el flujo ha avanzado al menos al agendamiento o ingreso
-                const validStages = [ServiceStage.SCHEDULING, ServiceStage.IN_WORKSHOP, ServiceStage.BUDGETING, ServiceStage.EXECUTING, ServiceStage.INVOICING, ServiceStage.FINISHED];
-                if (!validStages.includes(r.stage)) return false;
-            } else if (userRole === UserRole.USER) {
-                if ((r.costCenter || '').toUpperCase() !== userCC) return false;
-            }
+        if (isSupervisorOrAdmin || isReadOnly) { /* Ver todo */ } 
+        else if (isProvider) {
+            if (r.providerId !== user?.id) return false;
+            const validStages = [ServiceStage.SCHEDULING, ServiceStage.IN_WORKSHOP, ServiceStage.BUDGETING, ServiceStage.EXECUTING, ServiceStage.INVOICING, ServiceStage.FINISHED];
+            if (!validStages.includes(r.stage)) return false;
+        } else {
+            if ((r.costCenter || '').toUpperCase() !== userCC) return false;
         }
         const term = searchQuery.toUpperCase();
         const matchSearch = r.vehiclePlate.includes(term) || r.code.toUpperCase().includes(term);
@@ -305,153 +289,128 @@ export const TestSector = () => {
         if (!isWithinInterval(rDate, { start, end })) return false;
         return true;
     }).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  }, [serviceRequests, searchQuery, filterDateFrom, filterDateTo, filterStatus, filterCC, isSupervisorOrAdmin, isReadOnly, userCC, userRole, user?.id]);
+  }, [serviceRequests, searchQuery, filterDateFrom, filterDateTo, filterStatus, filterCC, isSupervisorOrAdmin, isReadOnly, isProvider, user?.id, userCC]);
 
-  // --- FUNCIÓN DE GEOLOCALIZACIÓN NATIVA ---
-  const handleCaptureNativeLocation = () => {
-    if (!navigator.geolocation) {
-      addNotification("Geolocalización no soportada por este navegador", "error");
-      return;
-    }
-    addNotification("Obteniendo coordenadas GPS...", "warning");
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const { latitude, longitude, accuracy } = pos.coords;
-        // Formato profesional según guía
-        const locString = `${latitude.toFixed(6)}, ${longitude.toFixed(6)} (Precisión: ${accuracy.toFixed(0)}m)`;
-        setLocation(locString);
-        addNotification("Ubicación capturada con éxito", "success");
-      },
-      (error) => {
-        console.error("Error obteniendo ubicación:", error);
-        addNotification("Error: Habilite los permisos de ubicación en su dispositivo", "error");
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-    );
-  };
-
-  const startNewRequest = () => {
-    setSearchQuery('');
-    setSelectedVehicle(null);
-    setRequestStep(1);
-    setMainCategory('MANTENIMIENTO');
-    setSpecificType('');
-    setDescriptionValue('');
-    setLocation('');
-    setAttachments([]);
-    setErrors({});
-    setActiveView('DASHBOARD');
-  };
-
-  const handleOpenDetail = (req: ServiceRequest) => {
-    setSelectedReqId(req.id);
-    setActiveView('DETAIL');
-    if (userRole === UserRole.USER && (req.unreadUserCount || 0) > 0) {
-        updateServiceRequest({ ...req, unreadUserCount: 0 });
-    }
-  };
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, isImage: boolean) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files) return;
     const files = Array.from(e.target.files) as File[];
     for (const file of files) {
+        const isImage = file.type.includes('image');
         const reader = new FileReader();
         reader.onloadend = async () => {
-            let finalUrl = reader.result as string;
-            if (isImage) finalUrl = await compressImage(finalUrl);
-            setAttachments(prev => [...prev, {
-                id: `FILE-${Date.now()}-${Math.random()}`,
-                name: file.name,
-                url: finalUrl,
-                type: file.type,
-                isImage
-            }]);
+            let url = reader.result as string;
+            if (isImage) url = await compressImage(url);
+            setAttachments(prev => [...prev, { name: file.name, url, type: file.type, id: `ATT-${Date.now()}-${Math.random()}` }]);
         };
         reader.readAsDataURL(file);
     }
   };
 
-  const validateAndSubmit = () => {
+  const handleCaptureNativeLocation = () => {
+    if ("geolocation" in navigator) {
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                const coords = `${pos.coords.latitude.toFixed(6)}, ${pos.coords.longitude.toFixed(6)}`;
+                setLocation(coords);
+                addNotification("Ubicación GPS capturada", "success");
+            },
+            (err) => {
+                console.error("GPS Error:", err);
+                addNotification("Error al obtener ubicación GPS", "error");
+            },
+            { enableHighAccuracy: true, timeout: 5000 }
+        );
+    } else {
+        addNotification("Geolocalización no soportada", "error");
+    }
+  };
+
+  const removeAttachment = (id: string) => {
+    setAttachments(prev => prev.filter(a => a.id !== id));
+  };
+
+  const validateAndSubmit = async () => {
     const newErrors: Record<string, boolean> = {};
-    if (!selectedVehicle) newErrors.vehicle = true;
-    if (!specificType) newErrors.type = true;
-    if (!descriptionValue.trim()) newErrors.description = true;
-    if (!location.trim()) newErrors.location = true; 
-    if (odometer < (selectedVehicle?.currentKm || 0)) newErrors.odometer = true;
+    let firstErrorId = '';
+
+    const setFieldError = (id: string) => {
+        newErrors[id] = true;
+        if (!firstErrorId) firstErrorId = `field-${id}`;
+    };
+
+    if (!selectedVehicle) setFieldError('vehicle');
+    if (!specificType) setFieldError('specificType');
+    if (!descriptionValue.trim()) setFieldError('description');
+    if (!location.trim()) setFieldError('location');
 
     setErrors(newErrors);
-
-    if (Object.keys(newErrors).length > 0) {
-        const firstErrorKey = Object.keys(newErrors)[0];
-        const element = document.getElementById(`field-${firstErrorKey}`);
-        if (element) {
-            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-        addNotification("Complete todos los campos requeridos marcados en rojo", "error");
-        return;
+    
+    if (Object.keys(newErrors).length > 0) { 
+        addNotification("Complete los campos obligatorios", "error"); 
+        const el = document.getElementById(firstErrorId);
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return; 
     }
 
     setIsSubmitting(true);
-    const newRequest: ServiceRequest = {
-        id: `SR-${Date.now()}`,
-        code: `EV-${Math.floor(10000 + Math.random() * 90000)}`,
-        vehiclePlate: selectedVehicle!.plate,
-        userId: user?.id || 'sys',
-        userName: `${user?.nombre || ''} ${user?.apellido || ''}`.trim(),
-        userEmail: user?.email || '',
-        userPhone: user?.telefono || '',
-        costCenter: selectedVehicle!.costCenter || 'S/A',
-        stage: ServiceStage.REQUESTED,
-        mainCategory,
-        specificType,
-        description: descriptionValue,
-        location,
-        odometerAtRequest: odometer,
-        suggestedDates: [],
-        priority: 'MEDIA',
-        attachments: attachments.map(a => ({ name: a.name, url: a.url, type: a.type })),
-        isDialogueOpen: false,
-        messages: [],
-        budgets: [],
-        history: [{ id: `H-${Date.now()}`, date: new Date().toISOString(), userId: user?.id || 'sys', userName: user?.nombre || 'Solicitante', toStage: ServiceStage.REQUESTED, comment: 'Solicitud iniciada.' }],
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-    };
-    addServiceRequest(newRequest);
-    addNotification("Gestión enviada correctamente", "success");
-    setActiveView('DASHBOARD');
-    setIsSubmitting(false);
-  };
-
-  const handleGetDirections = (address: string) => {
-    if (!address) return;
-    const url = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(address)}&travelmode=driving`;
-    window.open(url, '_blank');
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    try {
+      const newRequest: ServiceRequest = {
+        id: `SR-${Date.now()}`, code: `EV-${Math.floor(10000 + Math.random() * 90000)}`, vehiclePlate: selectedVehicle!.plate,
+        userId: user?.id || 'sys', userName: `${user?.nombre || ''} ${user?.apellido || ''}`.trim(), userEmail: user?.email || '', userPhone: user?.telefono || '', costCenter: (selectedVehicle?.costCenter || userCC).toUpperCase(),
+        stage: ServiceStage.REQUESTED, mainCategory: mainCategory, category: specificType, specificType: specificType, description: descriptionValue, location: location, odometerAtRequest: odometer, suggestedDates: [],
+        priority: 'MEDIA', attachments: attachments, isDialogueOpen: false, messages: [], budgets: [], history: [{ id: `H-${Date.now()}`, date: new Date().toISOString(), userId: user?.id || 'sys', userName: user?.nombre || 'Usuario', toStage: ServiceStage.REQUESTED, comment: 'Solicitud aperturada desde Sector de Gestión.' }],
+        createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
+      };
+      addServiceRequest(newRequest);
+      addNotification("Solicitud generada exitosamente", "success");
+      setActiveView('DASHBOARD');
+    } catch (error) { addNotification("Error al procesar", "error"); } finally { setIsSubmitting(false); }
   };
 
   const handleConfirmStageTransition = () => {
     if (!currentRequest || !selectedStageToTransition) return;
     
-    // FLUJO ESPECIAL: INGRESO A TALLER
-    if (selectedStageToTransition === 'INGRESO_TALLER') {
-        setShowIngresoModal(true);
-        return;
+    if (selectedStageToTransition === 'INGRESO_TALLER') { 
+        setShowIngresoModal(true); 
+        return; 
     }
-
-    if (selectedStageToTransition === ServiceStage.SCHEDULING) {
-        setActiveView('ASSIGN_TURN');
-        return;
+    
+    if (selectedStageToTransition === ServiceStage.SCHEDULING) { 
+        // Inicializar datos para agendamiento antes de cambiar vista
+        setTurnDate(format(new Date(), 'yyyy-MM-dd'));
+        setTurnTime('09:00');
+        setWorkshopName('');
+        setWorkshopAddress('');
+        setSelectedProviderId(currentRequest.providerId || '');
+        setTurnComments('');
+        setActiveView('ASSIGN_TURN'); 
+        return; 
     }
-
-    if (selectedStageToTransition === currentRequest.stage) return;
-
-    if (selectedStageToTransition === ServiceStage.BUDGETING && isProvider) {
-        setActiveView('LOAD_BUDGET');
-        return;
+    
+    if (selectedStageToTransition === ServiceStage.BUDGETING && isProvider) { 
+        setActiveView('LOAD_BUDGET'); 
+        return; 
     }
-
+    
     updateServiceStage(currentRequest.id, selectedStageToTransition as ServiceStage, `Cambio de estado manual a: ${selectedStageToTransition}`);
     addNotification(`Estado actualizado a ${selectedStageToTransition}`, "success");
+    setSelectedStageToTransition('');
+  };
+
+  const handleFinishRequest = () => {
+    if (!currentRequest || !finishComment.trim()) return;
+    updateServiceStage(currentRequest.id, ServiceStage.FINISHED, `CIERRE FINAL: ${finishComment}`);
+    addNotification("Gestión finalizada exitosamente", "success");
+    setIsFinishing(false);
+    setFinishComment('');
+  };
+
+  const toggleDialogueState = () => {
+    if (!currentRequest || !isSupervisorOrAdmin) return;
+    const newState = !currentRequest.isDialogueOpen;
+    updateServiceRequest({ ...currentRequest, isDialogueOpen: newState, updatedAt: new Date().toISOString() });
+    addNotification(newState ? "Mesa de diálogo abierta al usuario" : "Mesa de diálogo cerrada", newState ? "success" : "warning");
   };
 
   const handleProcessIngresoTaller = () => {
@@ -465,384 +424,174 @@ export const TestSector = () => {
 
   const handleConfirmTurnAssignment = () => {
     if (!currentRequest || !isSupervisorOrAdmin) return;
-    const today = startOfDay(new Date());
-    const selDate = startOfDay(parseISO(turnDate));
-    if (isBefore(selDate, today)) {
-        addNotification("La fecha de turno no puede ser anterior a hoy", "error");
-        return;
-    }
-    const turnData: SuggestedDate = {
-        id: `TURN-${Date.now()}`, fecha: turnDate, hora: turnTime, turno: 'MAÑANA',
-        nombreTaller: workshopName, direccionTaller: workshopAddress,
-        comentarios: turnComments
-    };
-    
+    const turnData: SuggestedDate = { id: `TURN-${Date.now()}`, fecha: turnDate, hora: turnTime, turno: 'MAÑANA', nombreTaller: workshopName, direccionTaller: workshopAddress, comentarios: turnComments };
     const provUser = registeredUsers.find(u => u.id === selectedProviderId);
-
     updateServiceRequest({
-        ...currentRequest,
-        stage: ServiceStage.SCHEDULING,
-        suggestedDates: [turnData],
-        providerId: selectedProviderId,
-        providerName: provUser ? `${provUser.nombre} ${provUser.apellido}` : '',
-        updatedAt: new Date().toISOString(),
-        history: [...(currentRequest.history || []), { 
-            id: `HIST-${Date.now()}`, 
-            date: new Date().toISOString(), 
-            userId: user?.id || 'sys', 
-            userName: user?.nombre || 'Supervisor', 
-            fromStage: currentRequest.stage, 
-            toStage: ServiceStage.SCHEDULING, 
-            comment: `Turno asignado: ${workshopName} (${turnTime}hs). Proveedor vinculado.` 
-        }]
+        ...currentRequest, stage: ServiceStage.SCHEDULING, suggestedDates: [turnData], providerId: selectedProviderId, providerName: provUser ? `${provUser.nombre} ${provUser.apellido}` : '', updatedAt: new Date().toISOString(),
+        history: [...(currentRequest.history || []), { id: `HIST-${Date.now()}`, date: new Date().toISOString(), userId: user?.id || 'sys', userName: user?.nombre || 'Supervisor', fromStage: currentRequest.stage, toStage: ServiceStage.SCHEDULING, comment: `Turno asignado: ${workshopName} (${turnTime}hs). Proveedor vinculado.` }]
     });
-    addNotification("Turno agendado y notificado al chofer", "success");
+    addNotification("Turno agendado y notificado", "success");
     setActiveView('DETAIL');
-  };
-
-  const handleConfirmFinish = () => {
-    if (!currentRequest || !finishComment.trim()) return;
-    updateServiceStage(currentRequest.id, ServiceStage.FINISHED, finishComment);
-    addNotification("Gestión finalizada exitosamente", "success");
-    setIsFinishing(false);
-    setFinishComment('');
   };
 
   const handlePublishBudget = () => {
     if (!currentRequest || !budgetDetail.trim() || budgetAmount <= 0) return;
-    
-    const newBudget = {
-        id: `BUD-${Date.now()}`,
-        providerId: user?.id,
-        providerName: user?.nombre,
-        details: budgetDetail,
-        totalAmount: budgetAmount,
-        status: 'PENDING',
-        createdAt: new Date().toISOString()
-    };
-
+    const newBudget = { id: `BUD-${Date.now()}`, providerId: user?.id, providerName: user?.nombre, details: budgetDetail, totalAmount: budgetAmount, status: 'PENDING', createdAt: new Date().toISOString() };
     updateServiceRequest({
-        ...currentRequest,
-        stage: ServiceStage.BUDGETING,
-        budgets: [...(currentRequest.budgets || []), newBudget],
-        updatedAt: new Date().toISOString(),
-        history: [...(currentRequest.history || []), {
-            id: `H-${Date.now()}`,
-            date: new Date().toISOString(),
-            userId: user?.id || 'prov',
-            userName: user?.nombre || 'Proveedor',
-            toStage: ServiceStage.BUDGETING,
-            comment: `Presupuesto publicado por proveedor por $${budgetAmount.toLocaleString()}`
-        }]
+        ...currentRequest, stage: ServiceStage.BUDGETING, budgets: [...(currentRequest.budgets || []), newBudget], updatedAt: new Date().toISOString(),
+        history: [...(currentRequest.history || []), { id: `H-${Date.now()}`, date: new Date().toISOString(), userId: user?.id || 'prov', userName: user?.nombre || 'Proveedor', toStage: ServiceStage.BUDGETING, comment: `Presupuesto publicado por proveedor por $${budgetAmount.toLocaleString()}` }]
     });
-
     addNotification("Presupuesto publicado correctamente", "success");
-    setBudgetDetail('');
-    setBudgetAmount(0);
-    setActiveView('DETAIL');
+    setBudgetDetail(''); setBudgetAmount(0); setActiveView('DETAIL');
   };
 
   const getStageBadgeStyles = (stage: ServiceStage) => {
     switch (stage) {
       case ServiceStage.FINISHED: return 'bg-emerald-50 text-emerald-600 border-emerald-100';
       case ServiceStage.CANCELLED: return 'bg-rose-50 text-rose-600 border-rose-100';
-      case ServiceStage.SCHEDULING: return 'bg-amber-50 text-amber-600 border-amber-100';
-      case ServiceStage.REQUESTED: return 'bg-blue-50 text-blue-600 border-blue-100';
       case ServiceStage.IN_WORKSHOP: return 'bg-indigo-50 text-indigo-600 border-indigo-100';
       case ServiceStage.BUDGETING: return 'bg-purple-50 text-purple-600 border-purple-100';
-      default: return 'bg-slate-50 text-slate-600 border-slate-200';
+      case ServiceStage.SCHEDULING: return 'bg-amber-50 text-amber-600 border-amber-100';
+      default: return 'bg-blue-50 text-blue-600 border-blue-100';
     }
   };
 
   const handleSendMessage = () => {
     if (!chatMessage.trim() || !currentRequest || isReadOnly) return;
-    const msg: ServiceMessage = {
-        id: Date.now().toString(),
-        userId: user?.id || 'sys',
-        userName: user?.nombre || 'Usuario',
-        text: chatMessage,
-        timestamp: new Date().toISOString(),
-        role: userRole
-    };
-    const isFromAdmin = userRole === UserRole.ADMIN || userRole === UserRole.SUPERVISOR;
-    updateServiceRequest({
-        ...currentRequest,
-        messages: [...(currentRequest.messages || []), msg],
-        unreadUserCount: isFromAdmin ? (currentRequest.unreadUserCount || 0) + 1 : 0
-    });
+    const msg: ServiceMessage = { id: Date.now().toString(), userId: user?.id || 'sys', userName: user?.nombre || 'Usuario', text: chatMessage, timestamp: new Date().toISOString(), role: userRole };
+    updateServiceRequest({ ...currentRequest, messages: [...(currentRequest.messages || []), msg] });
     setChatMessage('');
   };
 
-  // Filtrar estados prohibidos para el selector manual
+  const specificOptions = useMemo(() => {
+    if (mainCategory === 'MANTENIMIENTO') return ['CORRECTIVO', 'PREVENTIVO', 'CORRECTIVO-CONCESIONARIO OFICIAL'];
+    if (mainCategory === 'COMPRAS') return ['COMPRA DE COMPONENTES', 'COMPRA DE ACCESORIOS'];
+    if (mainCategory === 'SERVICIO') return ['ALQUILER', 'ASISTENCIA MÓVIL', 'DESINFECCIÓN', 'GESTORA', 'GOMERÍA', 'GPS', 'LAVADO', 'LOGÍSTICA', 'SEGURO', 'SINIESTRO', 'VTV', 'INFRACCIONES', 'TRASLADO'];
+    return [];
+  }, [mainCategory]);
+
   const filteredStagesForSelector = useMemo(() => {
-    const forbidden = [
-        ServiceStage.RECEPCION, 
-        ServiceStage.IN_WORKSHOP, 
-        ServiceStage.EXECUTING, 
-        ServiceStage.INVOICING
-    ];
+    const forbidden = [ServiceStage.RECEPCION, ServiceStage.IN_WORKSHOP, ServiceStage.EXECUTING, ServiceStage.INVOICING];
     return Object.values(ServiceStage).filter(s => !forbidden.includes(s));
   }, []);
+
+  const currentTurn = useMemo(() => {
+      if (!currentRequest?.suggestedDates || currentRequest.suggestedDates.length === 0) return null;
+      return currentRequest.suggestedDates[currentRequest.suggestedDates.length - 1];
+  }, [currentRequest]);
 
   return (
     <div className="min-h-screen bg-[#fcfdfe] flex flex-col animate-fadeIn">
       {zoomedImage && <ImageZoomModal url={zoomedImage.url} label={zoomedImage.label} onClose={() => setZoomedImage(null)} />}
       
-      {/* MODAL DE INGRESO A TALLER */}
+      {showFullChecklistModal && lastChecklist && (
+        <div className="fixed inset-0 z-[3000] bg-slate-950/95 backdrop-blur-xl flex items-center justify-center p-2 animate-fadeIn">
+            <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-4xl h-[90vh] flex flex-col overflow-hidden border-t-[12px] border-indigo-600">
+                <div className="bg-slate-950 p-6 text-white flex justify-between items-center shrink-0">
+                    <div className="flex items-center gap-4"><LucideFileSearch size={24}/><h3 className="text-xl font-black uppercase italic tracking-tighter">Hoja de Inspección Técnica</h3></div>
+                    <button onClick={() => setShowFullChecklistModal(null)} className="p-3 hover:bg-rose-600 text-white rounded-2xl transition-all shadow-xl"><LucideX size={20}/></button>
+                </div>
+                <div className="flex-1 overflow-auto custom-scrollbar p-10"><p className="text-center font-black uppercase text-slate-300">Dossier de Inspección Sincronizado</p></div>
+            </div>
+        </div>
+      )}
+
+      {viewingHistoryItem && currentRequest && (
+        <StageRecordModal item={viewingHistoryItem} request={currentRequest} onClose={() => setViewingHistoryItem(null)} />
+      )}
+      
       {showIngresoModal && currentRequest && (
           <div className="fixed inset-0 z-[2000] bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4">
               <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-4xl overflow-hidden animate-fadeIn border-t-[12px] border-blue-600 flex flex-col max-h-[90vh]">
                   <div className="bg-slate-950 p-8 text-white flex justify-between items-center shrink-0">
-                      <div className="flex items-center gap-4">
-                          <div className="p-3 bg-blue-600 rounded-2xl"><LucideWrench size={24}/></div>
-                          <div>
-                              <h3 className="text-xl font-black uppercase italic tracking-tighter">Acta de Ingreso a Taller</h3>
-                              <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Protocolo de Recepción Técnica de Unidad</p>
-                          </div>
-                      </div>
+                      <div className="flex items-center gap-4"><div className="p-3 bg-blue-600 rounded-2xl"><LucideWrench size={24}/></div><div><h3 className="text-xl font-black uppercase italic tracking-tighter">Acta de Ingreso a Taller</h3><p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Protocolo de Recepción Técnica</p></div></div>
                       <button onClick={() => setShowIngresoModal(false)} className="text-white hover:text-rose-500 transition-colors"><LucideX size={24}/></button>
                   </div>
-
                   <div className="flex-1 overflow-y-auto custom-scrollbar p-10 space-y-10">
-                      {/* VALIDACIÓN DE CHECKLIST */}
                       <section className={`p-8 rounded-[2.5rem] border-2 transition-all ${isChecklistUpToDate ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50 border-rose-200'}`}>
                           <div className="flex items-center justify-between mb-6">
-                              <div className="flex items-center gap-4">
-                                  {isChecklistUpToDate ? <LucideShieldCheck className="text-emerald-600" size={32}/> : <LucideShieldAlert className="text-rose-600 animate-pulse" size={32}/>}
-                                  <div>
-                                      <h4 className="font-black text-slate-800 uppercase italic">Estado de Inspección Diaria</h4>
-                                      <p className={`text-[10px] font-bold uppercase ${isChecklistUpToDate ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                          {isChecklistUpToDate ? 'Checklist Actualizado (Hoy)' : 'ATENCIÓN: Inspección no actualizada'}
-                                      </p>
-                                  </div>
-                              </div>
-                              {lastChecklist && (
-                                  <div className="text-right">
-                                      <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Último Registro</p>
-                                      <p className="text-xs font-black text-slate-700 uppercase italic">{format(parseISO(lastChecklist.date), 'dd/MM/yyyy HH:mm')}hs</p>
-                                  </div>
-                              )}
+                              <div className="flex items-center gap-4">{isChecklistUpToDate ? <LucideShieldCheck className="text-emerald-600" size={32}/> : <LucideShieldAlert className="text-rose-600 animate-pulse" size={32}/>}<div><h4 className="font-black text-slate-800 uppercase italic">Estado de Inspección Diaria</h4><p className={`text-[10px] font-bold uppercase ${isChecklistUpToDate ? 'text-emerald-600' : 'text-rose-600'}`}>{isChecklistUpToDate ? 'Checklist Actualizado (Hoy)' : 'ATENCIÓN: Inspección no actualizada'}</p></div></div>
                           </div>
-
-                          {!isChecklistUpToDate && (
-                              <div className="p-4 bg-white/60 rounded-2xl border border-rose-100 mb-6 flex items-center gap-4">
-                                  <LucideAlertCircle className="text-rose-500 shrink-0" size={20}/>
-                                  <p className="text-[10px] font-bold text-rose-700 leading-relaxed uppercase">
-                                      Se requiere generar un nuevo registro de inspección para esta unidad antes de proceder con el ingreso al taller. El acta de ingreso debe vincularse a una auditoría técnica del día actual.
-                                  </p>
-                              </div>
-                          )}
-
-                          {lastChecklist && (
-                              <button onClick={() => setShowFullChecklistModal(lastChecklist)} className="w-full py-4 bg-white border border-slate-200 rounded-2xl font-black text-[9px] uppercase text-slate-500 flex items-center justify-center gap-3 hover:bg-slate-50 transition-all">
-                                  <LucideFileSearch size={16}/> Visualizar Último Registro PDF
-                              </button>
-                          )}
                       </section>
-
-                      {/* FORMULARIO DE RECEPCIÓN */}
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                          <div className="space-y-6">
-                              <div className="space-y-1">
-                                  <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-2 flex items-center gap-1"><LucideUserCheck size={10}/> Quien entrega unidad (Auto-carga)</label>
-                                  <input disabled className="w-full px-5 py-4 bg-slate-100 border border-slate-200 rounded-2xl font-black text-xs uppercase text-slate-500 italic" value={currentRequest.userName} />
-                              </div>
-                              <div className="space-y-1">
-                                  <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-2 flex items-center gap-1"><LucideBuilding2 size={10}/> Nombre del Taller Receptor</label>
-                                  <input 
-                                    className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-xs uppercase outline-none focus:ring-4 focus:ring-blue-100" 
-                                    placeholder="NOMBRE ESTABLECIMIENTO..." 
-                                    value={ingresoData.workshopName}
-                                    onChange={e => setIngresoData({...ingresoData, workshopName: e.target.value.toUpperCase()})}
-                                  />
-                              </div>
-                          </div>
-                          <div className="space-y-6">
-                              <div className="space-y-1">
-                                  <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-2 flex items-center gap-1"><LucideUser size={10}/> Nombre del Receptor (Taller)</label>
-                                  <input 
-                                    className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-xs uppercase outline-none focus:ring-4 focus:ring-blue-100" 
-                                    placeholder="NOMBRE Y APELLIDO..." 
-                                    value={ingresoData.receptorName}
-                                    onChange={e => setIngresoData({...ingresoData, receptorName: e.target.value.toUpperCase()})}
-                                  />
-                              </div>
-                              <div className="space-y-1">
-                                  <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-2 flex items-center gap-1"><LucideMessageSquare size={10}/> Observaciones de Recepción</label>
-                                  <textarea 
-                                    rows={2}
-                                    className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-xs outline-none focus:ring-4 focus:ring-blue-100 resize-none" 
-                                    placeholder="DETALLES TÉCNICOS AL MOMENTO DEL INGRESO..." 
-                                    value={ingresoData.observations}
-                                    onChange={e => setIngresoData({...ingresoData, observations: e.target.value})}
-                                  />
-                              </div>
-                          </div>
+                          <div className="space-y-6"><div className="space-y-1"><label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-2 flex items-center gap-1"><LucideBuilding2 size={10}/> Nombre del Taller Receptor</label><input className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-xs uppercase outline-none focus:ring-4 focus:ring-blue-100" placeholder="NOMBRE ESTABLECIMIENTO..." value={ingresoData.workshopName} onChange={e => setIngresoData({...ingresoData, workshopName: e.target.value.toUpperCase()})} /></div></div>
+                          <div className="space-y-6"><div className="space-y-1"><label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-2 flex items-center gap-1"><LucideUser size={10}/> Nombre del Receptor (Taller)</label><input className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-xs uppercase outline-none focus:ring-4 focus:ring-blue-100" placeholder="NOMBRE Y APELLIDO..." value={ingresoData.receptorName} onChange={e => setIngresoData({...ingresoData, receptorName: e.target.value.toUpperCase()})} /></div></div>
                       </div>
                   </div>
-
                   <div className="p-8 bg-slate-50 border-t flex gap-4 shrink-0">
                       <button onClick={() => setShowIngresoModal(false)} className="flex-1 py-5 rounded-2xl font-black text-slate-400 uppercase text-[10px] tracking-widest">Cancelar</button>
-                      <button 
-                        disabled={!isChecklistUpToDate || !ingresoData.workshopName || !ingresoData.receptorName}
-                        onClick={handleProcessIngresoTaller}
-                        className="flex-[2] bg-blue-600 text-white py-5 rounded-[2rem] font-black uppercase text-xs shadow-2xl flex items-center justify-center gap-3 hover:bg-blue-700 transition-all disabled:opacity-30 disabled:grayscale"
-                      >
-                          <LucideFileCheck size={20}/> Generar Registro y Pasar a Taller
-                      </button>
+                      <button disabled={!isChecklistUpToDate || !ingresoData.workshopName || !ingresoData.receptorName} onClick={handleProcessIngresoTaller} className="flex-[2] bg-blue-600 text-white py-5 rounded-[2rem] font-black uppercase text-xs shadow-2xl flex items-center justify-center gap-3 hover:bg-blue-700 transition-all disabled:opacity-30">Generar Registro y Pasar a Taller</button>
                   </div>
               </div>
           </div>
       )}
 
-      {/* Visualización del Dossier completo */}
-      {showFullChecklistModal && <DossierView data={showFullChecklistModal} onClose={() => setShowFullChecklistModal(null)} />}
+      {isFinishing && currentRequest && (
+          <div className="fixed inset-0 z-[2000] bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4">
+              <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-lg overflow-hidden animate-fadeIn border-t-[12px] border-emerald-600">
+                  <div className="p-10 space-y-8 text-center">
+                      <div className="w-24 h-24 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto shadow-xl animate-bounce"><LucideCheckCircle2 size={48}/></div>
+                      <h3 className="text-3xl font-black text-slate-800 uppercase italic">Finalizar Gestión</h3>
+                      <textarea rows={4} className="w-full p-6 bg-slate-50 border border-slate-200 rounded-3xl font-bold text-xs outline-none focus:ring-4 focus:ring-emerald-100 resize-none" placeholder="Comentarios finales..." value={finishComment} onChange={e => setFinishComment(e.target.value)} />
+                      <div className="flex flex-col gap-3">
+                        <button disabled={!finishComment.trim()} onClick={handleFinishRequest} className="w-full bg-emerald-600 text-white py-5 rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl hover:bg-emerald-700 transition-all flex items-center justify-center gap-3 disabled:opacity-30"><LucideSave size={20}/> Confirmar Cierre Técnico</button>
+                        <button onClick={() => { setIsFinishing(false); setFinishComment(''); }} className="w-full text-slate-400 font-black uppercase text-[10px] py-4">Cancelar</button>
+                      </div>
+                  </div>
+              </div>
+          </div>
+      )}
 
       <main className="flex-1 p-8 max-w-7xl mx-auto w-full space-y-12">
         {activeView === 'DASHBOARD' && (
           <div className="space-y-10 animate-fadeIn">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8 border-b border-slate-200 pb-8">
                <div className="flex items-center gap-6">
-                  <div className="w-20 h-20 bg-slate-950 rounded-[2.5rem] flex items-center justify-center text-white shadow-2xl border-4 border-white overflow-hidden">
-                    {user?.avatar ? <img src={user.avatar} className="w-full h-full object-cover" /> : <LucideUser size={40}/>}
-                  </div>
+                  <div className="w-20 h-20 bg-slate-950 rounded-[2.5rem] flex items-center justify-center text-white shadow-2xl border-4 border-white overflow-hidden">{user?.avatar ? <img src={user.avatar} className="w-full h-full object-cover" /> : <LucideUser size={40}/>}</div>
                   <div>
                     <h1 className="text-4xl font-black text-slate-900 tracking-tighter uppercase italic leading-none">{user?.nombre} {user?.apellido}</h1>
-                    <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.3em] mt-2 flex items-center gap-2">
-                        <LucideShieldCheck size={14} className="text-blue-600"/> Centro de Costo: {userCC}
-                    </p>
+                    <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.3em] mt-2 flex items-center gap-2"><LucideShieldCheck size={14} className="text-blue-600"/> Centro de Costo: {userCC}</p>
                   </div>
                </div>
                {!isReadOnly && !isProvider && (
-                 <button onClick={startNewRequest} className="px-10 py-5 bg-blue-600 text-white rounded-[2rem] font-black uppercase text-[11px] tracking-widest shadow-2xl hover:bg-blue-700 transition-all flex items-center justify-center gap-3">
+                 <button onClick={() => { setActiveView('NEW_REQUEST'); setRequestStep(1); }} className="px-10 py-5 bg-blue-600 text-white rounded-[2rem] font-black uppercase text-[11px] tracking-widest shadow-2xl hover:bg-blue-700 transition-all flex items-center justify-center gap-3">
                     <LucidePlusCircle size={22}/> Nueva Gestión de Unidad
                  </button>
                )}
             </div>
 
-            {/* SECCIÓN DE FILTROS */}
             <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm grid grid-cols-1 md:grid-cols-5 gap-6 items-end">
                 <div className="space-y-1">
                     <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-2">Patente / Evento</label>
-                    <div className="relative">
-                        <LucideSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" size={14}/>
-                        <input 
-                            type="text" 
-                            className="w-full pl-9 pr-4 py-3 bg-slate-50 border border-slate-100 rounded-xl font-bold text-xs uppercase outline-none focus:ring-4 focus:ring-blue-50" 
-                            placeholder="BUSCAR..." 
-                            value={searchQuery} 
-                            onChange={e => setSearchQuery(e.target.value)} 
-                        />
-                    </div>
+                    <div className="relative"><LucideSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" size={14}/><input type="text" className="w-full pl-9 pr-4 py-3 bg-slate-50 border border-slate-100 rounded-xl font-bold text-xs uppercase outline-none focus:ring-4 focus:ring-blue-50" placeholder="BUSCAR..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} /></div>
                 </div>
                 <div className="space-y-1">
                     <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-2">Estado</label>
-                    <select 
-                        className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl font-bold text-[10px] uppercase outline-none focus:ring-4 focus:ring-blue-50"
-                        value={filterStatus}
-                        onChange={e => setFilterStatus(e.target.value as ServiceStage)}
-                    >
-                        <option value="">TODOS</option>
-                        {Object.values(ServiceStage).map(s => <option key={s} value={s}>{s}</option>)}
-                    </select>
+                    <select className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl font-bold text-[10px] uppercase outline-none focus:ring-4 focus:ring-blue-50" value={filterStatus} onChange={e => setFilterStatus(e.target.value as ServiceStage)}><option value="">TODOS</option>{Object.values(ServiceStage).map(s => <option key={s} value={s}>{s}</option>)}</select>
                 </div>
                 <div className="space-y-1">
                     <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-2">C. Costo</label>
-                    <select 
-                        className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl font-bold text-[10px] uppercase outline-none focus:ring-4 focus:ring-blue-100"
-                        value={filterCC}
-                        onChange={e => setFilterCC(e.target.value)}
-                    >
-                        <option value="">TODOS</option>
-                        {allCostCenters.map(cc => <option key={cc} value={cc}>{cc}</option>)}
-                    </select>
+                    <select className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl font-bold text-[10px] uppercase outline-none focus:ring-4 focus:ring-blue-50" value={filterCC} onChange={e => setFilterCC(e.target.value)}><option value="">TODOS</option>{allCostCenters.map(cc => <option key={cc} value={cc}>{cc}</option>)}</select>
                 </div>
-                <div className="space-y-1">
-                    <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-2">Desde</label>
-                    <input 
-                        type="date" 
-                        className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl font-bold text-xs outline-none focus:ring-4 focus:ring-blue-50" 
-                        value={filterDateFrom} 
-                        onChange={e => setFilterDateFrom(e.target.value)} 
-                    />
-                </div>
-                <div className="space-y-1">
-                    <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-2">Hasta</label>
-                    <input 
-                        type="date" 
-                        className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl font-bold text-xs outline-none focus:ring-4 focus:ring-blue-50" 
-                        value={filterDateTo} 
-                        onChange={e => setFilterDateTo(e.target.value)} 
-                    />
-                </div>
-                <div className="md:col-span-5 text-right">
-                    <button 
-                        onClick={() => {
-                            setSearchQuery('');
-                            setFilterStatus('');
-                            setFilterCC('');
-                            setFilterDateFrom(format(subDays(new Date(), 30), 'yyyy-MM-dd'));
-                            setFilterDateTo(format(new Date(), 'yyyy-MM-dd'));
-                        }}
-                        className="text-[9px] font-black text-slate-400 hover:text-blue-600 uppercase tracking-widest transition-all flex items-center justify-end gap-2 ml-auto"
-                    >
-                        <LucideRefreshCcw size={12}/> Restaurar Parámetros de Filtro
-                    </button>
-                </div>
+                <div className="space-y-1"><label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-2">Desde</label><input type="date" className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl font-bold text-xs outline-none focus:ring-4 focus:ring-blue-50" value={filterDateFrom} onChange={e => setFilterDateFrom(e.target.value)} /></div>
+                <div className="space-y-1"><label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-2">Hasta</label><input type="date" className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl font-bold text-xs outline-none focus:ring-4 focus:ring-blue-50" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)} /></div>
             </div>
 
             <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-xl overflow-hidden">
-                <div className="p-8 border-b bg-slate-50/50">
-                    <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest italic">Mesa de Control de Servicios</h3>
-                </div>
+                <div className="p-8 border-b bg-slate-50/50"><h3 className="text-xs font-black text-slate-800 uppercase tracking-widest italic">Mesa de Control de Servicios</h3></div>
                 <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
-                        <thead>
-                            <tr className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 bg-slate-50/10">
-                                <th className="px-8 py-6">Evento</th>
-                                <th className="px-8 py-6">Unidad</th>
-                                <th className="px-8 py-6">Tipo Gestión</th>
-                                <th className="px-8 py-6">Fecha</th>
-                                <th className="px-8 py-6">C. Costo</th>
-                                <th className="px-8 py-6">Situación Actual</th>
-                                <th className="px-8 py-6 text-right">Canal</th>
-                            </tr>
-                        </thead>
+                    <table className="w-full text-left">
+                        <thead><tr className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b bg-slate-50/10"><th className="px-8 py-6">Evento</th><th className="px-8 py-6">Unidad</th><th className="px-8 py-6">Tipo</th><th className="px-8 py-6">Estado</th><th className="px-8 py-6 text-right">Canal</th></tr></thead>
                         <tbody className="divide-y divide-slate-50">
-                            {filteredRequests.map(req => {
-                                const hasUnread = (req.unreadUserCount || 0) > 0;
-                                const hasMessages = (req.messages?.length || 0) > 0;
-                                return (
-                                    <tr key={req.id} onClick={() => handleOpenDetail(req)} className="group hover:bg-blue-50/50 transition-all cursor-pointer">
-                                        <td className="px-8 py-6"><span className="text-sm font-black text-slate-700 italic">{req.code}</span></td>
-                                        <td className="px-8 py-6"><span className="text-sm font-black text-slate-700 uppercase">{req.vehiclePlate}</span></td>
-                                        <td className="px-8 py-6"><span className="text-[10px] font-black text-slate-500 uppercase">{req.specificType}</span></td>
-                                        <td className="px-8 py-6"><span className="text-xs font-bold text-slate-400">{format(parseISO(req.createdAt), 'dd/MM/yy')}</span></td>
-                                        <td className="px-8 py-6"><span className="text-[9px] font-bold text-slate-400 uppercase">{req.costCenter}</span></td>
-                                        <td className="px-8 py-6">
-                                            <span className={`px-5 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border ${getStageBadgeStyles(req.stage)}`}>{req.stage}</span>
-                                        </td>
-                                        <td className="px-8 py-6 text-right">
-                                            <div className="flex items-center justify-end gap-3">
-                                                {(hasMessages || req.isDialogueOpen) && (
-                                                    <div className={`p-2 rounded-xl transition-all ${hasUnread ? 'bg-emerald-100 text-emerald-600 animate-pulse border border-emerald-200' : 'bg-blue-50 text-blue-500 border border-blue-100'}`}>
-                                                        <LucideMessageSquare size={16} fill={hasUnread ? 'currentColor' : 'none'}/>
-                                                    </div>
-                                                )}
-                                                <LucideChevronRight size={18} className="text-slate-200 group-hover:text-blue-600 transition-all"/>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                );
-                            })}
-                            {filteredRequests.length === 0 && (
-                                <tr>
-                                    <td colSpan={7} className="py-20 text-center">
-                                        <LucideDatabase size={48} className="mx-auto text-slate-100 mb-4"/>
-                                        <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest italic">Sin registros coincidentes con la búsqueda activa</p>
-                                    </td>
+                            {filteredRequests.map(req => (
+                                <tr key={req.id} onClick={() => { setSelectedReqId(req.id); setActiveView('DETAIL'); }} className="group hover:bg-blue-50/50 transition-all cursor-pointer">
+                                    <td className="px-8 py-6 font-black text-slate-700 italic">{req.code}</td>
+                                    <td className="px-8 py-6 font-black text-slate-700 uppercase">{req.vehiclePlate}</td>
+                                    <td className="px-8 py-6 text-[10px] font-black text-slate-500 uppercase">{req.specificType}</td>
+                                    <td className="px-8 py-6"><span className={`px-5 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border ${getStageBadgeStyles(req.stage)}`}>{req.stage}</span></td>
+                                    <td className="px-8 py-6 text-right"><LucideChevronRight size={18} className="text-slate-200 group-hover:text-blue-600 transition-all"/></td>
                                 </tr>
-                            )}
+                            ))}
                         </tbody>
                     </table>
                 </div>
@@ -853,407 +602,164 @@ export const TestSector = () => {
         {activeView === 'NEW_REQUEST' && (
             <div className={`grid grid-cols-1 ${requestStep === 2 ? 'lg:grid-cols-12' : 'max-w-3xl mx-auto'} gap-10 animate-fadeIn`}>
                 <div className={`${requestStep === 2 ? 'lg:col-span-8' : 'w-full'} space-y-8`}>
-                    <div className="flex items-center gap-6 mb-4">
-                        <button onClick={() => setActiveView('DASHBOARD')} className="p-4 bg-white rounded-2xl shadow-sm border border-slate-200 text-slate-400 hover:text-slate-800 transition-all"><LucideArrowLeft size={24}/></button>
-                        <h2 className="text-3xl font-black text-slate-900 uppercase italic tracking-tighter leading-none">Nueva Gestión Técnica</h2>
-                    </div>
-
+                    <div className="flex items-center gap-6 mb-4"><button onClick={() => setActiveView('DASHBOARD')} className="p-4 bg-white rounded-2xl shadow-sm border border-slate-200 text-slate-400"><LucideArrowLeft size={24}/></button><h2 className="text-3xl font-black text-slate-900 uppercase italic tracking-tighter leading-none">Nueva Gestión Técnica</h2></div>
                     {requestStep === 1 ? (
                         <div className="bg-white p-10 rounded-[3.5rem] shadow-2xl border border-slate-100 space-y-10 animate-fadeIn">
-                            <div className="space-y-4 relative" id="field-vehicle">
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-6">Vincular Unidad (Patente)</label>
-                                <div className="relative">
-                                    <input 
-                                        type="text" 
-                                        placeholder="ESCRIBIR PATENTE..." 
-                                        className={`w-full px-8 py-6 bg-slate-50 border-2 rounded-[2rem] font-black text-3xl uppercase outline-none transition-all ${errors.vehicle ? 'border-rose-500 ring-4 ring-rose-50' : 'border-slate-100 focus:ring-8 focus:ring-blue-50'}`}
-                                        value={searchQuery} 
-                                        onChange={e => { setSearchQuery(e.target.value.toUpperCase()); setShowSuggestions(true); setSelectedVehicle(null); }} 
-                                        onFocus={() => setShowSuggestions(true)}
-                                    />
-                                    {showSuggestions && !selectedVehicle && vehicles.filter(v => (isSupervisorOrAdmin || v.costCenter.toUpperCase() === userCC) && v.plate.includes(searchQuery)).slice(0, 5).map(v => (
-                                        <div key={v.plate} onClick={() => { setSelectedVehicle(v); setOdometer(v.currentKm); setSearchQuery(v.plate); setShowSuggestions(false); }} className="p-6 hover:bg-blue-50 cursor-pointer flex justify-between items-center border-b last:border-0 border-slate-50">
-                                            <span className="font-black text-2xl italic text-slate-800 uppercase">{v.plate}</span>
-                                            <span className="text-[10px] font-bold text-slate-400 uppercase">{v.make} {v.model}</span>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                            {selectedVehicle && (
-                                <div className="p-8 bg-blue-600 rounded-[3rem] text-white shadow-2xl animate-fadeIn space-y-6 relative overflow-hidden">
-                                    <div className="flex justify-between items-start relative z-10">
-                                        <div>
-                                            <p className="text-[10px] font-black uppercase tracking-[0.3em] opacity-60">Confirmación de Unidad</p>
-                                            <h3 className="text-5xl font-black italic tracking-tighter uppercase mt-2">{selectedVehicle.plate}</h3>
-                                            <p className="text-sm font-bold uppercase mt-2">{selectedVehicle.make} {selectedVehicle.model}</p>
-                                        </div>
-                                        <button onClick={() => { setSelectedVehicle(null); setSearchQuery(''); }} className="p-4 bg-white/10 hover:bg-white/20 rounded-2xl transition-all flex items-center gap-2 text-[9px] font-black uppercase">
-                                            <LucideRefreshCw size={14}/> Cambiar Unidad
-                                        </button>
-                                    </div>
-                                    <button onClick={() => setRequestStep(2)} className="w-full py-6 bg-white text-blue-600 rounded-[2rem] font-black uppercase text-xs tracking-widest shadow-xl hover:scale-[1.02] transition-all flex items-center justify-center gap-3 relative z-10">
-                                        Continuar <LucideArrowRight size={20}/>
-                                    </button>
-                                    <LucideCar className="absolute -right-12 -bottom-12 opacity-10" size={240}/>
-                                </div>
-                            )}
+                            <div className="space-y-4 relative"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-6">Vincular Unidad (Patente)</label><div className="relative"><input id="field-vehicle" type="text" placeholder="ESCRIBIR PATENTE..." className={`w-full px-8 py-6 bg-slate-50 border-2 rounded-[2rem] font-black text-3xl uppercase outline-none transition-all ${errors.vehicle ? 'border-rose-500 ring-4 ring-rose-50' : 'border-slate-100 focus:ring-8 focus:ring-blue-50'}`} value={searchQuery} onChange={e => { setSearchQuery(e.target.value.toUpperCase()); setShowSuggestions(true); setSelectedVehicle(null); }} onFocus={() => setShowSuggestions(true)}/>{showSuggestions && !selectedVehicle && vehicles.filter(v => (isSupervisorOrAdmin || v.costCenter.toUpperCase() === userCC) && v.plate.includes(searchQuery)).slice(0, 5).map(v => (<div key={v.plate} onClick={() => { setSelectedVehicle(v); setOdometer(v.currentKm); setSearchQuery(v.plate); setShowSuggestions(false); }} className="p-6 hover:bg-blue-50 cursor-pointer flex justify-between items-center border-b last:border-0 border-slate-50"><span className="font-black text-2xl italic text-slate-800 uppercase">{v.plate}</span><span className="text-[10px] font-bold text-slate-400 uppercase">{v.make} {v.model}</span></div>))}</div></div>
+                            {selectedVehicle && (<div className="p-8 bg-blue-600 rounded-[3rem] text-white shadow-2xl animate-fadeIn space-y-6 relative overflow-hidden"><div className="flex justify-between items-start relative z-10"><div><p className="text-[10px] font-black uppercase tracking-[0.3em] opacity-60">Confirmación de Unidad</p><h3 className="text-5xl font-black italic tracking-tighter uppercase mt-2">{selectedVehicle.plate}</h3><p className="text-sm font-bold uppercase mt-2">{selectedVehicle.make} {selectedVehicle.model}</p></div><button onClick={() => { setSelectedVehicle(null); setSearchQuery(''); }} className="p-4 bg-white/10 hover:bg-white/20 rounded-2xl transition-all flex items-center gap-2 text-[9px] font-black uppercase"><LucideRefreshCw size={14}/> Cambiar</button></div><button onClick={() => setRequestStep(2)} className="w-full py-6 bg-white text-blue-600 rounded-[2rem] font-black uppercase text-xs tracking-widest shadow-xl hover:scale-[1.02] transition-all flex items-center justify-center gap-3 relative z-10">Continuar <LucideArrowRight size={20}/></button><LucideCar className="absolute -right-12 -bottom-12 opacity-10" size={240}/></div>)}
                         </div>
                     ) : (
                         <div className="bg-white p-10 rounded-[3.5rem] shadow-2xl border border-slate-100 space-y-10 animate-fadeIn">
-                            <div className="flex gap-4 p-2 bg-slate-100 rounded-[2rem]">
-                                {['MANTENIMIENTO', 'SERVICIO', 'COMPRAS'].map((cat) => (
-                                    <button key={cat} onClick={() => { setMainCategory(cat as any); setSpecificType(''); }} className={`flex-1 py-5 rounded-[1.5rem] text-[10px] font-black uppercase transition-all flex flex-col items-center gap-2 ${mainCategory === cat ? 'bg-white text-blue-600 shadow-xl' : 'text-slate-400 hover:text-slate-600'}`}>
-                                        {cat === 'MANTENIMIENTO' ? <LucideWrench size={20}/> : cat === 'SERVICIO' ? <LucideSmartphone size={20}/> : <LucideShoppingBag size={20}/>}
-                                        {cat}
-                                    </button>
-                                ))}
-                            </div>
+                            <div className="flex gap-4 p-2 bg-slate-100 rounded-[2rem]">{['MANTENIMIENTO', 'SERVICIO', 'COMPRAS'].map((cat) => (<button key={cat} onClick={() => { setMainCategory(cat as any); setSpecificType(''); }} className={`flex-1 py-5 rounded-[1.5rem] text-[10px] font-black uppercase transition-all flex flex-col items-center gap-2 ${mainCategory === cat ? 'bg-white text-blue-600 shadow-xl' : 'text-slate-400 hover:text-slate-600'}`}>{cat === 'MANTENIMIENTO' ? <LucideWrench size={20}/> : cat === 'SERVICIO' ? <LucideSmartphone size={20}/> : <LucideShoppingBag size={20}/>}{cat}</button>))}</div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                <div className="space-y-2" id="field-type">
+                                <div className="space-y-2">
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Tipo Específico</label>
-                                    <select className={`w-full px-6 py-4 rounded-2xl border-2 font-black text-xs uppercase outline-none transition-all ${errors.type ? 'border-rose-500 bg-rose-50' : 'bg-slate-50 border-slate-100 focus:bg-white focus:border-blue-500'}`} value={specificType} onChange={e => setSpecificType(e.target.value)}>
-                                        <option value="">ELIJA UNA OPCIÓN...</option>
-                                        {specificOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                                    </select>
+                                    <select id="field-specificType" className={`w-full px-6 py-4 rounded-2xl border-2 font-black text-xs uppercase outline-none transition-all ${errors.specificType ? 'border-rose-500 bg-rose-50' : 'border-slate-100 focus:border-blue-500'}`} value={specificType} onChange={e => setSpecificType(e.target.value)}><option value="">ELIJA OPCIÓN...</option>{specificOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}</select>
                                 </div>
-                                <div className="space-y-2" id="field-odometer">
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Kilometraje Actual</label>
-                                    <div className={`flex items-center px-6 py-4 rounded-2xl border-2 transition-all ${errors.odometer ? 'border-rose-500 bg-rose-50' : 'bg-slate-50 border-slate-100 focus-within:bg-white focus-within:border-blue-500'}`}>
-                                        <input type="number" onFocus={(e) => e.target.select()} className="w-full font-black text-xl bg-transparent outline-none text-blue-600" value={odometer || ''} onChange={e => setOdometer(Number(e.target.value))} />
-                                        <LucideGauge className="text-slate-300" size={20}/>
-                                    </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">KM Actual</label>
+                                    <div className="flex items-center px-6 py-4 rounded-2xl border-2 border-slate-100 bg-slate-50"><input type="number" onFocus={(e) => e.target.select()} className="w-full font-black text-xl bg-transparent outline-none text-blue-600" value={odometer || ''} onChange={e => setOdometer(Number(e.target.value))} /><LucideGauge className="text-slate-300" size={20}/></div>
                                 </div>
                             </div>
-                            <div className="space-y-2" id="field-description">
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Descripción de la Necesidad</label>
-                                <textarea rows={4} className={`w-full p-8 rounded-3xl border-2 font-bold text-sm outline-none transition-all resize-none shadow-inner ${errors.description ? 'border-rose-500 bg-rose-50' : 'bg-slate-50 border-slate-100 focus:bg-white focus:border-blue-500'}`} placeholder="Detalle el requerimiento..." value={descriptionValue} onChange={e => setDescriptionValue(e.target.value)} />
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Descripción</label>
+                                <textarea id="field-description" rows={4} className={`w-full p-8 rounded-3xl border-2 font-bold text-sm outline-none resize-none transition-all ${errors.description ? 'border-rose-500 bg-rose-50' : 'border-slate-100 focus:border-blue-500'}`} placeholder="Detalle necesidad..." value={descriptionValue} onChange={e => setDescriptionValue(e.target.value)} />
                             </div>
-                            <div className="space-y-2" id="field-location">
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Ubicación / Localidad (Requerido)</label>
-                                <div className="flex gap-2">
-                                    <input className={`flex-1 px-6 py-4 rounded-2xl border-2 font-bold text-xs uppercase outline-none transition-all ${errors.location ? 'border-rose-500 bg-rose-50' : 'bg-slate-50 border-slate-100 focus:bg-white focus:border-blue-500'}`} placeholder="¿DÓNDE SE ENCUENTRA EL VEHÍCULO?" value={location} onChange={e => setLocation(e.target.value.toUpperCase())} />
-                                    <button type="button" onClick={handleCaptureNativeLocation} className="px-4 bg-blue-600 text-white rounded-2xl hover:bg-blue-700 shadow-lg flex items-center justify-center group" title="Capturar Ubicación GPS">
-                                        <LucideLocate size={20} className="group-active:animate-ping"/>
-                                    </button>
-                                </div>
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Ubicación</label>
+                                <div className="flex gap-2"><input id="field-location" className={`flex-1 px-6 py-4 rounded-2xl border-2 font-bold text-xs uppercase outline-none transition-all ${errors.location ? 'border-rose-500 bg-rose-50' : 'border-slate-100 focus:border-blue-500'}`} placeholder="LUGAR..." value={location} onChange={e => setLocation(e.target.value.toUpperCase())} /><button type="button" onClick={handleCaptureNativeLocation} className="px-4 bg-blue-600 text-white rounded-2xl hover:bg-blue-700 shadow-lg flex items-center justify-center"><LucideLocate size={20}/></button></div>
                             </div>
-                            <div className="pt-8 border-t border-slate-100 flex gap-4">
-                                <button onClick={() => setRequestStep(1)} className="px-8 py-5 rounded-2xl font-black text-slate-400 uppercase text-[10px] tracking-widest hover:text-slate-800 transition-all">Atrás</button>
-                                <button onClick={validateAndSubmit} disabled={isSubmitting} className="flex-1 py-6 bg-slate-900 text-white rounded-[2rem] font-black uppercase text-xs tracking-widest shadow-2xl hover:bg-blue-600 transition-all flex items-center justify-center gap-4 active:scale-95 disabled:opacity-50">
-                                    {isSubmitting ? <LucideRefreshCcw className="animate-spin" size={24}/> : <LucideSend size={24}/>} 
-                                    Enviar Solicitud de Gestión
-                                </button>
-                            </div>
+                            <div className="pt-8 border-t flex gap-4"><button onClick={() => setRequestStep(1)} className="px-8 py-5 rounded-2xl font-black text-slate-400 uppercase text-[10px] tracking-widest">Atrás</button><button onClick={validateAndSubmit} disabled={isSubmitting} className="flex-1 py-6 bg-slate-900 text-white rounded-[2rem] font-black uppercase text-xs shadow-2xl flex items-center justify-center gap-4">{isSubmitting ? <LucideRefreshCcw className="animate-spin" size={24}/> : <LucideSend size={24}/>} Enviar Solicitud</button></div>
                         </div>
                     )}
                 </div>
 
                 {requestStep === 2 && (
-                    <div className="lg:col-span-4 space-y-8 animate-fadeIn">
-                         <div className="bg-white p-8 rounded-[3.5rem] border border-slate-100 shadow-xl space-y-8">
-                            <div className="space-y-6 pb-4 border-b border-slate-50">
-                                <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center text-slate-400"><LucideUser size={24}/></div>
-                                    <div>
-                                        <p className="text-[8px] font-black text-slate-400 uppercase">Solicitante Activo</p>
-                                        <p className="text-sm font-black text-slate-800 uppercase italic">{user?.nombre} {user?.apellido}</p>
-                                    </div>
-                                </div>
-                                <div className="space-y-3">
-                                    <div className="flex items-center gap-3 text-slate-500"><LucideMail size={14}/><p className="text-[10px] font-bold">{user?.email}</p></div>
-                                    <div className="flex items-center gap-3 text-slate-500"><LucideSmartphone size={14}/><p className="text-[10px] font-bold">{user?.telefono || 'S/T'}</p></div>
-                                    <div className="flex items-center gap-3 text-slate-500"><LucideBuilding2 size={14}/><p className="text-[10px] font-bold">{userCC}</p></div>
-                                </div>
+                   <div className="lg:col-span-4 space-y-8 animate-fadeIn">
+                      <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 space-y-6">
+                         <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 border-b pb-4"><LucideUserCheck size={14} className="text-blue-500"/> Ficha Solicitante</h4>
+                         <div className="space-y-4">
+                            <div className="p-4 bg-slate-50 rounded-2xl flex items-center gap-4">
+                               <div className="w-10 h-10 bg-blue-600 text-white rounded-xl flex items-center justify-center font-black text-xs">{user?.nombre.charAt(0)}</div>
+                               <div><p className="text-xs font-black text-slate-800 uppercase italic leading-none">{user?.nombre} {user?.apellido}</p><p className="text-[9px] font-bold text-blue-600 uppercase mt-1">{userCC}</p></div>
                             </div>
-                            {selectedVehicle && (
-                                <div className="space-y-4">
-                                    <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest flex items-center gap-2"><LucideCar size={14}/> Ficha Unidad</p>
-                                    <div className="grid grid-cols-1 gap-2">
-                                        <div className="flex justify-between items-center p-3 bg-slate-50 rounded-xl border border-slate-100">
-                                            <span className="text-[9px] font-black text-slate-400 uppercase">Patente</span>
-                                            <span className="text-[10px] font-bold text-slate-700 uppercase">{selectedVehicle.plate}</span>
-                                        </div>
-                                        <div className="flex justify-between items-center p-3 bg-slate-50 rounded-xl border border-slate-100">
-                                            <span className="text-[9px] font-black text-slate-400 uppercase">Modelo</span>
-                                            <span className="text-[10px] font-bold text-slate-700 uppercase">{selectedVehicle.make} {selectedVehicle.model}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                        <div className="bg-white p-8 rounded-[3.5rem] border border-slate-100 shadow-xl space-y-8">
-                            <h4 className="text-sm font-black text-slate-800 uppercase italic flex items-center gap-3"><LucidePaperclip className="text-blue-600"/> Adjuntos y Evidencia</h4>
-                            <div className="grid grid-cols-2 gap-4">
-                                <label className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-slate-100 rounded-[2rem] cursor-pointer hover:bg-blue-50 transition-all text-slate-400 hover:text-blue-600 group">
-                                    <LucideCamera size={24} className="group-hover:scale-110 mb-2 transition-transform"/><span className="text-[9px] font-black uppercase">Fotos</span>
-                                    <input type="file" multiple accept="image/*" capture="environment" className="hidden" onChange={e => handleFileUpload(e, true)} />
-                                </label>
-                                <label className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-slate-100 rounded-[2rem] cursor-pointer hover:bg-emerald-50 transition-all text-slate-400 hover:text-emerald-600 group">
-                                    <LucideFilePlus size={24} className="group-hover:scale-110 mb-2 transition-transform"/><span className="text-[9px] font-black uppercase">Archivos</span>
-                                    <input type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx" className="hidden" onChange={e => handleFileUpload(e, false)} />
-                                </label>
+                            <div className="grid grid-cols-1 gap-2">
+                               <div className="flex items-center gap-3 px-4 py-2 text-slate-500 bg-slate-50/50 rounded-xl"><LucideSmartphone size={12}/><span className="text-[10px] font-bold">{user?.telefono || 'NO REGISTRADO'}</span></div>
+                               <div className="flex items-center gap-3 px-4 py-2 text-slate-500 bg-slate-50/50 rounded-xl"><LucideMail size={12}/><span className="text-[10px] font-bold truncate">{user?.email || 'NO REGISTRADO'}</span></div>
                             </div>
-                            <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
-                                {attachments.map(att => (
-                                    <div key={att.id} className="p-3 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between group animate-fadeIn">
-                                        <div className="flex items-center gap-4 overflow-hidden">
-                                            {att.isImage ? (
-                                                <div className="w-10 h-10 rounded-lg overflow-hidden border border-slate-200 shrink-0 cursor-zoom-in" onClick={() => setZoomedImage({url: att.url, label: att.name})}>
-                                                    <img src={att.url} className="w-full h-full object-cover" />
-                                                </div>
-                                            ) : (
-                                                <div className="w-10 h-10 bg-white rounded-lg border border-slate-200 flex items-center justify-center text-slate-400 shrink-0"><LucideFile size={20}/></div>
-                                            )}
-                                            <span className="text-[9px] font-bold text-slate-600 truncate uppercase">{att.name}</span>
-                                        </div>
-                                        <button onClick={() => setAttachments(prev => prev.filter(a => a.id !== att.id))} className="p-2 text-slate-300 hover:text-rose-600 transition-colors"><LucideTrash2 size={16}/></button>
-                                    </div>
-                                ))}
+                         </div>
+                      </div>
+
+                      <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 space-y-6">
+                         <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 border-b pb-4"><LucideCamera size={14} className="text-indigo-500"/> Registro Multimedia</h4>
+                         <p className="text-[8px] font-black text-slate-300 uppercase tracking-widest leading-relaxed">Cargue fotos del desperfecto o documentación adjunta (PDF, Word, Excel).</p>
+                         
+                         <div className="grid grid-cols-1 gap-4">
+                            <label className="w-full py-8 border-2 border-dashed border-indigo-100 rounded-[2rem] flex flex-col items-center justify-center cursor-pointer hover:bg-indigo-50 transition-all text-indigo-400 group">
+                               <LucideFilePlus size={32} className="mb-2 group-hover:scale-110 transition-transform"/>
+                               <span className="text-[9px] font-black uppercase tracking-tighter">Subir archivos</span>
+                               <input type="file" multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx" className="hidden" onChange={handleFileUpload} />
+                            </label>
+
+                            <div className="space-y-2">
+                               {attachments.map(att => (
+                                  <div key={att.id} className="p-3 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between group animate-fadeIn">
+                                     <div className="flex items-center gap-3 overflow-hidden">
+                                        {att.type.includes('image') ? <LucideImage className="text-blue-500" size={16}/> : <LucideFileText className="text-rose-500" size={16}/>}
+                                        <span className="text-[10px] font-bold text-slate-700 truncate uppercase">{att.name}</span>
+                                     </div>
+                                     <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <button type="button" onClick={() => setZoomedImage({url: att.url, label: att.name})} className="p-2 text-slate-400 hover:text-indigo-600"><LucideMaximize size={14}/></button>
+                                        <button type="button" onClick={() => removeAttachment(att.id)} className="p-2 text-slate-400 hover:text-rose-600"><LucideTrash2 size={14}/></button>
+                                     </div>
+                                  </div>
+                               ))}
                             </div>
-                        </div>
-                    </div>
+                         </div>
+                      </div>
+                   </div>
                 )}
             </div>
         )}
 
         {activeView === 'DETAIL' && currentRequest && (
            <div className="space-y-10 animate-fadeIn pb-32">
-              <div className="bg-white p-12 rounded-[4rem] shadow-2xl border border-slate-100 flex flex-col md:flex-row justify-between items-center gap-8">
-                 <div className="flex items-center gap-10">
-                    <button onClick={() => setActiveView('DASHBOARD')} className="p-8 bg-slate-50 rounded-[2rem] hover:bg-slate-100 text-slate-400 transition-all shadow-sm active:scale-95"><LucideArrowLeft size={40}/></button>
-                    <div><p className="text-[14px] font-black text-blue-600 uppercase tracking-[0.5em] mb-3">{currentRequest.code}</p><h3 className="text-6xl font-black text-slate-900 uppercase italic tracking-tighter leading-none">{currentRequest.vehiclePlate}</h3></div>
-                 </div>
-                 <span className={`px-14 py-8 rounded-[2.5rem] border-4 font-black uppercase text-sm tracking-[0.2em] shadow-3xl ${getStageBadgeStyles(currentRequest.stage)}`}>{currentRequest.stage}</span>
-              </div>
-
+              <div className="bg-white p-12 rounded-[4rem] shadow-2xl border border-slate-100 flex flex-col md:flex-row justify-between items-center gap-8"><div className="flex items-center gap-8"><button onClick={() => setActiveView('DASHBOARD')} className="p-8 bg-slate-50 rounded-[2rem] hover:bg-slate-100 text-slate-400 transition-all shadow-sm active:scale-95"><LucideArrowLeft size={40}/></button><div><p className="text-[14px] font-black text-blue-600 uppercase tracking-[0.5em] mb-3">{currentRequest.code}</p><h3 className="text-6xl font-black text-slate-900 uppercase italic tracking-tighter leading-none">{currentRequest.vehiclePlate}</h3></div></div><span className={`px-14 py-8 rounded-[2.5rem] border-4 font-black uppercase text-sm tracking-[0.2em] shadow-3xl ${getStageBadgeStyles(currentRequest.stage)}`}>{currentRequest.stage}</span></div>
+              
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
                  <div className="lg:col-span-8 space-y-10">
-                    {/* CONSOLA DE GESTIÓN (SOLO SUPERVISOR O PROVEEDOR) - POSICIONADA ARRIBA */}
+                    {currentTurn && (
+                        <div className="bg-amber-50 p-10 rounded-[3.5rem] border-2 border-amber-200 shadow-xl space-y-8 animate-fadeIn relative overflow-hidden">
+                           <div className="flex items-center gap-6 border-b border-amber-200 pb-6 relative z-10">
+                               <div className="p-4 bg-amber-600 text-white rounded-2xl shadow-lg"><LucideCalendarDays size={28}/></div>
+                               <div><h4 className="text-xl font-black uppercase italic tracking-tight text-amber-900 leading-none">Turno Técnico Confirmado</h4><p className="text-[9px] font-black text-amber-600 uppercase tracking-widest mt-2">Detalles para Presentación</p></div>
+                           </div>
+                           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 relative z-10">
+                               <div className="p-6 bg-white/60 rounded-[2rem] border border-amber-200"><p className="text-[8px] font-black text-amber-400 uppercase tracking-[0.2em] mb-3 flex items-center gap-2"><LucideBuilding2 size={12}/> Taller</p><p className="text-xl font-black text-slate-800 uppercase italic">{currentTurn.nombreTaller}</p><p className="text-[10px] font-bold text-slate-500 mt-1 uppercase">{currentTurn.direccionTaller}</p></div>
+                               <div className="p-6 bg-slate-900 text-white rounded-[2rem] border border-white/5 flex justify-between items-center"><div><p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1 flex items-center gap-2"><LucideClock size={12}/> Horario</p><p className="text-2xl font-black italic">{format(parseISO(currentTurn.fecha), "dd/MM/yyyy")} - {currentTurn.hora}HS</p></div><LucideCheckCircle2 className="text-emerald-500" size={32}/></div>
+                           </div>
+                        </div>
+                    )}
+
                     {!isReadOnly && (isSupervisorOrAdmin || isProvider) && (currentRequest.stage !== ServiceStage.FINISHED && currentRequest.stage !== ServiceStage.CANCELLED) && (
                       <div className="bg-slate-950 p-10 rounded-[3.5rem] text-white space-y-10 shadow-3xl border border-white/5 animate-fadeIn">
-                         <div className="flex items-center gap-6"><div className="p-4 bg-blue-600 rounded-2xl shadow-xl"><LucideShield size={28}/></div><h4 className="text-2xl font-black uppercase italic tracking-tighter">Burbuja de Gestión Operativa</h4></div>
-                         
-                         <div className="p-8 bg-white/5 border border-white/10 rounded-[2.5rem] space-y-6">
-                            <h5 className="text-[10px] font-black text-blue-400 uppercase tracking-[0.3em] flex items-center gap-2"><LucideRefreshCw size={14}/> Tránsito de Situación Operativa</h5>
-                            <div className="flex flex-col md:flex-row gap-4 items-end">
-                                <div className="flex-1 w-full space-y-2">
-                                    <label className="text-[8px] font-black text-slate-500 uppercase ml-4">Seleccionar Nuevo Estado</label>
-                                    <select className="w-full px-6 py-4 bg-slate-900 border border-white/20 rounded-2xl text-xs font-black uppercase text-white outline-none focus:ring-2 focus:ring-blue-500/50" value={selectedStageToTransition} onChange={e => setSelectedStageToTransition(e.target.value as any)}>
-                                        <option value="">ELIJA UN ESTADO...</option>
-                                        <option value="INGRESO_TALLER">INGRESO A TALLER (ACTA)</option>
-                                        {isProvider && currentRequest.stage === ServiceStage.IN_WORKSHOP && (
-                                            <option value={ServiceStage.BUDGETING}>CARGAR PRESUPUESTO</option>
-                                        )}
-                                        {isSupervisorOrAdmin && filteredStagesForSelector.map(s => <option key={s} value={s}>{s === ServiceStage.SCHEDULING ? 'ASIGNAR TURNO' : s}</option>)}
-                                    </select>
-                                </div>
-                                <button onClick={handleConfirmStageTransition} disabled={!selectedStageToTransition} className="px-10 py-4 bg-blue-600 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl hover:bg-blue-500 transition-all disabled:opacity-30">Confirmar</button>
-                            </div>
-                         </div>
-
-                         {isSupervisorOrAdmin && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <button onClick={() => updateServiceRequest({ ...currentRequest, isDialogueOpen: !currentRequest.isDialogueOpen })} className={`py-6 rounded-[1.8rem] font-black uppercase text-[10px] tracking-widest transition-all flex items-center justify-center gap-3 shadow-xl ${currentRequest.isDialogueOpen ? 'bg-amber-600' : 'bg-blue-600'}`}>
-                                {currentRequest.isDialogueOpen ? <LucideLock size={20}/> : <LucideMessageCircle size={20}/>} {currentRequest.isDialogueOpen ? 'Cerrar Chat' : 'Abrir Diálogo'}
-                                </button>
-                                <button onClick={() => setIsFinishing(true)} className="py-6 bg-emerald-600 rounded-[1.8rem] font-black uppercase text-[10px] tracking-widest shadow-xl hover:bg-emerald-700 flex items-center justify-center gap-3"><LucideCheckCircle2 size={20}/> Finalizar Solicitud</button>
-                            </div>
-                         )}
-
-                         {/* MESA DE DIÁLOGO INTEGRADA (DEBAJO DE LOS BOTONES PARA SUPERVISOR) */}
-                         {currentRequest.isDialogueOpen && isSupervisorOrAdmin && (
-                            <div className="bg-slate-900 rounded-[2.5rem] border border-white/10 flex flex-col h-[450px] overflow-hidden animate-fadeIn mt-6 shadow-2xl">
-                                <div className="p-5 border-b border-white/5 flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
-                                        <div className="p-2 bg-blue-600 rounded-lg"><LucideMessageCircle size={14}/></div>
-                                        <span className="text-[10px] font-black uppercase tracking-widest">Mesa de Diálogo Activa</span>
-                                    </div>
-                                </div>
-                                <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
-                                    {currentRequest.messages.map(m => (
-                                        <div key={m.id} className={`flex ${m.userId === user?.id ? 'justify-end' : 'justify-start'} animate-fadeIn`}>
-                                            <div className={`max-w-[85%] p-4 rounded-2xl shadow-sm border ${m.userId === user?.id ? 'bg-blue-600 text-white border-blue-500 rounded-tr-none' : 'bg-white/5 border-white/10 rounded-tl-none'}`}>
-                                                <p className="text-[7px] font-black uppercase opacity-60 mb-1">{m.userName}</p>
-                                                <p className="text-[11px] font-bold italic">"{m.text}"</p>
-                                            </div>
-                                        </div>
-                                    ))}
-                                    <div ref={chatEndRef} />
-                                </div>
-                                <div className="p-5 border-t border-white/5 relative bg-black/20">
-                                    <textarea 
-                                        rows={1} 
-                                        className="w-full p-4 bg-white/5 border border-white/10 rounded-xl font-bold text-xs text-white outline-none focus:ring-2 focus:ring-blue-500/50 resize-none pr-14" 
-                                        placeholder="Responder al usuario..." 
-                                        value={chatMessage} 
-                                        onChange={e => setChatMessage(e.target.value)} 
-                                        onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSendMessage())}
-                                    />
-                                    <button onClick={handleSendMessage} className="absolute right-7 top-1/2 -translate-y-1/2 p-2 bg-blue-600 text-white rounded-lg shadow-lg hover:bg-blue-500 transition-all"><LucideSend size={14}/></button>
-                                </div>
-                            </div>
-                         )}
-
-                         {isFinishing && isSupervisorOrAdmin && (
-                            <div className="bg-slate-900 p-8 rounded-[2.5rem] border-2 border-emerald-500 shadow-2xl space-y-6 animate-fadeIn mt-6">
-                                <textarea rows={3} className="w-full p-6 bg-white/5 border border-white/10 rounded-2xl text-sm font-bold text-white outline-none focus:border-emerald-500 resize-none" placeholder="Informe final técnico..." value={finishComment} onChange={e => setFinishComment(e.target.value)} />
-                                <div className="flex gap-4"><button onClick={handleConfirmFinish} disabled={!finishComment.trim()} className="flex-1 py-4 bg-emerald-600 text-white rounded-xl font-black uppercase text-xs">Cerrar Caso</button><button onClick={() => setIsFinishing(false)} className="px-8 py-4 bg-white/10 text-white rounded-xl font-black uppercase text-[10px]">Cancelar</button></div>
-                            </div>
-                         )}
+                         <div className="flex items-center gap-6"><div className="p-4 bg-blue-600 rounded-2xl shadow-xl"><LucideShield size={28}/></div><h4 className="text-2xl font-black uppercase italic tracking-tighter">Gestión Operativa</h4></div>
+                         <div className="p-8 bg-white/5 border border-white/10 rounded-[2.5rem] space-y-6"><h5 className="text-[10px] font-black text-blue-400 uppercase tracking-[0.3em] flex items-center gap-2"><LucideRefreshCw size={14}/> Acciones</h5><div className="flex flex-col md:flex-row gap-4 items-end"><div className="flex-1 w-full space-y-2"><label className="text-[8px] font-black text-slate-500 uppercase ml-4">Nuevo Estado</label><select className="w-full px-6 py-4 bg-slate-900 border border-white/20 rounded-2xl text-xs font-black uppercase text-white outline-none focus:ring-2 focus:ring-blue-500/50" value={selectedStageToTransition} onChange={e => setSelectedStageToTransition(e.target.value as any)}><option value="">ELIJA ESTADO...</option>{(isSupervisorOrAdmin || (isProvider && currentRequest.stage === ServiceStage.SCHEDULING)) && <option value="INGRESO_TALLER">INGRESO TALLER (ACTA)</option>}{isProvider && currentRequest.stage === ServiceStage.IN_WORKSHOP && <option value={ServiceStage.BUDGETING}>CARGAR PRESUPUESTO</option>}{isSupervisorOrAdmin && filteredStagesForSelector.map(s => <option key={s} value={s}>{s}</option>)}</select></div><button onClick={handleConfirmStageTransition} disabled={!selectedStageToTransition} className="px-10 py-4 bg-blue-600 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl hover:bg-blue-500 transition-all">Confirmar</button></div></div>
+                         {isSupervisorOrAdmin && <button onClick={() => setIsFinishing(true)} className="w-full py-6 bg-emerald-600 rounded-[1.8rem] font-black uppercase text-[10px] tracking-widest shadow-xl hover:bg-emerald-700 flex items-center justify-center gap-3"><LucideCheckCircle2 size={20}/> Finalizar Solicitud</button>}
                       </div>
                     )}
-
-                    {currentRequest.stage === ServiceStage.SCHEDULING && currentRequest.suggestedDates?.[0] && (
-                        <div className="bg-indigo-900 p-10 rounded-[3.5rem] text-white space-y-8 shadow-3xl border border-white/5 animate-fadeIn">
-                            <div className="flex items-center justify-between border-b border-white/10 pb-6">
-                                <div className="flex items-center gap-6">
-                                    <div className="p-4 bg-blue-600 rounded-2xl shadow-xl"><LucideCalendarDays size={28}/></div>
-                                    <div><h4 className="text-2xl font-black uppercase italic tracking-tighter">Turno Asignado</h4><p className="text-[10px] text-indigo-300 font-bold uppercase tracking-widest">Confirmación de Establecimiento</p></div>
-                                </div>
-                                <TurnCountdown date={currentRequest.suggestedDates[0].fecha} time={currentRequest.suggestedDates[0].hora || ''} />
-                            </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                                <div className="space-y-6">
-                                    <div className="p-6 bg-white/5 border border-white/10 rounded-3xl"><p className="text-[8px] font-black text-indigo-400 uppercase tracking-widest mb-1">Cita Técnica</p><p className="text-2xl font-black italic">{format(parseISO(currentRequest.suggestedDates[0].fecha), "dd 'de' MMMM, yyyy", {locale: es}).toUpperCase()} • {currentRequest.suggestedDates[0].hora} HS</p></div>
-                                    <div className="p-6 bg-white/5 border border-white/10 rounded-3xl"><p className="text-[8px] font-black text-indigo-400 uppercase tracking-widest mb-1">Taller Autorizado</p><p className="text-lg font-black uppercase">{currentRequest.suggestedDates[0].nombreTaller}</p><p className="text-[10px] text-indigo-200 mt-2 flex items-center gap-2"><LucideMapPin size={12}/> {currentRequest.suggestedDates[0].direccionTaller}</p></div>
-                                    <button onClick={() => handleGetDirections(currentRequest.suggestedDates[0].direccionTaller || '')} className="w-full py-5 bg-blue-600 hover:bg-blue-50 text-white rounded-2xl font-black uppercase text-xs tracking-widest flex items-center justify-center gap-3 shadow-xl transform active:scale-95"><LucideNavigation size={18}/> ¿Cómo llegar? (GPS)</button>
-                                </div>
-                                <div className="space-y-4">
-                                    <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Ubicación Georreferenciada</p>
-                                    <div className="aspect-video bg-white rounded-3xl overflow-hidden border border-white/20 shadow-inner relative">
-                                        {/* FIX DEFINITIVO: Uso de URL de búsqueda estándar que NO requiere API KEY y evita errores de rechazo */}
-                                        <iframe 
-                                            width="100%" 
-                                            height="100%" 
-                                            frameBorder="0" 
-                                            style={{border:0}} 
-                                            src={`https://maps.google.com/maps?q=${encodeURIComponent((currentRequest.suggestedDates[0].nombreTaller || '') + ' ' + (currentRequest.suggestedDates[0].direccionTaller || ''))}&t=&z=14&ie=UTF8&iwloc=&output=embed`} 
-                                            allowFullScreen
-                                        ></iframe>
-                                    </div>
-                                </div>
-                            </div>
-                            {currentRequest.suggestedDates[0].comentarios && (
-                                <div className="p-6 bg-amber-500/10 border border-amber-500/20 rounded-3xl"><p className="text-[8px] font-black text-amber-500 uppercase tracking-widest mb-2 flex items-center gap-2"><LucideInfo size={12}/> Instrucciones Especiales</p><p className="text-sm font-bold italic leading-relaxed text-indigo-100">"{currentRequest.suggestedDates[0].comentarios}"</p></div>
-                            )}
-                        </div>
-                    )}
-
+                    
                     <div className="bg-white p-12 rounded-[4rem] border border-slate-100 shadow-sm space-y-10">
-                        <div className="flex items-center gap-4 border-b pb-6"><div className="p-4 bg-blue-50 text-blue-600 rounded-2xl shadow-inner"><LucideInfo size={28}/></div><h3 className="text-2xl font-black text-slate-800 uppercase italic">Resumen de Diagnóstico</h3></div>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100"><p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Categoría</p><p className="text-[10px] font-black text-blue-600 uppercase">{currentRequest.mainCategory}</p></div>
-                            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100"><p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Tipo</p><p className="text-[10px] font-black text-slate-700 uppercase">{currentRequest.specificType}</p></div>
-                            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100"><p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Kilometraje</p><p className="text-lg font-black text-slate-800 italic">{currentRequest.odometerAtRequest.toLocaleString()} KM</p></div>
+                        <div className="flex justify-between items-center border-b pb-6">
+                            <div className="flex items-center gap-4"><div className="p-4 bg-blue-50 text-blue-600 rounded-2xl shadow-inner"><LucideInfo size={28}/></div><h3 className="text-2xl font-black text-slate-800 uppercase italic">Resumen Técnico</h3></div>
+                            <div className="text-right"><p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Apertura</p><p className="text-xs font-black text-slate-700 italic">{format(parseISO(currentRequest.createdAt), 'dd/MM/yyyy HH:mm')} HS</p></div>
                         </div>
-                        <div className="p-8 bg-slate-900 text-white rounded-[2.5rem] italic font-bold text-xl leading-relaxed shadow-xl border border-white/5">"{currentRequest.description}"</div>
-                        
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                            <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100"><p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Clasificación</p><p className="text-sm font-black text-slate-800 uppercase italic">{currentRequest.mainCategory} / {currentRequest.specificType}</p></div>
+                            <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100"><p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Ubicación</p><p className="text-sm font-black text-slate-800 uppercase truncate italic">{currentRequest.location}</p></div>
+                            <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100"><p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">KM Reporte</p><p className="text-sm font-black text-slate-800 italic">{currentRequest.odometerAtRequest.toLocaleString()} KM</p></div>
+                        </div>
+                        <div className="space-y-4">
+                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-4">Descripción de Necesidad</p>
+                            <div className="p-10 bg-slate-900 text-white rounded-[3.5rem] italic font-bold text-xl leading-relaxed shadow-3xl border border-white/5 relative overflow-hidden group">"{currentRequest.description}"<LucideFileText className="absolute -right-8 -bottom-8 opacity-5 group-hover:scale-110 transition-transform" size={160}/></div>
+                        </div>
                         {currentRequest.attachments && currentRequest.attachments.length > 0 && (
-                            <div className="space-y-4 pt-6 border-t border-slate-50">
-                                <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-2">Legajo Fotográfico y Documental</p>
-                                <div className="flex flex-wrap gap-4">
-                                    {currentRequest.attachments.map((att, i) => {
-                                        const isImg = att.type?.includes('image') || att.url?.startsWith('data:image');
-                                        return (
-                                            <div key={i} className="group relative w-24 h-24 rounded-2xl overflow-hidden border border-slate-200 shadow-sm hover:shadow-xl transition-all">
-                                                {isImg ? (
-                                                    <div className="w-full h-full cursor-zoom-in" onClick={() => setZoomedImage({url: att.url, label: att.name})}>
-                                                        <img src={att.url} className="w-full h-full object-cover group-hover:scale-110 transition-transform" />
-                                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                                                            <LucideMaximize className="text-white" size={18}/>
-                                                        </div>
-                                                    </div>
-                                                ) : (
-                                                    <div className="w-full h-full bg-slate-50 flex flex-col items-center justify-center p-2 relative">
-                                                        <LucideFileText className="text-blue-500" size={32} />
-                                                        <span className="text-[6px] font-black uppercase text-center mt-2 truncate w-full px-1">{att.name}</span>
-                                                    </div>
-                                                )}
-                                                <a href={att.url} download={att.name} className="absolute -top-1 -right-1 p-2 bg-indigo-600 text-white rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-indigo-700 z-20">
-                                                    <LucideDownload size={12}/>
-                                                </a>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
+                            <div className="space-y-4">
+                               <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-4">Media Vincualda</p>
+                               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                  {currentRequest.attachments.map((att, idx) => (
+                                      <div key={idx} className="aspect-square bg-slate-100 rounded-3xl overflow-hidden border border-slate-200 relative group cursor-pointer" onClick={() => setZoomedImage({url: att.url, label: att.name})}>
+                                         {att.type.includes('image') ? <img src={att.url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-slate-300"><LucideFileText size={32}/></div>}
+                                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all"><LucideMaximize size={24} className="text-white"/></div>
+                                      </div>
+                                  ))}
+                               </div>
                             </div>
                         )}
                     </div>
-
-                    {currentRequest.budgets && currentRequest.budgets.length > 0 && (
-                        <div className="bg-white p-12 rounded-[4rem] border border-slate-200 shadow-sm space-y-10 animate-fadeIn">
-                             <h4 className="text-xl font-black uppercase italic tracking-widest text-slate-800 border-b pb-4 flex items-center gap-3">
-                                <LucideDollarSign className="text-emerald-500" size={24}/> Propuestas de Proveedor
-                             </h4>
-                             <div className="grid grid-cols-1 gap-6">
-                                {currentRequest.budgets.map((b: any, idx: number) => (
-                                    <div key={b.id} className="p-8 rounded-[3rem] bg-slate-50 border border-slate-100 flex flex-col md:flex-row justify-between items-center gap-8">
-                                        <div className="flex items-center gap-6">
-                                            <div className="p-4 bg-emerald-50 text-emerald-600 rounded-2xl"><LucideUser size={24}/></div>
-                                            <div>
-                                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Cotización {idx + 1} - Por {b.providerName}</p>
-                                                <p className="text-lg font-bold text-slate-700 mt-1 italic">"{b.details}"</p>
-                                            </div>
-                                        </div>
-                                        <div className="text-right">
-                                            <p className="text-[10px] font-black text-slate-400 uppercase">Monto Total</p>
-                                            <p className="text-3xl font-black text-emerald-600 italic tracking-tighter">${b.totalAmount.toLocaleString()}</p>
-                                        </div>
-                                    </div>
-                                ))}
-                             </div>
-                        </div>
-                    )}
                  </div>
 
                  <div className="lg:col-span-4 space-y-10">
-                    {/* MESA DE DIÁLOGO (USUARIO) - POSICIONADA A LA DERECHA */}
-                    {userRole === UserRole.USER && (currentRequest.isDialogueOpen || (currentRequest.messages?.length || 0) > 0) && (
-                        <div className="bg-white rounded-[3.5rem] border border-slate-100 shadow-3xl flex flex-col h-[600px] overflow-hidden animate-fadeIn">
-                            <div className="p-8 border-b bg-blue-600 text-white flex items-center justify-between">
-                                <div className="flex items-center gap-4">
-                                    <div className={`p-3 rounded-xl shadow-lg ${currentRequest.isDialogueOpen ? 'bg-white/20' : 'bg-slate-400/30'}`}><LucideMessageCircle size={20}/></div>
-                                    <div>
-                                        <h5 className="text-lg font-black uppercase italic leading-none">Mesa de Ayuda</h5>
-                                        <p className="text-[8px] font-bold uppercase mt-1 opacity-80">Chat de Resolución Técnica</p>
-                                    </div>
-                                </div>
-                                {!currentRequest.isDialogueOpen && <span className="bg-rose-500 text-white px-2 py-1 rounded text-[8px] font-black uppercase">Cerrado</span>}
-                            </div>
-                            <div className="flex-1 overflow-y-auto p-8 space-y-6 custom-scrollbar bg-slate-50/20">
-                                {currentRequest.messages.map(m => (
-                                    <div key={m.id} className={`flex ${m.userId === user?.id ? 'justify-end' : 'justify-start'} animate-fadeIn`}><div className={`max-w-[85%] p-5 rounded-[2rem] shadow-sm border-2 ${m.userId === user?.id ? 'bg-blue-600 text-white border-blue-500 rounded-tr-none' : 'bg-white text-slate-700 border-slate-100 rounded-tl-none'}`}><p className="text-[7px] font-black uppercase opacity-60 mb-2">{m.userName} • {format(parseISO(m.timestamp), 'HH:mm')}</p><p className="text-[11px] font-bold italic leading-relaxed">"{m.text}"</p></div></div>
-                                ))}
-                                <div ref={chatEndRef} />
-                            </div>
-                            <div className="p-8 border-t bg-white relative">
-                                {currentRequest.isDialogueOpen ? (
-                                    <>
-                                        <textarea rows={2} className="w-full p-6 bg-slate-50 border-2 border-slate-100 rounded-[2.5rem] font-bold text-xs outline-none focus:ring-8 focus:ring-blue-50 resize-none shadow-inner" placeholder="Escribir mensaje..." value={chatMessage} onChange={e => setChatMessage(e.target.value)} onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSendMessage())} />
-                                        <button onClick={handleSendMessage} className="absolute right-12 bottom-12 p-4 bg-blue-600 text-white rounded-2xl shadow-xl hover:bg-blue-700 transition-all active:scale-90"><LucideSend size={18}/></button>
-                                    </>
-                                ) : (
-                                    <div className="py-4 text-center">
-                                        <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest italic">El canal de diálogo ha sido finalizado.</p>
-                                    </div>
-                                )}
-                            </div>
+                    <div className="bg-slate-900 p-8 rounded-[3.5rem] text-white shadow-2xl space-y-8 relative overflow-hidden group"><h4 className="text-sm font-black uppercase italic tracking-widest text-blue-400 border-b border-white/10 pb-4 flex items-center gap-3"><LucideCar size={18}/> Ficha Unidad</h4><div className="space-y-6 relative z-10"><div className="grid grid-cols-2 gap-4"><div className="p-4 bg-white/5 rounded-2xl border border-white/10"><p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1">KM Solicitud</p><p className="text-xl font-black italic">{currentRequest.odometerAtRequest.toLocaleString()} KM</p></div><div className="p-4 bg-white/5 rounded-2xl border border-white/10"><p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1">C. Costo</p><p className="text-[10px] font-black truncate">{currentRequest.costCenter}</p></div></div><div className="space-y-4"><div className="flex justify-between items-center text-[10px] font-bold border-b border-white/5 pb-2"><span className="text-slate-500 uppercase">Solicitante</span><span className="uppercase">{currentRequest.userName}</span></div><div className="flex justify-between items-center text-[10px] font-bold border-b border-white/5 pb-2"><span className="text-slate-500 uppercase">Proveedor</span><span className="uppercase text-blue-400 font-black">{currentRequest.providerName || 'NO ASIGNADO'}</span></div></div></div><LucideDatabase className="absolute -right-8 -bottom-8 opacity-5" size={160}/></div>
+                    
+                    {(isSupervisorOrAdmin || currentRequest.isDialogueOpen) && (
+                        <div className="bg-white rounded-[3.5rem] border border-slate-200 shadow-sm flex flex-col h-[550px] overflow-hidden animate-fadeIn">
+                           <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50 shrink-0">
+                             <div className="flex items-center gap-3"><div className={`p-3 rounded-xl shadow-lg bg-indigo-600 text-white shadow-indigo-100`}><LucideMessageCircle size={20}/></div><div><h5 className="text-sm font-black text-slate-800 uppercase italic leading-none">Mesa de Diálogo</h5><p className="text-[7px] font-black text-slate-400 uppercase mt-1">Chat Directo Corporativo</p></div></div>
+                             {isSupervisorOrAdmin && (<button onClick={toggleDialogueState} className={`flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all ${currentRequest.isDialogueOpen ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100'}`}>{currentRequest.isDialogueOpen ? <LucideUnlock size={14}/> : <LucideLock size={14}/>}<span className="text-[8px] font-black uppercase">{currentRequest.isDialogueOpen ? 'Abierta' : 'Cerrada'}</span></button>)}
+                           </div>
+                           <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar bg-[#fcfdfe]">
+                               {(!currentRequest.messages || currentRequest.messages.length === 0) ? (<div className="h-full flex flex-col items-center justify-center opacity-10 text-center grayscale"><LucideSend size={48} className="mb-4 animate-bounce"/><p className="text-[9px] font-black uppercase tracking-widest">Sin intercambio de mensajes</p></div>) : (currentRequest.messages?.map(m => (<div key={m.id} className={`flex ${m.userId === user?.id ? 'justify-end' : 'justify-start'} animate-fadeIn`}><div className={`max-w-[90%] p-4 rounded-[1.8rem] shadow-sm border ${m.userId === user?.id ? 'bg-indigo-600 text-white border-indigo-500 rounded-tr-none' : 'bg-slate-50 text-slate-700 border-slate-200 rounded-tl-none'}`}><p className="text-[7px] font-black uppercase opacity-60 mb-2">{m.userName} • {format(parseISO(m.timestamp), 'HH:mm')}</p><p className="text-[10px] font-bold italic leading-relaxed">"{m.text}"</p></div></div>)))}<div ref={chatEndRef}></div>
+                           </div>
+                           <div className="p-6 border-t bg-white shrink-0"><div className="relative"><textarea rows={2} className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-xs outline-none focus:ring-4 focus:ring-indigo-100 shadow-inner resize-none custom-scrollbar" placeholder="Escribir mensaje..." value={chatMessage} onChange={e => setChatMessage(e.target.value)} /><button onClick={handleSendMessage} disabled={!chatMessage.trim() || isReadOnly} className="absolute right-3 bottom-3 p-3 bg-indigo-600 text-white rounded-xl shadow-xl hover:bg-indigo-700 transition-all active:scale-90 disabled:opacity-30"><LucideSend size={16}/></button></div></div>
                         </div>
                     )}
 
-                    <div className="bg-slate-900 p-8 rounded-[3.5rem] text-white shadow-2xl space-y-8 relative overflow-hidden group"><h4 className="text-sm font-black uppercase italic tracking-widest text-blue-400 border-b border-white/10 pb-4 flex items-center gap-3"><LucideCar size={18}/> Ficha Unidad</h4>
-                        <div className="space-y-6 relative z-10">
-                            <div className="grid grid-cols-2 gap-4"><div className="p-4 bg-white/5 rounded-2xl border border-white/10"><p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1">KM Solicitud</p><p className="text-xl font-black italic">{currentRequest.odometerAtRequest.toLocaleString()} KM</p></div><div className="p-4 bg-white/5 rounded-2xl border border-white/10"><p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1">C. Costo</p><p className="text-[10px] font-black truncate">{currentRequest.costCenter}</p></div></div>
-                            <div className="space-y-4">
-                                <div className="flex justify-between items-center text-[10px] font-bold border-b border-white/5 pb-2"><span className="text-slate-500 uppercase">Solicitante</span><span className="uppercase">{currentRequest.userName}</span></div>
-                                <div className="flex justify-between items-center text-[10px] font-bold border-b border-white/5 pb-2"><span className="text-slate-500 uppercase">Proveedor</span><span className="uppercase text-blue-400 font-black">{currentRequest.providerName || 'NO ASIGNADO'}</span></div>
-                                <div className="flex justify-between items-center text-[10px] font-bold"><span className="text-slate-500 uppercase">Ubicación</span><span className="uppercase">{currentRequest.location}</span></div>
-                            </div>
-                        </div><LucideDatabase className="absolute -right-8 -bottom-8 opacity-5" size={160}/>
+                    <div className="bg-white p-10 rounded-[3.5rem] border border-slate-100 shadow-sm space-y-8">
+                        <div className="flex items-center gap-3 border-b pb-4"><LucideHistory className="text-indigo-600" size={20}/><h4 className="text-sm font-black text-slate-800 uppercase italic leading-none">Trazabilidad Técnica</h4></div>
+                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest italic px-2">Presione sobre una etapa para ver registro</p>
+                        <div className="space-y-6 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">{currentRequest.history.map((h, i) => (<div key={i} onClick={() => setViewingHistoryItem(h)} className="flex gap-4 group/item cursor-pointer hover:bg-slate-50 p-2 rounded-2xl transition-all"><div className="w-1 bg-slate-100 group-hover/item:bg-indigo-500 rounded-full transition-all"></div><div className="flex-1"><div className="flex justify-between items-start"><p className="text-[11px] font-black text-slate-800 uppercase italic leading-tight group-hover/item:text-indigo-600 transition-colors">{h.comment}</p><LucideEye className="text-slate-200 group-hover/item:text-indigo-400 opacity-0 group-hover/item:opacity-100 transition-all shrink-0" size={14}/></div><div className="flex justify-between items-center mt-2"><p className="text-[8px] font-black text-slate-400 uppercase">{h.userName}</p><p className="text-[8px] font-bold text-slate-300 uppercase">{format(parseISO(h.date), 'dd/MM HH:mm')} HS</p></div></div></div>))}</div>
                     </div>
-                    <div className="bg-white p-8 rounded-[3.5rem] border border-slate-100 shadow-sm space-y-8"><h4 className="text-sm font-black text-slate-800 uppercase italic flex items-center gap-3 border-b pb-4"><LucideHistory className="text-indigo-600" size={18}/> Bitácora Eventos</h4><div className="space-y-6 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
-                        {currentRequest.history.map((h, i) => <div key={i} className="flex gap-4 group/item"><div className="w-1 bg-slate-100 group-hover/item:bg-indigo-500 rounded-full transition-all"></div><div className="flex-1"><p className="text-[11px] font-black text-slate-800 uppercase italic leading-tight">{h.comment}</p><p className="text-[8px] font-black text-slate-400 uppercase mt-2">{h.userName} • {format(parseISO(h.date), 'dd/MM HH:mm')}</p></div></div>)}
-                    </div></div>
                  </div>
               </div>
            </div>
@@ -1264,156 +770,70 @@ export const TestSector = () => {
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-6">
                         <button onClick={() => setActiveView('DETAIL')} className="p-4 bg-white rounded-2xl shadow-sm border border-slate-200 text-slate-400 hover:text-slate-800 transition-all"><LucideArrowLeft size={24}/></button>
-                        <div><h2 className="text-3xl font-black text-slate-900 uppercase italic tracking-tighter leading-none">Agendamiento Técnico</h2><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Geolocalización Dinámica Activada (Sin API Key)</p></div>
+                        <div>
+                            <h2 className="text-3xl font-black text-slate-900 uppercase italic tracking-tighter leading-none">Agendamiento Técnico</h2>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Configuración de Cita para Unidad {currentRequest.vehiclePlate}</p>
+                        </div>
                     </div>
                     <TurnCountdown date={turnDate} time={turnTime} />
                 </div>
-
+                
                 <div className="bg-white p-10 rounded-[3.5rem] shadow-2xl border border-slate-100 space-y-10">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                         <div className="space-y-2">
-                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Fecha Asignada</label>
-                            <input type="date" min={format(new Date(), 'yyyy-MM-dd')} className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-black text-sm outline-none focus:ring-4 focus:ring-blue-100" value={turnDate} onChange={e => setTurnDate(e.target.value)} />
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Fecha Pactada</label>
+                            <div className="relative">
+                                <LucideCalendar className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-500" size={18}/>
+                                <input type="date" min={format(new Date(), 'yyyy-MM-dd')} className="w-full pl-12 pr-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-black text-sm outline-none focus:ring-4 focus:ring-blue-100" value={turnDate} onChange={e => setTurnDate(e.target.value)} />
+                            </div>
                         </div>
                         <div className="space-y-2">
-                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Hora del Turno</label>
-                            <input type="time" className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-black text-sm outline-none focus:ring-4 focus:ring-blue-100" value={turnTime} onChange={e => setTurnTime(e.target.value)} />
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Hora de Recepción</label>
+                            <div className="relative">
+                                <LucideClock className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-500" size={18}/>
+                                <input type="time" className="w-full pl-12 pr-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-black text-sm outline-none focus:ring-4 focus:ring-blue-100" value={turnTime} onChange={e => setTurnTime(e.target.value)} />
+                            </div>
                         </div>
                     </div>
-
+                    
                     <div className="space-y-6">
-                        <h4 className="text-[10px] font-black text-blue-600 uppercase tracking-widest flex items-center gap-2 border-b pb-2"><LucideBuilding2 size={14}/> Establecimiento / Proveedor</h4>
+                        <h4 className="text-[10px] font-black text-indigo-600 uppercase tracking-widest border-b pb-2 flex items-center gap-2"><LucideFactory size={14}/> Establecimiento y Proveedor de Servicio</h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="relative">
-                                <LucideWrench className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={20}/>
-                                <input 
-                                    type="text" 
-                                    placeholder="NOMBRE DEL TALLER..." 
-                                    className="w-full pl-12 pr-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold uppercase outline-none focus:ring-4 focus:ring-blue-100" 
-                                    value={workshopName} 
-                                    onChange={e => setWorkshopName(e.target.value.toUpperCase())} 
-                                />
+                            <div className="space-y-1">
+                                <label className="text-[8px] font-black text-slate-400 uppercase ml-2">Nombre del Establecimiento</label>
+                                <input type="text" placeholder="NOMBRE TALLER..." className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold uppercase outline-none focus:ring-4 focus:ring-blue-100" value={workshopName} onChange={e => setWorkshopName(e.target.value.toUpperCase())} />
                             </div>
-                            <div className="relative">
-                                <LucideUser className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={20}/>
-                                <select 
-                                    className="w-full pl-12 pr-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-black text-xs uppercase outline-none focus:ring-4 focus:ring-blue-100"
-                                    value={selectedProviderId}
-                                    onChange={e => setSelectedProviderId(e.target.value)}
-                                >
-                                    <option value="">VINCULAR PROVEEDOR (USUARIO)...</option>
-                                    {providers.map(p => <option key={p.id} value={p.id}>{p.nombre} {p.apellido}</option>)}
+                            <div className="space-y-1">
+                                <label className="text-[8px] font-black text-slate-400 uppercase ml-2">Vincular Proveedor</label>
+                                <select className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-black text-xs uppercase outline-none focus:ring-4 focus:ring-blue-100" value={selectedProviderId} onChange={e => setSelectedProviderId(e.target.value)}>
+                                    <option value="">ELIJA PROVEEDOR...</option>
+                                    {registeredUsers.filter(u => u.role === UserRole.PROVIDER).map(p => <option key={p.id} value={p.id}>{p.nombre} {p.apellido}</option>)}
                                 </select>
                             </div>
                         </div>
-                        <div className="relative">
-                            <LucideMapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={20}/>
-                            <input 
-                                type="text" 
-                                placeholder="DIRECCIÓN COMPLETA..." 
-                                className="w-full pl-12 pr-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold uppercase outline-none focus:ring-4 focus:ring-blue-100" 
-                                value={workshopAddress} 
-                                onChange={e => setWorkshopAddress(e.target.value.toUpperCase())} 
-                            />
-                        </div>
-                        
-                        <div className="space-y-4 animate-fadeIn">
-                            {!isMapLoaded ? (
-                                <button 
-                                    onClick={() => setIsMapLoaded(true)}
-                                    className="w-full py-12 border-4 border-dashed border-blue-100 rounded-[2.5rem] bg-blue-50/30 flex flex-col items-center justify-center gap-4 group transition-all hover:bg-blue-50"
-                                >
-                                    <div className="p-4 bg-blue-600 text-white rounded-full shadow-xl group-hover:scale-110 transition-transform"><LucideNavigation2 size={32}/></div>
-                                    <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Visualizar Mapa Interactivo y Validar Punto GPS</span>
-                                </button>
-                            ) : (
-                                <div className="aspect-video bg-slate-100 rounded-[2.5rem] overflow-hidden border-2 border-slate-200 shadow-inner relative group animate-fadeIn">
-                                    <iframe 
-                                        width="100%" 
-                                        height="100%" 
-                                        frameBorder="0" 
-                                        style={{border:0}} 
-                                        src={`https://maps.google.com/maps?q=${encodeURIComponent((workshopName || '') + ' ' + (workshopAddress || ''))}&t=&z=14&ie=UTF8&iwloc=&output=embed`} 
-                                        allowFullScreen
-                                    ></iframe>
-                                    <div className="absolute top-4 right-4 bg-white/95 backdrop-blur-md p-3 rounded-2xl shadow-xl border border-slate-200">
-                                        <button 
-                                            onClick={() => { setIsMapLoaded(false); setWorkshopAddress(''); }}
-                                            className="text-[9px] font-black text-rose-500 uppercase flex items-center gap-2"
-                                        >
-                                            <LucideTrash2 size={12}/> Limpiar Geolocalización
-                                        </button>
-                                    </div>
-                                    <div className="absolute bottom-4 left-4 right-4 bg-slate-900/90 backdrop-blur-sm p-4 rounded-2xl border border-white/10 text-center">
-                                        <p className="text-[8px] font-black text-blue-400 uppercase tracking-[0.2em]">Mapa de Referencia (Google Standard Embed)</p>
-                                    </div>
-                                </div>
-                            )}
+                        <div className="space-y-1">
+                            <label className="text-[8px] font-black text-slate-400 uppercase ml-2">Dirección de Presentación</label>
+                            <div className="relative">
+                                <LucideMapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-indigo-400" size={18}/>
+                                <input type="text" placeholder="DIRECCIÓN..." className="w-full pl-12 pr-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold uppercase outline-none focus:ring-4 focus:ring-blue-100" value={workshopAddress} onChange={e => setWorkshopAddress(e.target.value.toUpperCase())} />
+                            </div>
                         </div>
                     </div>
 
                     <div className="space-y-2">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Instrucciones Especiales para el Chofer</label>
-                        <textarea rows={4} className="w-full p-6 bg-slate-50 border border-slate-200 rounded-[2rem] font-bold text-sm outline-none resize-none focus:ring-4 focus:ring-indigo-50" placeholder="Indicar requerimientos específicos..." value={turnComments} onChange={e => setTurnComments(e.target.value)} />
+                        <label className="text-[10px] font-black text-slate-400 uppercase ml-4">Comentarios para Usuario/Chofer</label>
+                        <textarea rows={3} className="w-full p-6 bg-slate-50 border border-slate-200 rounded-3xl font-bold text-xs outline-none focus:ring-4 focus:ring-blue-100 resize-none" placeholder="Instrucciones especiales para el ingreso de la unidad..." value={turnComments} onChange={e => setTurnComments(e.target.value)} />
                     </div>
-
-                    <button onClick={handleConfirmTurnAssignment} className="w-full py-6 bg-indigo-600 text-white rounded-[2rem] font-black uppercase text-xs tracking-widest shadow-2xl hover:bg-indigo-700 transition-all flex items-center justify-center gap-4 transform active:scale-95"><LucideShieldCheck size={24}/> Confirmar Turno y Notificar Chofer</button>
+                    
+                    <button onClick={handleConfirmTurnAssignment} disabled={!workshopName || !selectedProviderId || !turnDate} className="w-full py-6 bg-indigo-600 text-white rounded-[2rem] font-black uppercase text-xs shadow-2xl hover:bg-indigo-700 transition-all flex items-center justify-center gap-4 disabled:opacity-30">
+                        <LucideShieldCheck size={24}/> Confirmar Turno y Notificar
+                    </button>
                 </div>
             </div>
         )}
 
         {activeView === 'LOAD_BUDGET' && currentRequest && (
-            <div className="max-w-4xl mx-auto space-y-10 animate-fadeIn pb-24">
-                <div className="flex items-center gap-6">
-                    <button onClick={() => setActiveView('DETAIL')} className="p-4 bg-white rounded-2xl shadow-sm border border-slate-200 text-slate-400 hover:text-slate-800 transition-all"><LucideArrowLeft size={24}/></button>
-                    <div>
-                        <h2 className="text-3xl font-black text-slate-900 uppercase italic tracking-tighter leading-none">Carga de Presupuesto</h2>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Propuesta Comercial para Auditoría</p>
-                    </div>
-                </div>
-
-                <div className="bg-white p-10 rounded-[3.5rem] shadow-2xl border border-slate-100 space-y-10">
-                    <div className="space-y-4">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Detalle Técnico de la Propuesta</label>
-                        <textarea 
-                            rows={5} 
-                            className="w-full p-8 bg-slate-50 border-2 border-slate-200 rounded-[2.5rem] font-bold text-sm outline-none focus:ring-4 focus:ring-indigo-100 resize-none shadow-inner" 
-                            placeholder="Detalle aquí las tareas a realizar, repuestos incluidos y tiempo estimado..." 
-                            value={budgetDetail}
-                            onChange={e => setBudgetDetail(e.target.value)}
-                        />
-                    </div>
-
-                    <div className="space-y-2">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Importe Total Cotizado ($)</label>
-                        <div className="relative">
-                            <LucideDollarSign className="absolute left-6 top-1/2 -translate-y-1/2 text-emerald-600" size={24}/>
-                            <input 
-                                type="number" 
-                                onFocus={(e) => e.target.select()}
-                                className="w-full pl-16 pr-8 py-6 bg-emerald-50 border-2 border-emerald-200 rounded-[2rem] font-black text-4xl text-emerald-700 outline-none" 
-                                value={budgetAmount}
-                                onChange={e => setBudgetAmount(Number(e.target.value))}
-                            />
-                        </div>
-                    </div>
-
-                    <div className="p-8 bg-blue-50 border-2 border-dashed border-blue-200 rounded-[2.5rem] flex items-center gap-6">
-                        <LucideInfo className="text-blue-600" size={32}/>
-                        <p className="text-[10px] font-bold text-blue-800 uppercase leading-relaxed tracking-widest">
-                            Al publicar este presupuesto, el mismo será enviado automáticamente al sector de Auditoría para su revisión técnica. No podrá modificarlo una vez enviado.
-                        </p>
-                    </div>
-
-                    <button 
-                        onClick={handlePublishBudget}
-                        disabled={!budgetDetail.trim() || budgetAmount <= 0}
-                        className="w-full py-8 bg-slate-900 text-white rounded-[3rem] font-black uppercase text-sm tracking-widest shadow-2xl hover:bg-emerald-600 transition-all flex items-center justify-center gap-4 transform active:scale-95 disabled:opacity-30 disabled:grayscale"
-                    >
-                        <LucideSend size={24}/> Publicar Presupuesto para Auditoría
-                    </button>
-                </div>
-            </div>
+            <div className="max-w-4xl mx-auto space-y-10 animate-fadeIn pb-24"><div className="flex items-center gap-6"><button onClick={() => setActiveView('DETAIL')} className="p-4 bg-white rounded-2xl shadow-sm border border-slate-200 text-slate-400"><LucideArrowLeft size={24}/></button><div><h2 className="text-3xl font-black text-slate-900 uppercase italic tracking-tighter leading-none">Carga de Presupuesto</h2></div></div><div className="bg-white p-10 rounded-[3.5rem] shadow-2xl border border-slate-100 space-y-10"><div className="space-y-4"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Detalle Técnico</label><textarea rows={5} className="w-full p-8 bg-slate-50 border-2 border-slate-200 rounded-[2.5rem] font-bold text-sm outline-none focus:ring-4 focus:ring-indigo-100 resize-none shadow-inner" placeholder="Descripción trabajos..." value={budgetDetail} onChange={e => setBudgetDetail(e.target.value)} /></div><div className="space-y-2"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Total ($)</label><div className="relative"><LucideDollarSign className="absolute left-6 top-1/2 -translate-y-1/2 text-emerald-600" size={24}/><input type="number" onFocus={(e) => e.target.select()} className="w-full pl-16 pr-8 py-6 bg-emerald-50 border-2 border-emerald-200 rounded-[2rem] font-black text-4xl text-emerald-700 outline-none" value={budgetAmount} onChange={e => setBudgetAmount(Number(e.target.value))} /></div></div><button onClick={handlePublishBudget} disabled={!budgetDetail.trim() || budgetAmount <= 0} className="w-full py-8 bg-slate-900 text-white rounded-[3rem] font-black uppercase text-sm shadow-2xl hover:bg-emerald-600 transition-all flex items-center justify-center gap-4">Publicar para Auditoría</button></div></div>
         )}
       </main>
     </div>
