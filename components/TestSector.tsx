@@ -13,14 +13,15 @@ import {
   LucideHistory, LucideDownload, LucideCalendarDays, LucideLockKeyhole,
   LucideCheck, LucideMessageSquare, LucideShieldAlert, LucideShieldCheck,
   LucideChevronUp, LucideChevronsUpDown, LucideListFilter, LucideCalendar,
-  LucideClock, LucideMapPinCheck, LucideLocate, LucideExternalLink, LucideNavigation2,
+  LucideClock, LucideMapPinCheck, LucideMapPinHouse, LucideLocate, LucideExternalLink, LucideNavigation2,
   LucideFilePlus, LucideFileSpreadsheet, LucideFileWarning,
   LucideClipboardList, LucideAlertCircle, LucideFileDown, LucideFileSearch,
   LucideBriefcase, LucideDollarSign, LucidePlus, LucideFile,
   LucideRefreshCw, LucideGauge, LucideUnlock, LucideNavigation,
   LucideMaximize, LucideFileCheck, LucideUserCheck,
   LucideCpu, LucideLightbulb, LucideLayout, LucideTruck, LucideUnlockKeyhole,
-  LucideSave, LucideCalendarClock, LucideImage, LucideFactory
+  LucideSave, LucideCalendarClock, LucideImage, LucideFactory,
+  LucideMap
 } from 'lucide-react';
 import { useApp } from '../context/FleetContext';
 import { 
@@ -248,6 +249,13 @@ export const TestSector = () => {
   const [budgetDetail, setBudgetDetail] = useState('');
   const [budgetAmount, setBudgetAmount] = useState(0);
 
+  // --- ESTADOS DE MAPA ---
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const mapInstance = useRef<any>(null);
+  const markerInstance = useRef<any>(null);
+  const [isMapLoading, setIsMapLoading] = useState(false);
+  const searchDebounceRef = useRef<any>(null);
+
   const chatEndRef = useRef<HTMLDivElement>(null);
   const currentRequest = useMemo(() => serviceRequests.find(r => r.id === selectedReqId), [serviceRequests, selectedReqId]);
   
@@ -262,6 +270,151 @@ export const TestSector = () => {
   }, [lastChecklist]);
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [currentRequest?.messages, activeView]);
+
+  // Carga de Leaflet Assets dinámicamente
+  useEffect(() => {
+    const isMapNeeded = activeView === 'ASSIGN_TURN' || (activeView === 'DETAIL' && currentRequest?.suggestedDates?.length);
+    
+    if (isMapNeeded && !(window as any).L) {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+      document.head.appendChild(link);
+
+      const script = document.createElement('script');
+      script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+      script.onload = () => initMap();
+      document.head.appendChild(script);
+    } else if (isMapNeeded && (window as any).L) {
+      setTimeout(initMap, 100);
+    }
+  }, [activeView, currentRequest]);
+
+  // Búsqueda inteligente por nombre (completa dirección y posiciona mapa)
+  useEffect(() => {
+    if (activeView === 'ASSIGN_TURN' && workshopName.trim().length > 3) {
+      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+      searchDebounceRef.current = setTimeout(() => {
+        geocodeAddress(workshopName, true);
+      }, 1200);
+    }
+  }, [workshopName, activeView]);
+
+  // Sincronización de mapa por dirección escrita manualmente
+  useEffect(() => {
+    if (activeView === 'ASSIGN_TURN' && workshopAddress.trim().length > 5) {
+      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+      searchDebounceRef.current = setTimeout(() => {
+        geocodeAddress(workshopAddress, false);
+      }, 2000);
+    }
+  }, [workshopAddress, activeView]);
+
+  const initMap = () => {
+    if (!mapContainerRef.current || !(window as any).L) return;
+    if (mapInstance.current) {
+        mapInstance.current.remove();
+    }
+
+    const L = (window as any).L;
+    const initialCoords: [number, number] = [-34.6037, -58.3816];
+    
+    mapInstance.current = L.map(mapContainerRef.current, {
+        zoomControl: true,
+        scrollWheelZoom: activeView === 'ASSIGN_TURN'
+    }).setView(initialCoords, 13);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors',
+      lang: 'es'
+    }).addTo(mapInstance.current);
+
+    markerInstance.current = L.marker(initialCoords, { 
+      draggable: activeView === 'ASSIGN_TURN' 
+    }).addTo(mapInstance.current);
+
+    if (activeView === 'ASSIGN_TURN') {
+      mapInstance.current.on('click', (e: any) => {
+          const { lat, lng } = e.latlng;
+          if (markerInstance.current) markerInstance.current.setLatLng([lat, lng]);
+          addNotification("Punto ajustado manualmente", "info");
+      });
+    }
+
+    if (activeView === 'DETAIL' && currentRequest?.suggestedDates?.length) {
+      const turn = currentRequest.suggestedDates[currentRequest.suggestedDates.length - 1];
+      if (turn.direccionTaller) {
+        geocodeAddress(turn.direccionTaller, false);
+      }
+    }
+  };
+
+  const reverseGeocode = async (lat: number, lng: number) => {
+    if (!lat || !lng) return;
+    setIsMapLoading(true);
+    try {
+        const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=es`);
+        const data = await response.json();
+        if (data && data.display_name) {
+            setWorkshopAddress(data.display_name.toUpperCase());
+            addNotification("Dirección extraída del mapa", "success");
+        }
+    } catch (e) {
+        console.error(e);
+        addNotification("Error al procesar ubicación inversa", "error");
+    } finally {
+        setIsMapLoading(false);
+    }
+  };
+
+  const geocodeAddress = async (queryParam?: string, updateTextField: boolean = false) => {
+    const query = queryParam || workshopAddress || workshopName;
+    if (!query || query.trim().length < 3) return;
+    setIsMapLoading(true);
+    try {
+        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1&accept-language=es`);
+        const data = await response.json();
+        if (data && data.length > 0) {
+            const { lat, lon, display_name } = data[0];
+            const coords: [number, number] = [parseFloat(lat), parseFloat(lon)];
+            
+            if (mapInstance.current) {
+                mapInstance.current.setView(coords, 16);
+            }
+            if (markerInstance.current) {
+                markerInstance.current.setLatLng(coords);
+            }
+            
+            if (updateTextField) {
+                setWorkshopAddress(display_name.toUpperCase());
+                addNotification("Dirección autocompletada", "success");
+            } else {
+                addNotification("Ubicación encontrada en el mapa", "success");
+            }
+        }
+    } catch (e) {
+        console.error("Geocoding error", e);
+    } finally {
+        setIsMapLoading(false);
+    }
+  };
+
+  const handleCaptureNativeGPS = () => {
+    if (!navigator.geolocation) {
+        addNotification("GPS no disponible en este navegador", "error");
+        return;
+    }
+    addNotification("Sincronizando con satélites GPS...", "warning");
+    navigator.geolocation.getCurrentPosition(async (pos) => {
+        const { latitude, longitude } = pos.coords;
+        const coords: [number, number] = [latitude, longitude];
+        if (mapInstance.current) mapInstance.current.setView(coords, 16);
+        if (markerInstance.current) markerInstance.current.setLatLng(coords);
+        addNotification("Señal GPS recibida con éxito", "success");
+    }, (err) => {
+        addNotification("Permiso denegado o señal GPS inestable", "error");
+    }, { enableHighAccuracy: true });
+  };
 
   const allCostCenters = useMemo(() => {
     const set = new Set(serviceRequests.map(r => r.costCenter).filter(Boolean));
@@ -377,7 +530,6 @@ export const TestSector = () => {
     }
     
     if (selectedStageToTransition === ServiceStage.SCHEDULING) { 
-        // Inicializar datos para agendamiento antes de cambiar vista
         setTurnDate(format(new Date(), 'yyyy-MM-dd'));
         setTurnTime('09:00');
         setWorkshopName('');
@@ -534,7 +686,7 @@ export const TestSector = () => {
                       <h3 className="text-3xl font-black text-slate-800 uppercase italic">Finalizar Gestión</h3>
                       <textarea rows={4} className="w-full p-6 bg-slate-50 border border-slate-200 rounded-3xl font-bold text-xs outline-none focus:ring-4 focus:ring-emerald-100 resize-none" placeholder="Comentarios finales..." value={finishComment} onChange={e => setFinishComment(e.target.value)} />
                       <div className="flex flex-col gap-3">
-                        <button disabled={!finishComment.trim()} onClick={handleFinishRequest} className="w-full bg-emerald-600 text-white py-5 rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl hover:bg-emerald-700 transition-all flex items-center justify-center gap-3 disabled:opacity-30"><LucideSave size={20}/> Confirmar Cierre Técnico</button>
+                        <button disabled={!finishComment.trim()} onClick={handleFinishRequest} className="w-full bg-emerald-600 text-white py-5 rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl hover:bg-emerald-700 flex items-center justify-center gap-3 disabled:opacity-30"><LucideSave size={20}/> Confirmar Cierre Técnico</button>
                         <button onClick={() => { setIsFinishing(false); setFinishComment(''); }} className="w-full text-slate-400 font-black uppercase text-[10px] py-4">Cancelar</button>
                       </div>
                   </div>
@@ -571,10 +723,10 @@ export const TestSector = () => {
                 </div>
                 <div className="space-y-1">
                     <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-2">C. Costo</label>
-                    <select className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl font-bold text-[10px] uppercase outline-none focus:ring-4 focus:ring-blue-50" value={filterCC} onChange={e => setFilterCC(e.target.value)}><option value="">TODOS</option>{allCostCenters.map(cc => <option key={cc} value={cc}>{cc}</option>)}</select>
+                    <select className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl font-bold text-[10px] uppercase outline-none focus:ring-4 focus:ring-blue-100" value={filterCC} onChange={e => setFilterCC(e.target.value)}><option value="">TODOS</option>{allCostCenters.map(cc => <option key={cc} value={cc}>{cc}</option>)}</select>
                 </div>
-                <div className="space-y-1"><label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-2">Desde</label><input type="date" className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl font-bold text-xs outline-none focus:ring-4 focus:ring-blue-50" value={filterDateFrom} onChange={e => setFilterDateFrom(e.target.value)} /></div>
-                <div className="space-y-1"><label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-2">Hasta</label><input type="date" className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl font-bold text-xs outline-none focus:ring-4 focus:ring-blue-50" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)} /></div>
+                <div className="space-y-1"><label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-2">Desde</label><input type="date" className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl font-bold text-xs outline-none focus:ring-4 focus:ring-blue-100" value={filterDateFrom} onChange={e => setFilterDateFrom(e.target.value)} /></div>
+                <div className="space-y-1"><label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-2">Hasta</label><input type="date" className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl font-bold text-xs outline-none focus:ring-4 focus:ring-blue-100" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)} /></div>
             </div>
 
             <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-xl overflow-hidden">
@@ -692,11 +844,24 @@ export const TestSector = () => {
                         <div className="bg-amber-50 p-10 rounded-[3.5rem] border-2 border-amber-200 shadow-xl space-y-8 animate-fadeIn relative overflow-hidden">
                            <div className="flex items-center gap-6 border-b border-amber-200 pb-6 relative z-10">
                                <div className="p-4 bg-amber-600 text-white rounded-2xl shadow-lg"><LucideCalendarDays size={28}/></div>
-                               <div><h4 className="text-xl font-black uppercase italic tracking-tight text-amber-900 leading-none">Turno Técnico Confirmado</h4><p className="text-[9px] font-black text-amber-600 uppercase tracking-widest mt-2">Detalles para Presentación</p></div>
+                               <div className="flex justify-between items-end flex-1">
+                                  <div><h4 className="text-xl font-black uppercase italic tracking-tight text-amber-900 leading-none">Turno Técnico Confirmado</h4><p className="text-[9px] font-black text-amber-600 uppercase tracking-widest mt-2">Detalles para Presentación</p></div>
+                                  <TurnCountdown date={currentTurn.fecha} time={currentTurn.hora || '09:00'} />
+                               </div>
                            </div>
                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 relative z-10">
-                               <div className="p-6 bg-white/60 rounded-[2rem] border border-amber-200"><p className="text-[8px] font-black text-amber-400 uppercase tracking-[0.2em] mb-3 flex items-center gap-2"><LucideBuilding2 size={12}/> Taller</p><p className="text-xl font-black text-slate-800 uppercase italic">{currentTurn.nombreTaller}</p><p className="text-[10px] font-bold text-slate-500 mt-1 uppercase">{currentTurn.direccionTaller}</p></div>
-                               <div className="p-6 bg-slate-900 text-white rounded-[2rem] border border-white/5 flex justify-between items-center"><div><p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1 flex items-center gap-2"><LucideClock size={12}/> Horario</p><p className="text-2xl font-black italic">{format(parseISO(currentTurn.fecha), "dd/MM/yyyy")} - {currentTurn.hora}HS</p></div><LucideCheckCircle2 className="text-emerald-500" size={32}/></div>
+                               <div className="space-y-6">
+                                 <div className="p-6 bg-white/60 rounded-[2rem] border border-amber-200"><p className="text-[8px] font-black text-amber-400 uppercase tracking-[0.2em] mb-3 flex items-center gap-2"><LucideBuilding2 size={12}/> Taller</p><p className="text-xl font-black text-slate-800 uppercase italic">{currentTurn.nombreTaller}</p><p className="text-[10px] font-bold text-slate-500 mt-1 uppercase">{currentTurn.direccionTaller}</p></div>
+                                 <div className="p-6 bg-slate-900 text-white rounded-[2rem] border border-white/5 flex justify-between items-center"><div><p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1 flex items-center gap-2"><LucideClock size={12}/> Horario</p><p className="text-2xl font-black italic">{format(parseISO(currentTurn.fecha), "dd/MM/yyyy")} - {currentTurn.hora}HS</p></div><LucideCheckCircle2 className="text-emerald-500" size={32}/></div>
+                               </div>
+                               <div className="bg-white rounded-[2rem] overflow-hidden border border-amber-200 shadow-inner h-full min-h-[250px] relative">
+                                  <div ref={mapContainerRef} className="w-full h-full z-0" />
+                                  {isMapLoading && (
+                                      <div className="absolute inset-0 bg-white/40 backdrop-blur-sm z-50 flex items-center justify-center">
+                                          <LucideRefreshCcw className="animate-spin text-blue-600" size={24}/>
+                                      </div>
+                                  )}
+                               </div>
                            </div>
                         </div>
                     )}
@@ -716,7 +881,7 @@ export const TestSector = () => {
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                             <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100"><p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Clasificación</p><p className="text-sm font-black text-slate-800 uppercase italic">{currentRequest.mainCategory} / {currentRequest.specificType}</p></div>
-                            <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100"><p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Ubicación</p><p className="text-sm font-black text-slate-800 uppercase truncate italic">{currentRequest.location}</p></div>
+                            <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100"><p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Ubicación</p><p className="text-sm font-black text-slate-800 uppercase italic truncate">{currentRequest.location}</p></div>
                             <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100"><p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">KM Reporte</p><p className="text-sm font-black text-slate-800 italic">{currentRequest.odometerAtRequest.toLocaleString()} KM</p></div>
                         </div>
                         <div className="space-y-4">
@@ -766,7 +931,7 @@ export const TestSector = () => {
         )}
 
         {activeView === 'ASSIGN_TURN' && currentRequest && (
-            <div className="max-w-4xl mx-auto space-y-10 animate-fadeIn pb-24">
+            <div className="max-w-6xl mx-auto space-y-10 animate-fadeIn pb-24">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-6">
                         <button onClick={() => setActiveView('DETAIL')} className="p-4 bg-white rounded-2xl shadow-sm border border-slate-200 text-slate-400 hover:text-slate-800 transition-all"><LucideArrowLeft size={24}/></button>
@@ -778,56 +943,93 @@ export const TestSector = () => {
                     <TurnCountdown date={turnDate} time={turnTime} />
                 </div>
                 
-                <div className="bg-white p-10 rounded-[3.5rem] shadow-2xl border border-slate-100 space-y-10">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        <div className="space-y-2">
-                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Fecha Pactada</label>
-                            <div className="relative">
-                                <LucideCalendar className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-500" size={18}/>
-                                <input type="date" min={format(new Date(), 'yyyy-MM-dd')} className="w-full pl-12 pr-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-black text-sm outline-none focus:ring-4 focus:ring-blue-100" value={turnDate} onChange={e => setTurnDate(e.target.value)} />
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+                    {/* FORMULARIO */}
+                    <div className="bg-white p-10 rounded-[3.5rem] shadow-2xl border border-slate-100 space-y-10 h-fit">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Fecha Pactada</label>
+                                <div className="relative">
+                                    <LucideCalendar className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-500" size={18}/>
+                                    <input type="date" min={format(new Date(), 'yyyy-MM-dd')} className="w-full pl-12 pr-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-black text-sm outline-none focus:ring-4 focus:ring-blue-100 shadow-sm" value={turnDate} onChange={e => setTurnDate(e.target.value)} />
+                                </div>
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Hora de Recepción</label>
+                                <div className="relative">
+                                    <LucideClock className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-500" size={18}/>
+                                    <input type="time" className="w-full pl-12 pr-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-black text-sm outline-none focus:ring-4 focus:ring-blue-100 shadow-sm" value={turnTime} onChange={e => setTurnTime(e.target.value)} />
+                                </div>
                             </div>
                         </div>
-                        <div className="space-y-2">
-                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Hora de Recepción</label>
-                            <div className="relative">
-                                <LucideClock className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-500" size={18}/>
-                                <input type="time" className="w-full pl-12 pr-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-black text-sm outline-none focus:ring-4 focus:ring-blue-100" value={turnTime} onChange={e => setTurnTime(e.target.value)} />
+                        
+                        <div className="space-y-6">
+                            <h4 className="text-[10px] font-black text-indigo-600 uppercase tracking-widest border-b pb-2 flex items-center gap-2"><LucideFactory size={14}/> Establecimiento y Ubicación del Servicio</h4>
+                            <p className="text-[8px] font-bold text-slate-400 uppercase ml-2 italic">Búsqueda inteligente: escriba el nombre o la dirección</p>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="space-y-1">
+                                    <label className="text-[8px] font-black text-slate-400 uppercase ml-2">Nombre del Establecimiento</label>
+                                    <input type="text" placeholder="NOMBRE TALLER O LUGAR..." className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold uppercase outline-none focus:ring-4 focus:ring-blue-100 shadow-inner" value={workshopName} onChange={e => setWorkshopName(e.target.value.toUpperCase())} />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[8px] font-black text-slate-400 uppercase ml-2">Asignar Proveedor Responsable</label>
+                                    <select className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-black text-xs uppercase outline-none focus:ring-4 focus:ring-blue-100 shadow-sm" value={selectedProviderId} onChange={e => setSelectedProviderId(e.target.value)}>
+                                        <option value="">ELIJA PROVEEDOR...</option>
+                                        {registeredUsers.filter(u => u.role === UserRole.PROVIDER).map(p => <option key={p.id} value={p.id}>{p.nombre} {p.apellido}</option>)}
+                                    </select>
+                                </div>
                             </div>
-                        </div>
-                    </div>
-                    
-                    <div className="space-y-6">
-                        <h4 className="text-[10px] font-black text-indigo-600 uppercase tracking-widest border-b pb-2 flex items-center gap-2"><LucideFactory size={14}/> Establecimiento y Proveedor de Servicio</h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="space-y-1">
-                                <label className="text-[8px] font-black text-slate-400 uppercase ml-2">Nombre del Establecimiento</label>
-                                <input type="text" placeholder="NOMBRE TALLER..." className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold uppercase outline-none focus:ring-4 focus:ring-blue-100" value={workshopName} onChange={e => setWorkshopName(e.target.value.toUpperCase())} />
-                            </div>
-                            <div className="space-y-1">
-                                <label className="text-[8px] font-black text-slate-400 uppercase ml-2">Vincular Proveedor</label>
-                                <select className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-black text-xs uppercase outline-none focus:ring-4 focus:ring-blue-100" value={selectedProviderId} onChange={e => setSelectedProviderId(e.target.value)}>
-                                    <option value="">ELIJA PROVEEDOR...</option>
-                                    {registeredUsers.filter(u => u.role === UserRole.PROVIDER).map(p => <option key={p.id} value={p.id}>{p.nombre} {p.apellido}</option>)}
-                                </select>
-                            </div>
-                        </div>
-                        <div className="space-y-1">
-                            <label className="text-[8px] font-black text-slate-400 uppercase ml-2">Dirección de Presentación</label>
-                            <div className="relative">
-                                <LucideMapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-indigo-400" size={18}/>
-                                <input type="text" placeholder="DIRECCIÓN..." className="w-full pl-12 pr-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold uppercase outline-none focus:ring-4 focus:ring-blue-100" value={workshopAddress} onChange={e => setWorkshopAddress(e.target.value.toUpperCase())} />
+                                <label className="text-[8px] font-black text-slate-400 uppercase ml-2">Dirección Exacta de Presentación</label>
+                                <div className="flex gap-2">
+                                    <div className="relative flex-1">
+                                        <LucideMapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-indigo-400" size={18}/>
+                                        <input type="text" placeholder="DIRECCIÓN O REFERENCIA..." className="w-full pl-12 pr-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold uppercase outline-none focus:ring-4 focus:ring-blue-100 shadow-inner" value={workshopAddress} onChange={e => setWorkshopAddress(e.target.value.toUpperCase())} />
+                                    </div>
+                                    <button onClick={() => markerInstance.current && reverseGeocode(markerInstance.current.getLatLng().lat, markerInstance.current.getLatLng().lng)} className="px-5 bg-indigo-600 text-white rounded-2xl hover:bg-indigo-700 transition-all flex items-center justify-center shadow-lg group" title="Traer dirección desde el punto del mapa">
+                                        <LucideRefreshCcw size={20} className="group-active:rotate-180 transition-transform duration-500"/>
+                                    </button>
+                                    <button onClick={() => geocodeAddress()} className="p-4 bg-slate-900 text-white rounded-2xl hover:bg-slate-800 transition-all flex items-center justify-center shadow-lg" title="Sincronizar mapa manualmente">
+                                        <LucideSearch size={20}/>
+                                    </button>
+                                </div>
                             </div>
                         </div>
+
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black text-slate-400 uppercase ml-4">Comentarios para Usuario/Chofer</label>
+                            <textarea rows={3} className="w-full p-6 bg-slate-50 border border-slate-200 rounded-3xl font-bold text-xs outline-none focus:ring-4 focus:ring-blue-100 resize-none shadow-inner" placeholder="Instrucciones especiales para el ingreso de la unidad..." value={turnComments} onChange={e => setTurnComments(e.target.value)} />
+                        </div>
+                        
+                        <button onClick={handleConfirmTurnAssignment} disabled={!workshopName || !selectedProviderId || !turnDate} className="w-full py-6 bg-indigo-600 text-white rounded-[2rem] font-black uppercase text-xs shadow-2xl hover:bg-indigo-700 transition-all flex items-center justify-center gap-4 disabled:opacity-30">
+                            <LucideShieldCheck size={24}/> Confirmar Agendamiento y Notificar
+                        </button>
                     </div>
 
-                    <div className="space-y-2">
-                        <label className="text-[10px] font-black text-slate-400 uppercase ml-4">Comentarios para Usuario/Chofer</label>
-                        <textarea rows={3} className="w-full p-6 bg-slate-50 border border-slate-200 rounded-3xl font-bold text-xs outline-none focus:ring-4 focus:ring-blue-100 resize-none" placeholder="Instrucciones especiales para el ingreso de la unidad..." value={turnComments} onChange={e => setTurnComments(e.target.value)} />
+                    {/* MAPA ESTILO LOCAL GPS */}
+                    <div className="bg-white p-6 rounded-[3.5rem] shadow-2xl border border-slate-100 space-y-6 flex flex-col h-[600px] lg:h-auto">
+                        <div className="flex justify-between items-center px-4">
+                            <div>
+                                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2"><LucideMap size={14} className="text-blue-600"/> Mapa de Localización de Turno</h4>
+                                <p className="text-[8px] font-bold text-slate-300 uppercase mt-1">Sincronización automática con campos de búsqueda</p>
+                            </div>
+                            <button onClick={handleCaptureNativeGPS} className="p-4 bg-blue-50 text-blue-600 rounded-2xl hover:bg-blue-600 hover:text-white transition-all shadow-sm border border-blue-100 flex items-center gap-2 font-black text-[9px] uppercase tracking-widest">
+                                <LucideLocate size={18}/> Mi Posición GPS
+                            </button>
+                        </div>
+                        
+                        <div className="flex-1 rounded-[2.5rem] bg-slate-100 border-2 border-slate-50 relative overflow-hidden group shadow-2xl">
+                            <div ref={mapContainerRef} className="w-full h-full z-0" />
+                            {isMapLoading && (
+                                <div className="absolute inset-0 bg-white/60 backdrop-blur-sm z-50 flex items-center justify-center">
+                                    <div className="flex flex-col items-center gap-3">
+                                        <LucideRefreshCcw className="animate-spin text-blue-600" size={32}/>
+                                        <span className="text-[9px] font-black text-blue-900 uppercase tracking-widest italic">Sincronizando coordenadas...</span>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     </div>
-                    
-                    <button onClick={handleConfirmTurnAssignment} disabled={!workshopName || !selectedProviderId || !turnDate} className="w-full py-6 bg-indigo-600 text-white rounded-[2rem] font-black uppercase text-xs shadow-2xl hover:bg-indigo-700 transition-all flex items-center justify-center gap-4 disabled:opacity-30">
-                        <LucideShieldCheck size={24}/> Confirmar Turno y Notificar
-                    </button>
                 </div>
             </div>
         )}
