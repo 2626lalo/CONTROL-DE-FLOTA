@@ -22,6 +22,7 @@ export interface User {
   email: string;
   nombre: string;
   apellido: string;
+  name?: string; // ← AGREGADO para compatibilidad
   telefono: string;
   avatar?: string;
   passwordHash?: string;
@@ -38,7 +39,7 @@ export interface User {
   };
   costCenter?: string;
   role: UserRole;
-  level: 1 | 2 | 3; // 1: Básico, 2: Intermedio, 3: Full/Manager
+  level: 1 | 2 | 3;
   rolesSecundarios: string[];
   permisos: Permission[];
   notificaciones: {
@@ -130,6 +131,7 @@ export interface ServiceRequest {
   updatedAt: string;
   totalCost?: number;
   providerId?: string;
+  providerName?: string; // ← AGREGADO
   unreadUserCount?: number;
   suggestedDate?: string;
 }
@@ -357,6 +359,7 @@ export interface AdministrativeData {
     operandoPara: string;
     zona: string;
     provincia: string;
+    direccion?: string; // ← AGREGADO
     sitio: string;
     uso: string;
     directorResponsable: string;
