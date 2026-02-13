@@ -1,20 +1,22 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
 
-# Run and deploy your AI Studio app
+# Gestión de Flota Corporativa Pro
 
-This contains everything you need to run your app locally.
+Sistema profesional de gestión de flota empresarial con soporte offline, OCR inteligente via Gemini AI y persistencia dual (LocalStorage para desarrollo y Firebase para producción).
 
-View your app in AI Studio: https://ai.studio/apps/drive/1Bvf7eYbAaqBuOAD_QXtOJS6yBJivVXDI
+## Estado del Proyecto
 
-## Run Locally
+Actualmente operando en la rama **`main`** (Producción).
 
-**Prerequisites:**  Node.js
+## Tecnologías
 
+- **Frontend**: React 19, Tailwind CSS, Lucide React.
+- **Gráficos**: Recharts.
+- **IA**: Google Gemini API (@google/genai).
+- **Backend/DB**: Firebase Firestore & Auth.
+- **Exportación**: jsPDF, XLSX.
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+## Configuración de Entorno
+
+El sistema detecta automáticamente el entorno:
+- Si el hostname incluye `run.app`, utiliza **Firebase**.
+- En otros casos (desarrollo local o Google Studio), utiliza **LocalStorage** con datos mock iniciales.

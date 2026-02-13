@@ -6,9 +6,7 @@ const IS_PRODUCTION = window.location.hostname.includes('run.app');
 
 // MOCKS PARA DESARROLLO EN GOOGLE STUDIO
 const MOCK_VEHICLES: Vehicle[] = [
-  // FIX: Using enum VehicleStatus.ACTIVE instead of string literal to resolve type assignment error
   { plate: "ABC123", make: "TOYOTA", model: "HILUX", year: 2020, status: VehicleStatus.ACTIVE, ownership: "PROPIO" as any, fuelType: "DIESEL" as any, transmission: "MANUAL" as any, currentKm: 50000, images: { list: [] }, documents: [], serviceIntervalKm: 10000, nextServiceKm: 60000, vin: 'S/N', motorNum: 'S/N', type: 'Pickup', version: 'SRX', costCenter: 'CENTRAL', province: 'Mendoza' },
-  // FIX: Using enum VehicleStatus.ACTIVE instead of string literal to resolve type assignment error
   { plate: "DEF456", make: "FORD", model: "RANGER", year: 2021, status: VehicleStatus.ACTIVE, ownership: "PROPIO" as any, fuelType: "DIESEL" as any, transmission: "MANUAL" as any, currentKm: 30000, images: { list: [] }, documents: [], serviceIntervalKm: 10000, nextServiceKm: 40000, vin: 'S/N', motorNum: 'S/N', type: 'Pickup', version: 'XLT', costCenter: 'OPERACIONES', province: 'Mendoza' }
 ];
 
@@ -25,11 +23,9 @@ const useLocalStorage = () => {
   const [serviceRequests, setServiceRequests] = useState<ServiceRequest[]>([]);
   const [checklists, setChecklists] = useState<Checklist[]>([]);
   const [loading, setLoading] = useState(true);
-  // FIX: Added error state to useLocalStorage to satisfy the FleetContextType requirement on line 277
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Cargar datos de ejemplo al iniciar
     const savedVehicles = localStorage.getItem('fp_vehicles');
     const savedUsers = localStorage.getItem('fp_users');
     const savedRequests = localStorage.getItem('fp_requests');
@@ -53,7 +49,6 @@ const useLocalStorage = () => {
     setLoading(false);
   }, []);
 
-  // FIX: Converted to async to return Promise<void> matching FleetContextType definition
   const addVehicle = async (vehicle: Vehicle) => {
     setVehicles(prev => {
       const newList = [...prev, vehicle];
@@ -62,7 +57,6 @@ const useLocalStorage = () => {
     });
   };
 
-  // FIX: Converted to async to return Promise<void> matching FleetContextType definition
   const updateVehicle = async (vehicle: Vehicle) => {
     setVehicles(prev => {
       const newList = prev.map(v => v.plate === vehicle.plate ? vehicle : v);
@@ -71,7 +65,6 @@ const useLocalStorage = () => {
     });
   };
 
-  // FIX: Converted to async to return Promise<void> matching FleetContextType definition
   const deleteVehicle = async (plate: string) => {
     setVehicles(prev => {
       const newList = prev.filter(v => v.plate !== plate);
@@ -101,9 +94,8 @@ const useFirebase = () => {
     const loadFirebase = async () => {
       try {
         const { db } = await import('../firebase');
-        const { collection, getDocs, onSnapshot, query, orderBy } = await import('firebase/firestore');
+        const { collection, onSnapshot, query, orderBy } = await import('firebase/firestore');
         
-        // Carga inicial y suscripciones
         onSnapshot(collection(db, 'vehicles'), (snap) => {
           if (mounted) setVehicles(snap.docs.map(doc => ({ ...doc.data(), plate: doc.id })) as Vehicle[]);
         });
@@ -166,7 +158,7 @@ const useFirebase = () => {
 };
 
 // ============================================
-// CONTEXTO PRINCIPAL - USA LA VERSIÓN CORRECTA SEGÚN ENTORNO
+// CONTEXTO PRINCIPAL
 // ============================================
 interface FleetContextType {
   vehicles: Vehicle[];
@@ -176,8 +168,8 @@ interface FleetContextType {
   addVehicle: (v: Vehicle) => Promise<void>;
   updateVehicle: (v: Vehicle) => Promise<void>;
   deleteVehicle: (p: string) => Promise<void>;
-  addUser: (u: User) => Promise<void>;
-  updateUser: (u: User) => Promise<void>;
+  addUser: (user: User) => Promise<void>;
+  updateUser: (user: User) => Promise<void>;
   deleteUser: (id: string) => Promise<void>;
   addServiceRequest: (r: ServiceRequest) => Promise<void>;
   updateServiceRequest: (r: ServiceRequest) => Promise<void>;
@@ -219,10 +211,9 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [notifications, setNotifications] = useState<any[]>([]);
   const [masterFindingsImage, setMasterFindingsImageState] = useState<string | null>(null);
 
+  // EFECTO DE AUTENTICACIÓN: Solo Firebase maneja persistencia automática
   useEffect(() => {
-    if (!IS_PRODUCTION) {
-      setAuthenticatedUser(MOCK_USERS[0]);
-    } else {
+    if (IS_PRODUCTION) {
       const loadAuth = async () => {
         const { auth } = await import('../firebase');
         const { onAuthStateChanged } = await import('firebase/auth');
@@ -237,6 +228,8 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       };
       loadAuth();
     }
+    // En desarrollo local, authenticatedUser se inicializa en null 
+    // y solo cambia mediante la función login()
   }, [impl.users]);
 
   const addUser = async (user: User) => {};
@@ -248,11 +241,23 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const addChecklist = async (checklist: Checklist) => {};
   
   const login = async (email: string, pass: string) => {
-    if (!IS_PRODUCTION) return { success: true };
+    const emailLower = email.toLowerCase().trim();
+    
+    if (!IS_PRODUCTION) {
+      // Lógica de login Mock: Validar contra MOCK_USERS o impl.users
+      const found = impl.users.find(u => u.email.toLowerCase() === emailLower);
+      if (found && (pass === 'Joaquin4' || pass === 'admin')) {
+        setAuthenticatedUser(found);
+        return { success: true };
+      }
+      return { success: false, message: "Credenciales de desarrollo incorrectas." };
+    }
+
     const { auth } = await import('../firebase');
     const { signInWithEmailAndPassword } = await import('firebase/auth');
     try {
-      await signInWithEmailAndPassword(auth, email, pass);
+      await signInWithEmailAndPassword(auth, emailLower, pass);
+      // setAuthenticatedUser se manejará en el onAuthStateChanged
       return { success: true };
     } catch (e: any) {
       return { success: false, message: e.message };

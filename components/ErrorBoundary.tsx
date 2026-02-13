@@ -1,3 +1,4 @@
+
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { LucideShieldAlert, LucideRefreshCcw } from 'lucide-react';
 
@@ -10,15 +11,21 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
-// FIX: Explicitly extending React.Component with generics to ensure inherited members 'props' and 'state' are correctly typed and recognized by the compiler.
+// FIX: Explicitly extending React.Component with generics and declaring properties to ensure members 'props' and 'state' are recognized by the compiler.
 export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  // FIX: Declaring state as a class property AND initializing in constructor for better compatibility with TypeScript's member detection.
+  // FIX: Declaring state and props as class properties to resolve existence errors reported by TypeScript at lines 18, 39 and 40.
+  public state: ErrorBoundaryState;
+  public props: ErrorBoundaryProps;
+
   constructor(props: ErrorBoundaryProps) {
     super(props);
+    // FIX: Initialize state correctly now that it is declared as a class member.
     this.state = {
       hasError: false,
       error: null
     };
+    // FIX: Explicitly assign props to handle environment-specific inheritance detection issues.
+    this.props = props;
   }
 
   public static getDerivedStateFromError(error: Error): ErrorBoundaryState {
@@ -34,7 +41,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
     window.location.reload();
   };
 
-  // FIX: Accessing members via this.state and this.props to resolve existence errors on line 42.
+  // FIX: Accessing members via this.state and this.props to resolve reported property existence errors.
   public render(): ReactNode {
     const { hasError, error } = this.state;
     const { children } = this.props;
