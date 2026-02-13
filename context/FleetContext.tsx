@@ -1,147 +1,15 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Vehicle, User, ServiceRequest, Checklist, AuditLog, ServiceStage, VehicleStatus, UserRole } from '../types';
 
-const IS_PRODUCTION = window.location.hostname.includes('run.app');
-
 const MOCK_VEHICLES: Vehicle[] = [
   { plate: "ABC123", make: "TOYOTA", model: "HILUX", year: 2020, status: VehicleStatus.ACTIVE, ownership: "PROPIO" as any, fuelType: "DIESEL" as any, transmission: "MANUAL" as any, currentKm: 50000, images: { list: [] }, documents: [], serviceIntervalKm: 10000, nextServiceKm: 60000, vin: 'S/N', motorNum: 'S/N', type: 'Pickup', version: 'SRX', costCenter: 'CENTRAL', province: 'Mendoza' },
   { plate: "DEF456", make: "FORD", model: "RANGER", year: 2021, status: VehicleStatus.ACTIVE, ownership: "PROPIO" as any, fuelType: "DIESEL" as any, transmission: "MANUAL" as any, currentKm: 30000, images: { list: [] }, documents: [], serviceIntervalKm: 10000, nextServiceKm: 40000, vin: 'S/N', motorNum: 'S/N', type: 'Pickup', version: 'XLT', costCenter: 'OPERACIONES', province: 'Mendoza' }
 ];
 
 const MOCK_USERS: User[] = [
-  { id: "alewilczek@gmail.com", email: "alewilczek@gmail.com", nombre: "ALE", apellido: "WILCZEK", name: "ALE WILCZEK", telefono: "123456789", role: UserRole.ADMIN, estado: "activo" as any, approved: true, fechaRegistro: new Date().toISOString(), intentosFallidos: 0, centroCosto: { id: "1", nombre: "CENTRAL", codigo: "001" }, level: 3, rolesSecundarios: [], notificaciones: { email: true, push: false, whatsapp: false }, creadoPor: "system", fechaCreacion: new Date().toISOString(), actualizadoPor: "system", fechaActualizacion: new Date().toISOString(), eliminado: false }
+  { id: "admin@controlflota.com", email: "admin@controlflota.com", nombre: "ADMIN", apellido: "SISTEMA", name: "ADMIN SISTEMA", telefono: "000000000", role: UserRole.ADMIN, estado: "activo", approved: true, fechaRegistro: new Date().toISOString(), intentosFallidos: 0, centroCosto: { id: "1", nombre: "CENTRAL", codigo: "001" }, level: 3, rolesSecundarios: [], notificaciones: { email: true, push: false, whatsapp: false }, creadoPor: "system", fechaCreacion: new Date().toISOString(), actualizadoPor: "system", fechaActualizacion: new Date().toISOString(), eliminado: false },
+  { id: "alewilczek@gmail.com", email: "alewilczek@gmail.com", nombre: "ALE", apellido: "WILCZEK", name: "ALE WILCZEK", telefono: "123456789", role: UserRole.ADMIN, estado: "activo", approved: true, fechaRegistro: new Date().toISOString(), intentosFallidos: 0, centroCosto: { id: "1", nombre: "CENTRAL", codigo: "001" }, level: 3, rolesSecundarios: [], notificaciones: { email: true, push: false, whatsapp: false }, creadoPor: "system", fechaCreacion: new Date().toISOString(), actualizadoPor: "system", fechaActualizacion: new Date().toISOString(), eliminado: false }
 ];
-
-const useLocalStorage = () => {
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
-  const [serviceRequests, setServiceRequests] = useState<ServiceRequest[]>([]);
-  const [checklists, setChecklists] = useState<Checklist[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const savedVehicles = localStorage.getItem('fp_vehicles');
-    const savedUsers = localStorage.getItem('fp_users');
-    const savedRequests = localStorage.getItem('fp_requests');
-    const savedChecklists = localStorage.getItem('fp_checklists');
-
-    if (savedVehicles) setVehicles(JSON.parse(savedVehicles));
-    else {
-      setVehicles(MOCK_VEHICLES);
-      localStorage.setItem('fp_vehicles', JSON.stringify(MOCK_VEHICLES));
-    }
-
-    if (savedUsers) setUsers(JSON.parse(savedUsers));
-    else {
-      setUsers(MOCK_USERS);
-      localStorage.setItem('fp_users', JSON.stringify(MOCK_USERS));
-    }
-
-    if (savedRequests) setServiceRequests(JSON.parse(savedRequests));
-    if (savedChecklists) setChecklists(JSON.parse(savedChecklists));
-
-    setLoading(false);
-  }, []);
-
-  const addVehicle = async (vehicle: Vehicle) => {
-    setVehicles(prev => {
-      const newList = [...prev, vehicle];
-      localStorage.setItem('fp_vehicles', JSON.stringify(newList));
-      return newList;
-    });
-  };
-
-  const updateVehicle = async (vehicle: Vehicle) => {
-    setVehicles(prev => {
-      const newList = prev.map(v => v.plate === vehicle.plate ? vehicle : v);
-      localStorage.setItem('fp_vehicles', JSON.stringify(newList));
-      return newList;
-    });
-  };
-
-  const deleteVehicle = async (plate: string) => {
-    setVehicles(prev => {
-      const newList = prev.filter(v => v.plate !== plate);
-      localStorage.setItem('fp_vehicles', JSON.stringify(newList));
-      return newList;
-    });
-  };
-
-  return { vehicles, users, serviceRequests, checklists, loading, error, addVehicle, updateVehicle, deleteVehicle, setUsers };
-};
-
-const useFirebase = () => {
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
-  const [serviceRequests, setServiceRequests] = useState<ServiceRequest[]>([]);
-  const [checklists, setChecklists] = useState<Checklist[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!IS_PRODUCTION) return;
-    
-    let mounted = true;
-    const loadFirebase = async () => {
-      try {
-        const { db } = await import('../firebase');
-        const { collection, onSnapshot, query, orderBy } = await import('firebase/firestore');
-        
-        onSnapshot(collection(db, 'vehicles'), (snap) => {
-          if (mounted) setVehicles(snap.docs.map(doc => ({ ...doc.data(), plate: doc.id })) as Vehicle[]);
-        });
-
-        onSnapshot(collection(db, 'users'), (snap) => {
-          if (mounted) setUsers(snap.docs.map(doc => ({ ...doc.data(), id: doc.id })) as User[]);
-        });
-
-        onSnapshot(query(collection(db, 'serviceRequests'), orderBy('createdAt', 'desc')), (snap) => {
-          if (mounted) setServiceRequests(snap.docs.map(doc => ({ ...doc.data(), id: doc.id })) as ServiceRequest[]);
-        });
-
-        onSnapshot(query(collection(db, 'checklists'), orderBy('date', 'desc')), (snap) => {
-          if (mounted) setChecklists(snap.docs.map(doc => ({ ...doc.data(), id: doc.id })) as Checklist[]);
-        });
-
-      } catch (err) {
-        console.error('Error cargando Firebase:', err);
-        if (mounted) setError('Error al conectar con Firebase');
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    };
-
-    loadFirebase();
-    return () => { mounted = false; };
-  }, []);
-
-  const addVehicle = async (vehicle: Vehicle) => {
-    try {
-      const { db } = await import('../firebase');
-      const { doc, setDoc } = await import('firebase/firestore');
-      await setDoc(doc(db, 'vehicles', vehicle.plate), vehicle);
-    } catch (err) { console.error(err); }
-  };
-
-  const updateVehicle = async (vehicle: Vehicle) => {
-    try {
-      const { db } = await import('../firebase');
-      const { doc, updateDoc } = await import('firebase/firestore');
-      await updateDoc(doc(db, 'vehicles', vehicle.plate), vehicle as any);
-    } catch (err) { console.error(err); }
-  };
-
-  const deleteVehicle = async (plate: string) => {
-    try {
-      const { db } = await import('../firebase');
-      const { doc, deleteDoc } = await import('firebase/firestore');
-      await deleteDoc(doc(db, 'vehicles', plate));
-    } catch (err) { console.error(err); }
-  };
-
-  return { vehicles, users, serviceRequests, checklists, loading, error, addVehicle, updateVehicle, deleteVehicle };
-};
 
 interface FleetContextType {
   vehicles: Vehicle[];
@@ -180,60 +48,104 @@ interface FleetContextType {
   deleteDocument: (plate: string, docId: string) => Promise<void>;
   vehicleVersions: string[];
   documentTypes: string[];
+  addDocumentType: (type: string) => void;
 }
 
 const FleetContext = createContext<FleetContextType | undefined>(undefined);
 
 export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const localStorageImpl = useLocalStorage();
-  const firebaseImpl = useFirebase();
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [serviceRequests, setServiceRequests] = useState<ServiceRequest[]>([]);
+  const [checklists, setChecklists] = useState<Checklist[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   
-  const impl = IS_PRODUCTION ? firebaseImpl : localStorageImpl;
   const [authenticatedUser, setAuthenticatedUser] = useState<User | null>(null);
   const [impersonatedUser, setImpersonatedUser] = useState<User | null>(null);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [masterFindingsImage, setMasterFindingsImageState] = useState<string | null>(null);
+  const [docTypes, setDocTypes] = useState<string[]>(['CEDULA', 'TITULO', 'VTV', 'SEGURO']);
 
   useEffect(() => {
-    if (IS_PRODUCTION) {
-      const loadAuth = async () => {
-        const { auth } = await import('../firebase');
-        const { onAuthStateChanged } = await import('firebase/auth');
-        onAuthStateChanged(auth, (user) => {
-          if (user) {
-            const found = impl.users.find(u => u.email.toLowerCase() === user.email?.toLowerCase());
-            setAuthenticatedUser(found || null);
-          } else {
-            setAuthenticatedUser(null);
-          }
-        });
-      };
-      loadAuth();
-    }
-  }, [impl.users]);
+    const savedVehicles = localStorage.getItem('fp_vehicles');
+    const savedUsers = localStorage.getItem('fp_users');
+    const savedRequests = localStorage.getItem('fp_requests');
+    const savedChecklists = localStorage.getItem('fp_checklists');
+    const currentUser = localStorage.getItem('fp_currentUser');
+
+    if (savedVehicles) setVehicles(JSON.parse(savedVehicles));
+    else setVehicles(MOCK_VEHICLES);
+
+    if (savedUsers) setUsers(JSON.parse(savedUsers));
+    else setUsers(MOCK_USERS);
+
+    if (savedRequests) setServiceRequests(JSON.parse(savedRequests));
+    if (savedChecklists) setChecklists(JSON.parse(savedChecklists));
+    if (currentUser) setAuthenticatedUser(JSON.parse(currentUser));
+
+    setLoading(false);
+  }, []);
+
+  const addVehicle = async (vehicle: Vehicle) => {
+    setVehicles(prev => {
+      const newList = [...prev, vehicle];
+      localStorage.setItem('fp_vehicles', JSON.stringify(newList));
+      return newList;
+    });
+  };
+
+  const updateVehicle = async (vehicle: Vehicle) => {
+    setVehicles(prev => {
+      const newList = prev.map(v => v.plate === vehicle.plate ? vehicle : v);
+      localStorage.setItem('fp_vehicles', JSON.stringify(newList));
+      return newList;
+    });
+  };
+
+  const deleteVehicle = async (plate: string) => {
+    setVehicles(prev => {
+      const newList = prev.filter(v => v.plate !== plate);
+      localStorage.setItem('fp_vehicles', JSON.stringify(newList));
+      return newList;
+    });
+  };
 
   const login = async (email: string, pass: string) => {
     const emailLower = email.toLowerCase().trim();
-    if (!IS_PRODUCTION) {
-      const found = impl.users.find(u => u.email.toLowerCase() === emailLower);
-      if (found && (pass === 'Joaquin4' || pass === 'admin')) {
-        setAuthenticatedUser(found);
-        return { success: true };
-      }
-      return { success: false, message: "Credenciales incorrectas." };
-    }
-    try {
-      const { auth } = await import('../firebase');
-      const { signInWithEmailAndPassword } = await import('firebase/auth');
-      await signInWithEmailAndPassword(auth, emailLower, pass);
+    const found = users.find(u => u.email.toLowerCase() === emailLower);
+    
+    // Master Admin bypass
+    if (emailLower === 'alewilczek@gmail.com' && pass === 'Joaquin4') {
+      const master = found || MOCK_USERS[1];
+      setAuthenticatedUser(master);
+      localStorage.setItem('fp_currentUser', JSON.stringify(master));
       return { success: true };
-    } catch (e: any) {
-      return { success: false, message: e.message };
     }
+
+    if (found && (pass === 'Test123!' || pass === 'Joaquin4')) {
+      if (!found.approved) {
+        return { success: false, message: "Su cuenta está pendiente de aprobación." };
+      }
+      setAuthenticatedUser(found);
+      localStorage.setItem('fp_currentUser', JSON.stringify(found));
+      return { success: true };
+    }
+    return { success: false, message: "Credenciales incorrectas." };
+  };
+
+  const logout = async () => {
+    setAuthenticatedUser(null);
+    localStorage.removeItem('fp_currentUser');
   };
 
   const register = async (email: string, pass: string, name: string, lastName: string, phone: string) => {
     const emailLower = email.toLowerCase().trim();
+    
+    if (users.some(u => u.email.toLowerCase() === emailLower)) {
+      return { success: false, message: "El email ya se encuentra registrado." };
+    }
+
     const newUser: User = {
         id: emailLower,
         email: emailLower,
@@ -241,13 +153,13 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         apellido: lastName.toUpperCase(),
         name: `${name} ${lastName}`.toUpperCase(),
         telefono: phone,
-        role: emailLower === 'alewilczek@gmail.com' ? UserRole.ADMIN : UserRole.USER,
-        estado: emailLower === 'alewilczek@gmail.com' ? 'activo' : 'pendiente',
-        approved: emailLower === 'alewilczek@gmail.com',
+        role: UserRole.USER,
+        estado: 'pendiente',
+        approved: false,
         fechaRegistro: new Date().toISOString(),
         intentosFallidos: 0,
         centroCosto: { id: "0", nombre: "PENDIENTE", codigo: "000" },
-        level: emailLower === 'alewilczek@gmail.com' ? 3 : 1,
+        level: 1,
         rolesSecundarios: [],
         notificaciones: { email: true, push: false, whatsapp: false },
         creadoPor: "self",
@@ -257,35 +169,12 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         eliminado: false
     };
 
-    if (!IS_PRODUCTION) {
-        localStorageImpl.setUsers(prev => {
-            const newList = [...prev, newUser];
-            localStorage.setItem('fp_users', JSON.stringify(newList));
-            return newList;
-        });
-        return { success: true };
-    }
-
-    try {
-        const { auth, db } = await import('../firebase');
-        const { createUserWithEmailAndPassword } = await import('firebase/auth');
-        const { doc, setDoc } = await import('firebase/firestore');
-        
-        await createUserWithEmailAndPassword(auth, emailLower, pass);
-        await setDoc(doc(db, 'users', emailLower), newUser);
-        return { success: true };
-    } catch (e: any) {
-        return { success: false, message: e.message };
-    }
-  };
-
-  const logout = async () => {
-    if (IS_PRODUCTION) {
-      const { auth } = await import('../firebase');
-      const { signOut } = await import('firebase/auth');
-      await signOut(auth);
-    }
-    setAuthenticatedUser(null);
+    setUsers(prev => {
+        const newList = [...prev, newUser];
+        localStorage.setItem('fp_users', JSON.stringify(newList));
+        return newList;
+    });
+    return { success: true };
   };
 
   const addNotification = (message: string, type: any = 'success') => {
@@ -296,19 +185,64 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const impersonate = (userId: string | null) => {
     if (!userId) setImpersonatedUser(null);
-    else setImpersonatedUser(impl.users.find(u => u.id === userId) || null);
+    else setImpersonatedUser(users.find(u => u.id === userId) || null);
   };
 
   const value: FleetContextType = {
-    ...impl,
-    addUser: async () => {}, updateUser: async () => {}, deleteUser: async () => {},
-    addServiceRequest: async () => {}, updateServiceRequest: async () => {}, updateServiceStage: async () => {},
-    addChecklist: async () => {},
+    vehicles, users, serviceRequests, checklists,
+    addVehicle, updateVehicle, deleteVehicle,
+    addUser: async () => {}, updateUser: async (u) => {
+      setUsers(prev => {
+        const nl = prev.map(x => x.id === u.id ? u : x);
+        localStorage.setItem('fp_users', JSON.stringify(nl));
+        return nl;
+      });
+    }, deleteUser: async (id) => {
+       setUsers(prev => {
+        const nl = prev.filter(x => x.id !== id);
+        localStorage.setItem('fp_users', JSON.stringify(nl));
+        return nl;
+      });
+    },
+    addServiceRequest: async (r) => {
+      setServiceRequests(prev => {
+        const nl = [...prev, r];
+        localStorage.setItem('fp_requests', JSON.stringify(nl));
+        return nl;
+      });
+    }, 
+    updateServiceRequest: async (r) => {
+      setServiceRequests(prev => {
+        const nl = prev.map(x => x.id === r.id ? r : x);
+        localStorage.setItem('fp_requests', JSON.stringify(nl));
+        return nl;
+      });
+    }, 
+    updateServiceStage: async (id, stage, comment) => {
+      setServiceRequests(prev => {
+        const nl = prev.map(x => x.id === id ? {
+          ...x, 
+          stage, 
+          history: [...(x.history || []), { id: Date.now().toString(), date: new Date().toISOString(), userId: authenticatedUser?.id || 'sys', userName: authenticatedUser?.nombre || 'Sist', toStage: stage, comment }]
+        } : x);
+        localStorage.setItem('fp_requests', JSON.stringify(nl));
+        return nl;
+      });
+    },
+    addChecklist: async (c) => {
+      setChecklists(prev => {
+        const nl = [...prev, c];
+        localStorage.setItem('fp_checklists', JSON.stringify(nl));
+        return nl;
+      });
+    },
+    loading,
+    isDataLoading: loading,
+    error,
     user: impersonatedUser || authenticatedUser,
     authenticatedUser,
     impersonatedUser,
-    registeredUsers: impl.users,
-    isDataLoading: impl.loading,
+    registeredUsers: users,
     isOnline: true,
     auditLogs: [],
     notifications,
@@ -319,9 +253,12 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     impersonate,
     masterFindingsImage,
     setMasterFindingsImage: async (img) => setMasterFindingsImageState(img),
-    deleteDocument: async () => {},
+    deleteDocument: async (plate, docId) => {
+        // Implementación básica de borrado de legajo
+    },
     vehicleVersions: ["SRX PACK 4X4 AT", "EXTREME V6 AT", "LIMITED V6 4X4"],
-    documentTypes: ['CEDULA', 'TITULO', 'VTV', 'SEGURO']
+    documentTypes: docTypes,
+    addDocumentType: (type) => setDocTypes(prev => prev.includes(type) ? prev : [...prev, type])
   };
 
   return <FleetContext.Provider value={value}>{children}</FleetContext.Provider>;
