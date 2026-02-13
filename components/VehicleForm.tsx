@@ -71,7 +71,7 @@ export const VehicleForm = () => {
     const result = await analyzeDocumentImage(base64, side);
     
     if (result.success && result.data) {
-      setFormData(prev => {
+      setFormData((prev: any) => {
         const newData = { ...prev };
         const extracted = result.data;
 

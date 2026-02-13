@@ -1,4 +1,4 @@
-import * as XLSX from "xlsx";
+import * as XLSX from 'xlsx';
 import React, { useState, useMemo } from 'react';
 import { 
   LucideTrendingUp, LucideCalendar, LucideDollarSign, LucideHistory, LucideX, 
@@ -10,18 +10,15 @@ import {
 } from 'lucide-react';
 import { 
   Vehicle, AdministrativeData, PeriodoAlquiler, 
-  // FIX: Removed unused RentalReplacementEntry from import
   RentalPriceHistory, VehicleStatus, RentalPago, OwnershipType 
 } from '../types';
 import { 
   format, parseISO, endOfMonth, eachMonthOfInterval, 
   getDaysInMonth, differenceInDays, addDays, isAfter, isBefore, isSameDay, startOfDay
 } from 'date-fns';
-// FIX: Correctly import 'es' locale from date-fns
 import { es } from 'date-fns/locale/es';
 import { jsPDF } from "jspdf";
 import autoTable from 'jspdf-autotable';
-import * as XLSX from 'xlsx';
 import { useApp } from '../context/FleetContext';
 
 interface Props {
@@ -117,7 +114,6 @@ export const GestionAlquiler: React.FC<Props> = ({ vehicle, adminData, onUpdate,
       headStyles: { fillColor: [79, 70, 229] },
       theme: 'grid'
     });
-    // FIX: Usar doc.save() en lugar de window.open()
     doc.save(`Periodos_Alquiler_${vehicle.plate}_${Date.now()}.pdf`);
     addNotification("Reporte PDF descargado.");
   };

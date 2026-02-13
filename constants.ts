@@ -1,3 +1,4 @@
+
 import { User, UserRole, Vehicle, FuelType, VehicleStatus, OwnershipType, TransmissionType, ServiceStage } from "./types";
 
 export const CHECKLIST_SECTIONS = {
@@ -34,7 +35,8 @@ export const MOCK_USERS: User[] = [
     password: '12305',
     centroCosto: { id: 'cc-01', nombre: 'Dirección General', codigo: 'DIR-001' },
     costCenter: 'Dirección General',
-    permisos: [],
+    // Renamed permisos to permissions to fix line 37 error
+    permissions: [],
     notificaciones: { email: true, push: true, whatsapp: true },
     creadoPor: 'sistema',
     fechaCreacion: '2024-01-01T10:00:00Z',
@@ -57,7 +59,8 @@ export const MOCK_USERS: User[] = [
     password: 'admin',
     centroCosto: { id: 'cc-prov', nombre: 'Servicios Externos', codigo: 'EXT-001' },
     intentosFallidos: 0,
-    permisos: [],
+    // Renamed permisos to permissions to fix line 60 error
+    permissions: [],
     notificaciones: { email: true, push: true, whatsapp: true },
     creadoPor: 'u-master',
     fechaCreacion: '2024-05-01T10:00:00Z',
@@ -80,7 +83,8 @@ export const MOCK_USERS: User[] = [
     password: 'admin',
     centroCosto: { id: 'cc-02', nombre: 'Operaciones Regionales', codigo: 'OP-REG' },
     intentosFallidos: 0,
-    permisos: [],
+    // Renamed permisos to permissions to fix line 83 error
+    permissions: [],
     notificaciones: { email: true, push: true, whatsapp: false },
     creadoPor: 'u-master',
     fechaCreacion: '2024-02-15T09:00:00Z',
@@ -103,7 +107,8 @@ export const MOCK_USERS: User[] = [
     password: 'admin',
     centroCosto: { id: 'cc-03', nombre: 'Seguridad e Higiene', codigo: 'SHE-001' },
     intentosFallidos: 0,
-    permisos: [],
+    // Renamed permisos to permissions to fix line 106 error
+    permissions: [],
     notificaciones: { email: true, push: false, whatsapp: true },
     creadoPor: 'u-master',
     fechaCreacion: '2024-03-10T11:00:00Z',
@@ -126,7 +131,8 @@ export const MOCK_USERS: User[] = [
     password: 'admin',
     centroCosto: { id: 'cc-02', nombre: 'Operaciones Regionales', codigo: 'OP-REG' },
     intentosFallidos: 0,
-    permisos: [],
+    // Renamed permisos to permissions to fix line 129 error
+    permissions: [],
     notificaciones: { email: true, push: true, whatsapp: true },
     creadoPor: 'u-master',
     fechaCreacion: '2024-04-01T08:00:00Z',

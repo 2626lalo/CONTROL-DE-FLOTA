@@ -1,4 +1,4 @@
-import * as XLSX from "xlsx";
+import * as XLSX from 'xlsx';
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/FleetContext';
 import { User, UserRole, Vehicle, OwnershipType, FuelType, TransmissionType, VehicleStatus } from '../types';
@@ -12,10 +12,8 @@ import {
 } from 'lucide-react';
 import { GOLDEN_MASTER_SNAPSHOT } from '../constants';
 import { compressImage } from '../utils/imageCompressor';
-import * as XLSX from 'xlsx';
 import { databaseService } from '../services/databaseService';
 import { format, parseISO } from 'date-fns';
-// FIX: Correctly import 'es' locale from date-fns
 import { es } from 'date-fns/locale/es';
 
 export const AdminUsers = () => {
@@ -100,7 +98,6 @@ export const AdminUsers = () => {
                         images: { list: [] },
                         documents: [],
                         mileageHistory: [],
-                        // FIX: Removed non-existent property 'equipment' to match Vehicle interface
                         adminData: {
                             regimen: (row['VALOR LEASING'] ? OwnershipType.LEASING : row['OPERANDO P'] ? OwnershipType.RENTED : OwnershipType.OWNED),
                             anio: Number(row.AÑO || new Date().getFullYear()),
@@ -298,7 +295,7 @@ export const AdminUsers = () => {
                         <tbody className="divide-y divide-slate-50">
                             {registeredUsers.map(u => (
                                 <tr key={u.id} className="hover:bg-slate-50/80 transition-colors">
-                                    <td className="px-10 py-6 font-black text-slate-800 uppercase text-xs">{u.name}</td>
+                                    <td className="px-10 py-6 font-black text-slate-800 uppercase text-xs">{u.nombre}</td>
                                     <td className="px-10 py-6 font-bold text-slate-400 text-[10px] uppercase tracking-wider">{u.role}</td>
                                     <td className="px-10 py-6 text-right">
                                         <button onClick={() => handleApproval(u.id, !u.approved)} className={`p-3 rounded-2xl transition-all ${u.approved ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600 hover:scale-110'}`}>

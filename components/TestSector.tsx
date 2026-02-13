@@ -21,7 +21,7 @@ import {
   LucideMaximize, LucideFileCheck, LucideUserCheck,
   LucideCpu, LucideLightbulb, LucideLayout, LucideTruck, LucideUnlockKeyhole,
   LucideSave, LucideCalendarClock, LucideImage, LucideFactory,
-  LucideMap
+  LucideMap, LucideActivity
 } from 'lucide-react';
 import { useApp } from '../context/FleetContext';
 import { 
@@ -149,7 +149,6 @@ const StageRecordModal = ({
                     <button onClick={onClose} className="text-white hover:text-rose-500 transition-colors"><LucideX size={24}/></button>
                 </div>
                 
-                {/* CABECERA TÉCNICA DEL REGISTRO */}
                 <div className="px-10 pt-8 pb-4 bg-slate-50 border-b border-slate-100">
                     <div className="flex justify-between items-end">
                         <div className="space-y-1">
@@ -261,7 +260,9 @@ export const TestSector = () => {
   
   const lastChecklist = useMemo(() => {
     if (!currentRequest) return null;
-    return [...checklists].filter(c => c.vehiclePlate === currentRequest.vehiclePlate).sort((a, b) => b.date.localeCompare(a.date))[0] || null;
+    return [...checklists]
+      .filter(c => c.vehiclePlate === currentRequest.vehiclePlate)
+      .sort((a, b) => b.date.localeCompare(a.date))[0] || null;
   }, [checklists, currentRequest]);
   
   const isChecklistUpToDate = useMemo(() => {
@@ -269,9 +270,28 @@ export const TestSector = () => {
     return isSameDay(parseISO(lastChecklist.date), new Date());
   }, [lastChecklist]);
 
+  const kpis = useMemo(() => {
+    const visible = serviceRequests.filter(r => {
+        if (isSupervisorOrAdmin || isReadOnly) return true;
+        if (isProvider) return r.providerId === user?.id;
+        return (r.costCenter || '').toUpperCase() === userCC;
+    });
+
+    return {
+        total: visible.length,
+        pending: visible.filter(r => r.stage === ServiceStage.REQUESTED || r.stage === ServiceStage.SCHEDULING).length,
+        inWorkshop: visible.filter(r => r.stage === ServiceStage.IN_WORKSHOP || r.stage === ServiceStage.EXECUTING).length,
+        budgeting: visible.filter(r => r.stage === ServiceStage.BUDGETING).length,
+        overdue: visible.filter(r => {
+            if (!r.suggestedDates?.length) return false;
+            const turn = r.suggestedDates[r.suggestedDates.length - 1];
+            return r.stage === ServiceStage.SCHEDULING && isBefore(parseISO(turn.fecha), startOfDay(new Date()));
+        }).length
+    };
+  }, [serviceRequests, isSupervisorOrAdmin, isReadOnly, isProvider, user?.id, userCC]);
+
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [currentRequest?.messages, activeView]);
 
-  // Carga de Leaflet Assets dinámicamente
   useEffect(() => {
     const isMapNeeded = activeView === 'ASSIGN_TURN' || (activeView === 'DETAIL' && currentRequest?.suggestedDates?.length);
     
@@ -290,7 +310,6 @@ export const TestSector = () => {
     }
   }, [activeView, currentRequest]);
 
-  // Búsqueda inteligente por nombre (completa dirección y posiciona mapa)
   useEffect(() => {
     if (activeView === 'ASSIGN_TURN' && workshopName.trim().length > 3) {
       if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
@@ -300,7 +319,6 @@ export const TestSector = () => {
     }
   }, [workshopName, activeView]);
 
-  // Sincronización de mapa por dirección escrita manualmente
   useEffect(() => {
     if (activeView === 'ASSIGN_TURN' && workshopAddress.trim().length > 5) {
       if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
@@ -337,7 +355,7 @@ export const TestSector = () => {
       mapInstance.current.on('click', (e: any) => {
           const { lat, lng } = e.latlng;
           if (markerInstance.current) markerInstance.current.setLatLng([lat, lng]);
-          addNotification("Punto ajustado manualmente", "info");
+          addNotification("Punto ajustado manualmente", "success");
       });
     }
 
@@ -712,6 +730,24 @@ export const TestSector = () => {
                )}
             </div>
 
+            {/* KPI PANEL */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                {[
+                    { label: 'Eventos Activos', val: kpis.total, icon: LucideActivity, color: 'blue' },
+                    { label: 'Ingresados a Taller', val: kpis.inWorkshop, icon: LucideWrench, color: 'indigo' },
+                    { label: 'Aguardando Presupuesto', val: kpis.budgeting, icon: LucideDollarSign, color: 'emerald' },
+                    { label: 'Turnos Vencidos', val: kpis.overdue, icon: LucideAlertCircle, color: 'rose' },
+                ].map((kpi, idx) => (
+                    <div key={idx} className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col justify-between">
+                        <div className="flex justify-between items-start">
+                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{kpi.label}</p>
+                            <div className={`p-3 bg-${kpi.color}-50 text-${kpi.color}-600 rounded-xl`}><kpi.icon size={18}/></div>
+                        </div>
+                        <h3 className="text-3xl font-black text-slate-800 mt-6 tracking-tighter">{kpi.val}</h3>
+                    </div>
+                ))}
+            </div>
+
             <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm grid grid-cols-1 md:grid-cols-5 gap-6 items-end">
                 <div className="space-y-1">
                     <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-2">Patente / Evento</label>
@@ -733,7 +769,7 @@ export const TestSector = () => {
                 <div className="p-8 border-b bg-slate-50/50"><h3 className="text-xs font-black text-slate-800 uppercase tracking-widest italic">Mesa de Control de Servicios</h3></div>
                 <div className="overflow-x-auto">
                     <table className="w-full text-left">
-                        <thead><tr className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b bg-slate-50/10"><th className="px-8 py-6">Evento</th><th className="px-8 py-6">Unidad</th><th className="px-8 py-6">Tipo</th><th className="px-8 py-6">Estado</th><th className="px-8 py-6 text-right">Canal</th></tr></thead>
+                        <thead><tr className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b bg-slate-50/10"><th className="px-8 py-6">Evento</th><th className="px-8 py-6">Unidad</th><th className="px-8 py-6">Tipo</th><th className="px-8 py-6">Estado</th><th className="px-8 py-6 text-right">Acción</th></tr></thead>
                         <tbody className="divide-y divide-slate-50">
                             {filteredRequests.map(req => (
                                 <tr key={req.id} onClick={() => { setSelectedReqId(req.id); setActiveView('DETAIL'); }} className="group hover:bg-blue-50/50 transition-all cursor-pointer">
@@ -890,7 +926,7 @@ export const TestSector = () => {
                         </div>
                         {currentRequest.attachments && currentRequest.attachments.length > 0 && (
                             <div className="space-y-4">
-                               <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-4">Media Vincualda</p>
+                               <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-4">Media Vinculada</p>
                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                   {currentRequest.attachments.map((att, idx) => (
                                       <div key={idx} className="aspect-square bg-slate-100 rounded-3xl overflow-hidden border border-slate-200 relative group cursor-pointer" onClick={() => setZoomedImage({url: att.url, label: att.name})}>
@@ -1021,7 +1057,7 @@ export const TestSector = () => {
                         <div className="flex-1 rounded-[2.5rem] bg-slate-100 border-2 border-slate-50 relative overflow-hidden group shadow-2xl">
                             <div ref={mapContainerRef} className="w-full h-full z-0" />
                             {isMapLoading && (
-                                <div className="absolute inset-0 bg-white/60 backdrop-blur-sm z-50 flex items-center justify-center">
+                                <div className="absolute inset-0 bg-white/40 backdrop-blur-sm z-50 flex items-center justify-center">
                                     <div className="flex flex-col items-center gap-3">
                                         <LucideRefreshCcw className="animate-spin text-blue-600" size={32}/>
                                         <span className="text-[9px] font-black text-blue-900 uppercase tracking-widest italic">Sincronizando coordenadas...</span>
@@ -1035,7 +1071,30 @@ export const TestSector = () => {
         )}
 
         {activeView === 'LOAD_BUDGET' && currentRequest && (
-            <div className="max-w-4xl mx-auto space-y-10 animate-fadeIn pb-24"><div className="flex items-center gap-6"><button onClick={() => setActiveView('DETAIL')} className="p-4 bg-white rounded-2xl shadow-sm border border-slate-200 text-slate-400"><LucideArrowLeft size={24}/></button><div><h2 className="text-3xl font-black text-slate-900 uppercase italic tracking-tighter leading-none">Carga de Presupuesto</h2></div></div><div className="bg-white p-10 rounded-[3.5rem] shadow-2xl border border-slate-100 space-y-10"><div className="space-y-4"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Detalle Técnico</label><textarea rows={5} className="w-full p-8 bg-slate-50 border-2 border-slate-200 rounded-[2.5rem] font-bold text-sm outline-none focus:ring-4 focus:ring-indigo-100 resize-none shadow-inner" placeholder="Descripción trabajos..." value={budgetDetail} onChange={e => setBudgetDetail(e.target.value)} /></div><div className="space-y-2"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Total ($)</label><div className="relative"><LucideDollarSign className="absolute left-6 top-1/2 -translate-y-1/2 text-emerald-600" size={24}/><input type="number" onFocus={(e) => e.target.select()} className="w-full pl-16 pr-8 py-6 bg-emerald-50 border-2 border-emerald-200 rounded-[2rem] font-black text-4xl text-emerald-700 outline-none" value={budgetAmount} onChange={e => setBudgetAmount(Number(e.target.value))} /></div></div><button onClick={handlePublishBudget} disabled={!budgetDetail.trim() || budgetAmount <= 0} className="w-full py-8 bg-slate-900 text-white rounded-[3rem] font-black uppercase text-sm shadow-2xl hover:bg-emerald-600 transition-all flex items-center justify-center gap-4">Publicar para Auditoría</button></div></div>
+            <div className="max-w-4xl mx-auto space-y-10 animate-fadeIn pb-24">
+                <div className="flex items-center gap-6">
+                    <button onClick={() => setActiveView('DETAIL')} className="p-4 bg-white rounded-2xl shadow-sm border border-slate-200 text-slate-400"><LucideArrowLeft size={24}/></button>
+                    <div>
+                        <h2 className="text-3xl font-black text-slate-900 uppercase italic tracking-tighter leading-none">Carga de Presupuesto</h2>
+                    </div>
+                </div>
+                <div className="bg-white p-10 rounded-[3.5rem] shadow-2xl border border-slate-100 space-y-10">
+                    <div className="space-y-4">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Detalle Técnico</label>
+                        <textarea rows={5} className="w-full p-8 bg-slate-50 border-2 border-slate-200 rounded-[2.5rem] font-bold text-sm outline-none focus:ring-4 focus:ring-indigo-100 resize-none shadow-inner" placeholder="Descripción trabajos..." value={budgetDetail} onChange={e => setBudgetDetail(e.target.value)} />
+                    </div>
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Total ($)</label>
+                        <div className="relative">
+                            <LucideDollarSign className="absolute left-6 top-1/2 -translate-y-1/2 text-emerald-600" size={24}/>
+                            <input type="number" onFocus={(e) => e.target.select()} className="w-full pl-16 pr-8 py-6 bg-emerald-50 border-2 border-emerald-200 rounded-[2rem] font-black text-4xl text-emerald-700 outline-none" value={budgetAmount} onChange={e => setBudgetAmount(Number(e.target.value))} />
+                        </div>
+                    </div>
+                    <button onClick={handlePublishBudget} disabled={!budgetDetail.trim() || budgetAmount <= 0} className="w-full py-8 bg-slate-900 text-white rounded-[3rem] font-black uppercase text-sm shadow-2xl hover:bg-emerald-600 transition-all flex items-center justify-center gap-4">
+                        Publicar para Auditoría
+                    </button>
+                </div>
+            </div>
         )}
       </main>
     </div>

@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { 
   User, Vehicle, ServiceRequest, Checklist, UserRole, 
@@ -188,7 +189,8 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       role: UserRole.USER, 
       level: 1,
       rolesSecundarios: [],
-      permisos: [],
+      // Renamed permisos to permissions to fix line 191 error
+      permissions: [],
       approved: false, 
       fechaRegistro: new Date().toISOString(),
       fechaCreacion: new Date().toISOString(),

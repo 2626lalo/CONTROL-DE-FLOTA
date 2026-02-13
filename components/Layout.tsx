@@ -5,7 +5,7 @@ import {
   LucideLogOut, LucideUsers, LucideWifiOff,
   LucideBarChart3, LucideSearch, LucideFileText,
   LucideShieldCheck, LucideGhost, LucideChevronDown, LucideXCircle, LucideUserCircle,
-  LucideWrench, LucideMenu, LucideX
+  LucideWrench, LucideMenu, LucideX, LucideWarehouse
 } from 'lucide-react';
 import { useApp } from '../context/FleetContext';
 import { UserRole } from '../types';
@@ -33,6 +33,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   const navItems = [
     { to: '/', icon: LucideLayoutDashboard, label: 'Dashboard' },
     { to: '/vehicles', icon: LucideCar, label: 'Flota' },
+    { to: '/bienes-de-uso', icon: LucideWarehouse, label: 'Bienes de Uso' },
     { to: '/checklist', icon: LucideClipboardCheck, label: 'Inspecciones' },
     { to: '/documentation', icon: LucideFileText, label: 'Documentación' },
     { to: '/reports', icon: LucideBarChart3, label: 'Reportes' },
@@ -80,9 +81,6 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
             <div className="w-6 h-6 bg-blue-600 rounded flex items-center justify-center font-black text-[10px]">FP</div>
             <h2 className="text-sm font-bold tracking-tighter uppercase">FleetPro</h2>
           </div>
-        </div>
-        <div className="flex items-center gap-3">
-           <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest">{user?.nombre.split(' ')[0]}</p>
         </div>
       </header>
 
