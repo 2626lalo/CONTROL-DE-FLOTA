@@ -46,7 +46,7 @@ export default function App() {
             <Route path="/users-management" element={<UserManagement />} />
             <Route path="/reports" element={<Reports />} />
             <Route path="/test-sector" element={<TestSector />} />
-            <Route path="*" element={<Navigate to="/" />} />
+            <Route path="*" element={<Navigate to="/" />}  />
           </Routes>
         </AuthGuard>
       </HashRouter>
