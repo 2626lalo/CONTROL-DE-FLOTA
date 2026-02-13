@@ -2,12 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { UserRole } from '../types';
 import { useApp } from '../context/FleetContext';
-import { LucideUserPlus, LucideLogIn, LucideArrowLeft, LucideCheckCircle, LucideShieldCheck } from 'lucide-react';
+import { LucideUserPlus, LucideLogIn, LucideArrowLeft, LucideCheckCircle, LucideShieldCheck, LucideShieldAlert, LucideTimer, LucideKeyRound, LucideShieldQuestion } from 'lucide-react';
 
 export const LoginScreen = () => {
-  const { register, login } = useApp();
+  const { register, login, requestPasswordReset } = useApp();
   const navigate = useNavigate();
-  const [mode, setMode] = useState<'LOGIN' | 'REGISTER'>('LOGIN');
+  const [mode, setMode] = useState<'LOGIN' | 'REGISTER' | 'FORGOT'>('LOGIN');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -17,39 +17,22 @@ export const LoginScreen = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
-
-  // Usuario principal que DEBE existir siempre
-  const MAIN_USER = {
-    id: "main-admin",
-    email: "alewilczek@gmail.com",
-    nombre: "Alejandro",
-    apellido: "Wilczek",
-    role: UserRole.ADMIN,
-    approved: true,
-    estado: "activo" as const
-  };
-
-  useEffect(() => {
-    const users = JSON.parse(localStorage.getItem('fp_users') || '[]');
-    const mainUserExists = users.some((u: any) => u.email === MAIN_USER.email);
-    
-    if (!mainUserExists) {
-      users.push(MAIN_USER);
-      localStorage.setItem('fp_users', JSON.stringify(users));
-    }
-  }, []);
+  const [isPendingLogin, setIsPendingLogin] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setIsPendingLogin(false);
     setLoading(true);
 
     try {
       const res = await login(email, password);
       if (res.success) {
-        // CORRECCIÓN: Usar navigate en lugar de window.location.href para evitar bloqueos de seguridad
         navigate('/');
       } else {
+        if (res.message?.includes('procesada')) {
+            setIsPendingLogin(true);
+        }
         setError(res.message || 'Credenciales incorrectas');
       }
     } catch (err) {
@@ -74,17 +57,34 @@ export const LoginScreen = () => {
     try {
       const res = await register(email, password, name, lastName, phone);
       if (res.success) {
-        setSuccess('¡Registro exitoso! Su cuenta está pendiente de aprobación por el administrador.');
+        setSuccess('¡Registro exitoso! Su solicitud ha sido enviada. Un administrador procesará su alta en la plataforma. Recibirá un aviso cuando pueda ingresar.');
         setName(''); setLastName(''); setPhone(''); setEmail(''); setPassword('');
-        setTimeout(() => {
-          setMode('LOGIN');
-          setSuccess('');
-        }, 5000);
       } else {
         setError(res.message || 'Error al registrarse');
       }
     } catch (err) {
       setError('Error de conexión al registrar');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+    setLoading(true);
+
+    try {
+      const res = await requestPasswordReset(email);
+      if (res.success) {
+        setSuccess(res.message || '');
+        setEmail('');
+      } else {
+        setError(res.message || 'Ocurrió un problema con la solicitud.');
+      }
+    } catch (err) {
+      setError('Error al procesar la solicitud.');
     } finally {
       setLoading(false);
     }
@@ -109,117 +109,179 @@ export const LoginScreen = () => {
 
         <div className="p-8 md:p-10 space-y-6">
           {error && (
-            <div className="bg-rose-50 border border-rose-100 text-rose-600 p-4 rounded-2xl text-xs font-bold flex items-center gap-3 animate-fadeIn">
-              <LucideShieldCheck size={18} className="shrink-0"/>
-              {error}
-            </div>
-          )}
-
-          {success && (
-            <div className="bg-emerald-50 border border-emerald-100 text-emerald-600 p-4 rounded-2xl text-xs font-bold flex items-center gap-3 animate-fadeIn">
-              <LucideCheckCircle size={18} className="shrink-0"/>
-              {success}
-            </div>
-          )}
-
-          <form onSubmit={mode === 'LOGIN' ? handleLogin : handleRegister} className="space-y-4">
-            
-            {mode === 'REGISTER' && (
-              <div className="grid grid-cols-2 gap-4 animate-fadeIn">
-                <div className="space-y-1">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Nombre</label>
-                  <input 
-                    type="text" 
-                    className="w-full p-4 bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold outline-none focus:ring-4 focus:ring-blue-50"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    required
-                    placeholder="Ej: Juan"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Apellido</label>
-                  <input 
-                    type="text" 
-                    className="w-full p-4 bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold outline-none focus:ring-4 focus:ring-blue-50"
-                    value={lastName}
-                    onChange={(e) => setLastName(e.target.value)}
-                    required
-                    placeholder="Ej: Pérez"
-                  />
-                </div>
-                <div className="col-span-2 space-y-1">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Teléfono de Contacto</label>
-                  <input 
-                    type="tel" 
-                    className="w-full p-4 bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold outline-none focus:ring-4 focus:ring-blue-50"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    required
-                    placeholder="+54 9..."
-                  />
-                </div>
+            <div className={`p-4 rounded-2xl text-xs font-bold flex items-center gap-3 animate-fadeIn border ${isPendingLogin ? 'bg-amber-50 border-amber-200 text-amber-700' : 'bg-rose-50 border-rose-100 text-rose-600'}`}>
+              {isPendingLogin ? <LucideShieldAlert size={20} className="shrink-0 animate-pulse"/> : <LucideShieldCheck size={18} className="shrink-0"/>}
+              <div className="flex-1">
+                {error}
+                {isPendingLogin && <p className="mt-1 text-[10px] font-black opacity-60 uppercase italic tracking-widest">Sincronización de seguridad activa</p>}
               </div>
-            )}
+            </div>
+          )}
 
-            <div className="space-y-1">
-              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Correo Electrónico</label>
-              <input 
-                type="email" 
-                className="w-full p-4 bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold outline-none focus:ring-4 focus:ring-blue-50 transition-all"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                autoComplete="email"
-                placeholder="usuario@empresa.com"
-              />
+          {success ? (
+            <div className="space-y-6 animate-fadeIn">
+                <div className="bg-emerald-50 border-2 border-emerald-100 text-emerald-600 p-6 rounded-[2rem] text-sm font-bold flex flex-col items-center text-center gap-4">
+                    <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center shadow-inner"><LucideCheckCircle size={32}/></div>
+                    <div>
+                        <p className="font-black uppercase tracking-tighter text-lg leading-tight mb-2">Solicitud Procesada</p>
+                        <p className="text-xs leading-relaxed opacity-80">{success}</p>
+                    </div>
+                </div>
+                <button 
+                    onClick={() => { setMode('LOGIN'); setSuccess(''); setError(''); }}
+                    className="w-full py-5 bg-slate-900 text-white rounded-[1.5rem] font-black uppercase text-xs tracking-widest shadow-xl hover:bg-slate-800 transition-all flex items-center justify-center gap-3"
+                >
+                    <LucideArrowLeft size={18}/> Volver al Login Inicial
+                </button>
             </div>
-            
-            <div className="space-y-1">
-              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Contraseña</label>
-              <input 
-                type="password" 
-                className="w-full p-4 bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold outline-none focus:ring-4 focus:ring-blue-50 transition-all"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                autoComplete="current-password"
-                placeholder="••••••••"
-              />
-            </div>
-            
-            <button 
-              type="submit" 
-              disabled={loading}
-              className={`w-full py-4 rounded-xl font-black text-xs uppercase tracking-widest shadow-xl transition-all transform active:scale-95 flex items-center justify-center gap-3 ${loading ? 'bg-slate-200 text-slate-400 cursor-wait' : 'bg-blue-600 text-white hover:bg-blue-700 shadow-blue-200'}`}
-            >
-              {loading ? (
-                <div className="w-5 h-5 border-2 border-slate-400 border-t-transparent rounded-full animate-spin"></div>
-              ) : mode === 'LOGIN' ? (
-                <><LucideLogIn size={18}/> Ingresar al Sistema</>
+          ) : (
+            <>
+              {mode === 'FORGOT' ? (
+                <form onSubmit={handleForgotPassword} className="space-y-4 animate-fadeIn">
+                  <div className="text-center mb-6">
+                    <LucideKeyRound size={48} className="mx-auto text-blue-600 mb-4 opacity-20"/>
+                    <h3 className="font-black uppercase italic text-slate-800">Recuperación de Acceso</h3>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Verificación por Auditoría Administrativa</p>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Correo Electrónico de su Cuenta</label>
+                    <input 
+                        type="email" 
+                        className="w-full p-4 bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold outline-none focus:ring-4 focus:ring-blue-50 transition-all"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        required
+                        placeholder="usuario@empresa.com"
+                    />
+                  </div>
+                  <button 
+                    type="submit" 
+                    disabled={loading}
+                    className="w-full py-5 bg-blue-600 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-xl hover:bg-blue-700 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
+                  >
+                    {loading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> : <><LucideShieldQuestion size={18}/> Solicitar Blanqueo</>}
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => { setMode('LOGIN'); setError(''); }}
+                    className="w-full text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-blue-600 py-2"
+                  >
+                    Cancelar y Volver
+                  </button>
+                </form>
               ) : (
-                <><LucideUserPlus size={18}/> Crear mi Cuenta</>
+                <form onSubmit={mode === 'LOGIN' ? handleLogin : handleRegister} className="space-y-4">
+                  
+                  {mode === 'REGISTER' && (
+                    <div className="grid grid-cols-2 gap-4 animate-fadeIn">
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Nombre</label>
+                        <input 
+                          type="text" 
+                          className="w-full p-4 bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold outline-none focus:ring-4 focus:ring-blue-50"
+                          value={name}
+                          onChange={(e) => setName(e.target.value)}
+                          required
+                          placeholder="Ej: Juan"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Apellido</label>
+                        <input 
+                          type="text" 
+                          className="w-full p-4 bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold outline-none focus:ring-4 focus:ring-blue-50"
+                          value={lastName}
+                          onChange={(e) => setLastName(e.target.value)}
+                          required
+                          placeholder="Ej: Pérez"
+                        />
+                      </div>
+                      <div className="col-span-2 space-y-1">
+                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Teléfono de Contacto</label>
+                        <input 
+                          type="tel" 
+                          className="w-full p-4 bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold outline-none focus:ring-4 focus:ring-blue-50"
+                          value={phone}
+                          onChange={(e) => setPhone(e.target.value)}
+                          required
+                          placeholder="+54 9..."
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Correo Electrónico</label>
+                    <input 
+                      type="email" 
+                      className="w-full p-4 bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold outline-none focus:ring-4 focus:ring-blue-50 transition-all"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                      autoComplete="email"
+                      placeholder="usuario@empresa.com"
+                    />
+                  </div>
+                  
+                  <div className="space-y-1">
+                    <div className="flex justify-between items-center ml-2">
+                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Contraseña</label>
+                      {mode === 'LOGIN' && (
+                        <button 
+                            type="button"
+                            onClick={() => setMode('FORGOT')}
+                            className="text-[8px] font-black text-blue-600 uppercase hover:underline"
+                        >
+                            ¿Olvidó su clave?
+                        </button>
+                      )}
+                    </div>
+                    <input 
+                      type="password" 
+                      className="w-full p-4 bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold outline-none focus:ring-4 focus:ring-blue-50 transition-all"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      autoComplete="current-password"
+                      placeholder="••••••••"
+                    />
+                  </div>
+                  
+                  <button 
+                    type="submit" 
+                    disabled={loading}
+                    className={`w-full py-4 rounded-xl font-black text-xs uppercase tracking-widest shadow-xl transition-all transform active:scale-95 flex items-center justify-center gap-3 ${loading ? 'bg-slate-200 text-slate-400 cursor-wait' : 'bg-blue-600 text-white hover:bg-blue-700 shadow-blue-200'}`}
+                  >
+                    {loading ? (
+                      <div className="w-5 h-5 border-2 border-slate-400 border-t-transparent rounded-full animate-spin"></div>
+                    ) : mode === 'LOGIN' ? (
+                      <><LucideLogIn size={18}/> Ingresar al Sistema</>
+                    ) : (
+                      <><LucideUserPlus size={18}/> Crear mi Cuenta</>
+                    )}
+                  </button>
+                </form>
               )}
-            </button>
-          </form>
-          
-          <div className="pt-6 border-t border-slate-100 text-center">
-            {mode === 'LOGIN' ? (
-              <button 
-                onClick={() => setMode('REGISTER')}
-                className="text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-blue-600 transition-colors flex items-center justify-center gap-2 mx-auto"
-              >
-                ¿No tienes cuenta? <span className="text-blue-600">Regístrate aquí</span>
-              </button>
-            ) : (
-              <button 
-                onClick={() => setMode('LOGIN')}
-                className="text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-blue-600 transition-colors flex items-center justify-center gap-2 mx-auto"
-              >
-                <LucideArrowLeft size={14}/> Volver al Inicio de Sesión
-              </button>
-            )}
-          </div>
+              
+              <div className="pt-6 border-t border-slate-100 text-center">
+                {mode === 'LOGIN' ? (
+                  <button 
+                    onClick={() => { setMode('REGISTER'); setError(''); setIsPendingLogin(false); }}
+                    className="text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-blue-600 transition-colors flex items-center justify-center gap-2 mx-auto"
+                  >
+                    ¿No tienes cuenta? <span className="text-blue-600">Regístrate aquí</span>
+                  </button>
+                ) : mode === 'REGISTER' ? (
+                  <button 
+                    onClick={() => { setMode('LOGIN'); setError(''); setIsPendingLogin(false); }}
+                    className="text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-blue-600 transition-colors flex items-center justify-center gap-2 mx-auto"
+                  >
+                    <LucideArrowLeft size={14}/> Volver al Inicio de Sesión
+                  </button>
+                ) : null}
+              </div>
+            </>
+          )}
         </div>
       </div>
 

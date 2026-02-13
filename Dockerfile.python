@@ -1,4 +1,0 @@
-WORKDIR /app
-COPY dist ./dist
-COPY server.py .
-CMD ["python", "server.py"]

@@ -1,12 +1,11 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Vehicle, User, ServiceRequest, Checklist, AuditLog, ServiceStage, VehicleStatus, UserRole } from '../types';
 
-// Se eliminan los MOCK_VEHICLES para iniciar la app limpia
 const MOCK_VEHICLES: Vehicle[] = [];
 
 const MOCK_USERS: User[] = [
-  { id: "admin@controlflota.com", email: "admin@controlflota.com", nombre: "ADMIN", apellido: "SISTEMA", name: "ADMIN SISTEMA", telefono: "000000000", role: UserRole.ADMIN, estado: "activo", approved: true, fechaRegistro: new Date().toISOString(), intentosFallidos: 0, centroCosto: { id: "1", nombre: "CENTRAL", codigo: "001" }, level: 3, rolesSecundarios: [], notificaciones: { email: true, push: false, whatsapp: false }, creadoPor: "system", fechaCreacion: new Date().toISOString(), actualizadoPor: "system", fechaActualizacion: new Date().toISOString(), eliminado: false },
-  { id: "alewilczek@gmail.com", email: "alewilczek@gmail.com", nombre: "ALE", apellido: "WILCZEK", name: "ALE WILCZEK", telefono: "123456789", role: UserRole.ADMIN, estado: "activo", approved: true, fechaRegistro: new Date().toISOString(), intentosFallidos: 0, centroCosto: { id: "1", nombre: "CENTRAL", codigo: "001" }, level: 3, rolesSecundarios: [], notificaciones: { email: true, push: false, whatsapp: false }, creadoPor: "system", fechaCreacion: new Date().toISOString(), actualizadoPor: "system", fechaActualizacion: new Date().toISOString(), eliminado: false }
+  { id: "admin@controlflota.com", email: "admin@controlflota.com", nombre: "ADMIN", apellido: "SISTEMA", name: "ADMIN SISTEMA", telefono: "000000000", role: UserRole.ADMIN, estado: "activo", approved: true, fechaRegistro: new Date().toISOString(), intentosFallidos: 0, centroCosto: { id: "1", nombre: "CENTRAL", codigo: "001" }, costCenter: "CENTRAL", level: 3, rolesSecundarios: [], notificaciones: { email: true, push: false, whatsapp: false }, creadoPor: "system", fechaCreacion: new Date().toISOString(), actualizadoPor: "system", fechaActualizacion: new Date().toISOString(), eliminado: false },
+  { id: "alewilczek@gmail.com", email: "alewilczek@gmail.com", nombre: "ALE", apellido: "WILCZEK", name: "ALE WILCZEK", telefono: "123456789", role: UserRole.ADMIN, estado: "activo", approved: true, fechaRegistro: new Date().toISOString(), intentosFallidos: 0, centroCosto: { id: "1", nombre: "CENTRAL", codigo: "001" }, costCenter: "CENTRAL", level: 3, rolesSecundarios: [], notificaciones: { email: true, push: false, whatsapp: false }, creadoPor: "system", fechaCreacion: new Date().toISOString(), actualizadoPor: "system", fechaActualizacion: new Date().toISOString(), eliminado: false }
 ];
 
 interface FleetContextType {
@@ -14,6 +13,7 @@ interface FleetContextType {
   users: User[];
   serviceRequests: ServiceRequest[];
   checklists: Checklist[];
+  costCenters: string[]; // NUEVO: Lista global
   addVehicle: (v: Vehicle) => Promise<void>;
   updateVehicle: (v: Vehicle) => Promise<void>;
   bulkUpsertVehicles: (vs: Vehicle[]) => Promise<void>;
@@ -21,6 +21,8 @@ interface FleetContextType {
   addUser: (user: User) => Promise<void>;
   updateUser: (user: User) => Promise<void>;
   deleteUser: (id: string) => Promise<void>;
+  addCostCenter: (name: string) => void; // NUEVO
+  removeCostCenter: (name: string) => void; // NUEVO
   addServiceRequest: (r: ServiceRequest) => Promise<void>;
   updateServiceRequest: (r: ServiceRequest) => Promise<void>;
   updateServiceStage: (serviceId: string, stage: ServiceStage, comment: string) => Promise<void>;
@@ -38,6 +40,7 @@ interface FleetContextType {
   login: (email: string, pass: string) => Promise<{success: boolean, message?: string}>;
   logout: () => Promise<void>;
   register: (email: string, pass: string, name: string, lastName: string, phone: string) => Promise<{success: boolean, message?: string}>;
+  requestPasswordReset: (email: string) => Promise<{success: boolean, message?: string}>;
   addNotification: (message: string, type?: 'error' | 'success' | 'warning') => void;
   refreshData: () => Promise<void>;
   logAudit: (action: string, type: AuditLog['entityType'], id: string, details: string) => Promise<void>;
@@ -57,6 +60,7 @@ const FleetContext = createContext<FleetContextType | undefined>(undefined);
 export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  const [costCenters, setCostCenters] = useState<string[]>([]);
   const [serviceRequests, setServiceRequests] = useState<ServiceRequest[]>([]);
   const [checklists, setChecklists] = useState<Checklist[]>([]);
   const [loading, setLoading] = useState(true);
@@ -72,23 +76,22 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   useEffect(() => {
     const savedVehicles = localStorage.getItem('fp_vehicles');
     const savedUsers = localStorage.getItem('fp_users');
+    const savedCC = localStorage.getItem('fp_cost_centers');
     const savedRequests = localStorage.getItem('fp_requests');
     const savedChecklists = localStorage.getItem('fp_checklists');
     const currentUser = localStorage.getItem('fp_currentUser');
 
-    if (savedVehicles) {
-      setVehicles(JSON.parse(savedVehicles));
-    } else {
-      // Solo cargar mocks si no hay nada guardado en absoluto
-      setVehicles(MOCK_VEHICLES);
-      localStorage.setItem('fp_vehicles', JSON.stringify(MOCK_VEHICLES));
-    }
+    if (savedVehicles) setVehicles(JSON.parse(savedVehicles));
+    else { setVehicles(MOCK_VEHICLES); localStorage.setItem('fp_vehicles', JSON.stringify(MOCK_VEHICLES)); }
 
-    if (savedUsers) {
-      setUsers(JSON.parse(savedUsers));
-    } else {
-      setUsers(MOCK_USERS);
-      localStorage.setItem('fp_users', JSON.stringify(MOCK_USERS));
+    if (savedUsers) setUsers(JSON.parse(savedUsers));
+    else { setUsers(MOCK_USERS); localStorage.setItem('fp_users', JSON.stringify(MOCK_USERS)); }
+
+    if (savedCC) setCostCenters(JSON.parse(savedCC));
+    else { 
+        const initialCC = ["CENTRAL", "LOGÍSTICA", "OPERACIONES", "MANTENIMIENTO"];
+        setCostCenters(initialCC);
+        localStorage.setItem('fp_cost_centers', JSON.stringify(initialCC));
     }
 
     if (savedRequests) setServiceRequests(JSON.parse(savedRequests));
@@ -98,12 +101,27 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setLoading(false);
   }, []);
 
+  const addCostCenter = (name: string) => {
+    const upper = name.toUpperCase().trim();
+    if (!upper || costCenters.includes(upper)) return;
+    const newList = [...costCenters, upper].sort();
+    setCostCenters(newList);
+    localStorage.setItem('fp_cost_centers', JSON.stringify(newList));
+  };
+
+  const removeCostCenter = (name: string) => {
+    const newList = costCenters.filter(c => c !== name);
+    setCostCenters(newList);
+    localStorage.setItem('fp_cost_centers', JSON.stringify(newList));
+  };
+
   const addVehicle = async (vehicle: Vehicle) => {
     setVehicles(prev => {
       const newList = [...prev, vehicle];
       localStorage.setItem('fp_vehicles', JSON.stringify(newList));
       return newList;
     });
+    if (vehicle.costCenter) addCostCenter(vehicle.costCenter);
   };
 
   const updateVehicle = async (vehicle: Vehicle) => {
@@ -112,35 +130,24 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       localStorage.setItem('fp_vehicles', JSON.stringify(newList));
       return newList;
     });
+    if (vehicle.costCenter) addCostCenter(vehicle.costCenter);
   };
 
   const bulkUpsertVehicles = async (newVehicles: Vehicle[]) => {
     setVehicles(prev => {
       const vehicleMap = new Map<string, Vehicle>(prev.map(v => [v.plate.toUpperCase(), v] as [string, Vehicle]));
-      
       newVehicles.forEach(nv => {
         const plate = nv.plate.toUpperCase();
         if (vehicleMap.has(plate)) {
           const existing = vehicleMap.get(plate)!;
-          vehicleMap.set(plate, { 
-            ...existing, 
-            ...nv,
-            documents: existing.documents || nv.documents,
-            mileageHistory: existing.mileageHistory || nv.mileageHistory,
-            images: { ...existing.images, ...nv.images }
-          });
+          vehicleMap.set(plate, { ...existing, ...nv });
         } else {
           vehicleMap.set(plate, nv);
         }
+        if (nv.costCenter) addCostCenter(nv.costCenter);
       });
-
       const newList = Array.from(vehicleMap.values());
       localStorage.setItem('fp_vehicles', JSON.stringify(newList));
-      
-      const now = new Date().toISOString();
-      setLastBulkLoadDate(now);
-      localStorage.setItem('fp_last_bulk_load', now);
-      
       return newList;
     });
   };
@@ -155,7 +162,8 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const login = async (email: string, pass: string) => {
     const emailLower = email.toLowerCase().trim();
-    const found = users.find(u => u.email.toLowerCase() === emailLower);
+    const currentUsers = JSON.parse(localStorage.getItem('fp_users') || JSON.stringify(users));
+    const found = currentUsers.find((u: User) => u.email.toLowerCase() === emailLower);
     
     if (emailLower === 'alewilczek@gmail.com' && pass === 'Joaquin4') {
       const master = found || MOCK_USERS[1];
@@ -163,11 +171,8 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       localStorage.setItem('fp_currentUser', JSON.stringify(master));
       return { success: true };
     }
-
     if (found && (pass === 'Test123!' || pass === 'Joaquin4')) {
-      if (!found.approved) {
-        return { success: false, message: "Su cuenta está pendiente de aprobación." };
-      }
+      if (!found.approved) return { success: false, message: "Su solicitud de acceso aún no ha sido procesada por el Administrador. Por favor, intente más tarde." };
       setAuthenticatedUser(found);
       localStorage.setItem('fp_currentUser', JSON.stringify(found));
       return { success: true };
@@ -182,40 +187,33 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const register = async (email: string, pass: string, name: string, lastName: string, phone: string) => {
     const emailLower = email.toLowerCase().trim();
-    
-    if (users.some(u => u.email.toLowerCase() === emailLower)) {
-      return { success: false, message: "El email ya se encuentra registrado." };
-    }
+    const currentUsers = JSON.parse(localStorage.getItem('fp_users') || JSON.stringify(users));
+    if (currentUsers.some((u: User) => u.email.toLowerCase() === emailLower)) return { success: false, message: "Este correo ya se encuentra registrado en el sistema. ¿Olvidó su contraseña?" };
 
     const newUser: User = {
-        id: emailLower,
-        email: emailLower,
-        nombre: name.toUpperCase(),
-        apellido: lastName.toUpperCase(),
-        name: `${name} ${lastName}`.toUpperCase(),
-        telefono: phone,
-        role: UserRole.USER,
-        estado: 'pendiente',
-        approved: false,
-        fechaRegistro: new Date().toISOString(),
-        intentosFallidos: 0,
-        centroCosto: { id: "0", nombre: "PENDIENTE", codigo: "000" },
-        level: 1,
-        rolesSecundarios: [],
-        notificaciones: { email: true, push: false, whatsapp: false },
-        creadoPor: "self",
-        fechaCreacion: new Date().toISOString(),
-        actualizadoPor: "self",
-        fechaActualizacion: new Date().toISOString(),
-        eliminado: false
+        id: emailLower, email: emailLower, nombre: name.toUpperCase(), apellido: lastName.toUpperCase(),
+        name: `${name} ${lastName}`.toUpperCase(), telefono: phone, role: UserRole.USER, estado: 'pendiente',
+        approved: false, fechaRegistro: new Date().toISOString(), intentosFallidos: 0,
+        centroCosto: { id: "0", nombre: "PENDIENTE", codigo: "000" }, costCenter: "PENDIENTE",
+        level: 1, rolesSecundarios: [], notificaciones: { email: true, push: false, whatsapp: false },
+        creadoPor: "self", fechaCreacion: new Date().toISOString(), actualizadoPor: "self", fechaActualizacion: new Date().toISOString(), eliminado: false
     };
-
-    setUsers(prev => {
-        const newList = [...prev, newUser];
-        localStorage.setItem('fp_users', JSON.stringify(newList));
-        return newList;
-    });
+    const newList = [...currentUsers, newUser];
+    setUsers(newList);
+    localStorage.setItem('fp_users', JSON.stringify(newList));
     return { success: true };
+  };
+
+  const requestPasswordReset = async (email: string) => {
+    const emailLower = email.toLowerCase().trim();
+    const currentUsers = JSON.parse(localStorage.getItem('fp_users') || JSON.stringify(users));
+    const userIndex = currentUsers.findIndex((u: User) => u.email.toLowerCase() === emailLower);
+    if (userIndex === -1) return { success: false, message: "No se encontró ningún usuario con ese correo electrónico." };
+    currentUsers[userIndex].resetRequested = true;
+    currentUsers[userIndex].estado = 'pendiente';
+    setUsers([...currentUsers]);
+    localStorage.setItem('fp_users', JSON.stringify(currentUsers));
+    return { success: true, message: "Solicitud de reseteo enviada con éxito. Por seguridad, un administrador validará su identidad." };
   };
 
   const addNotification = (message: string, type: any = 'success') => {
@@ -229,27 +227,28 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     else setImpersonatedUser(users.find(u => u.id === userId) || null);
   };
 
-  const restoreGoldenMaster = async () => {
-      localStorage.clear();
-      window.location.reload();
-  };
+  const restoreGoldenMaster = async () => { localStorage.clear(); window.location.reload(); };
 
   const value: FleetContextType = {
-    vehicles, users, serviceRequests, checklists,
+    vehicles, users, serviceRequests, checklists, costCenters,
     addVehicle, updateVehicle, bulkUpsertVehicles, deleteVehicle,
-    addUser: async () => {}, updateUser: async (u) => {
+    addUser: async () => {}, 
+    updateUser: async (u) => {
       setUsers(prev => {
         const nl = prev.map(x => x.id === u.id ? u : x);
         localStorage.setItem('fp_users', JSON.stringify(nl));
         return nl;
       });
-    }, deleteUser: async (id) => {
+      if (u.costCenter) addCostCenter(u.costCenter);
+    }, 
+    deleteUser: async (id) => {
        setUsers(prev => {
         const nl = prev.filter(x => x.id !== id);
         localStorage.setItem('fp_users', JSON.stringify(nl));
         return nl;
       });
     },
+    addCostCenter, removeCostCenter,
     addServiceRequest: async (r) => {
       setServiceRequests(prev => {
         const nl = [...prev, r];
@@ -267,8 +266,7 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     updateServiceStage: async (id, stage, comment) => {
       setServiceRequests(prev => {
         const nl = prev.map(x => x.id === id ? {
-          ...x, 
-          stage, 
+          ...x, stage, 
           history: [...(x.history || []), { id: Date.now().toString(), date: new Date().toISOString(), userId: authenticatedUser?.id || 'sys', userName: authenticatedUser?.nombre || 'Sist', toStage: stage, comment }]
         } : x);
         localStorage.setItem('fp_requests', JSON.stringify(nl));
@@ -282,40 +280,21 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         return nl;
       });
     },
-    loading,
-    isDataLoading: loading,
-    error,
-    user: impersonatedUser || authenticatedUser,
-    authenticatedUser,
-    impersonatedUser,
-    registeredUsers: users,
-    isOnline: true,
-    auditLogs: [],
-    notifications,
-    login, logout, register,
-    addNotification,
-    refreshData: async () => {},
-    logAudit: async () => {},
-    impersonate,
-    masterFindingsImage,
-    setMasterFindingsImage: async (img) => setMasterFindingsImageState(img),
+    loading, isDataLoading: loading, error, user: impersonatedUser || authenticatedUser,
+    authenticatedUser, impersonatedUser, registeredUsers: users, isOnline: true, auditLogs: [],
+    notifications, login, logout, register, requestPasswordReset, addNotification,
+    refreshData: async () => {}, logAudit: async () => {}, impersonate,
+    masterFindingsImage, setMasterFindingsImage: async (img) => setMasterFindingsImageState(img),
     deleteDocument: async (plate, docId) => {
       setVehicles(prev => {
-        const nl = prev.map(v => {
-          if (v.plate === plate) {
-            return { ...v, documents: (v.documents || []).filter(d => d.id !== docId) };
-          }
-          return v;
-        });
+        const nl = prev.map(v => v.plate === plate ? { ...v, documents: (v.documents || []).filter(d => d.id !== docId) } : v);
         localStorage.setItem('fp_vehicles', JSON.stringify(nl));
         return nl;
       });
     },
     vehicleVersions: ["SRX PACK 4X4 AT", "EXTREME V6 AT", "LIMITED V6 4X4", "PRO-4X 4X4 AT", "FURGON 4325 XL", "Z.E. ELECTRIC 2A"],
-    documentTypes: docTypes,
-    addDocumentType: (type) => setDocTypes(prev => prev.includes(type) ? prev : [...prev, type]),
-    lastBulkLoadDate,
-    restoreGoldenMaster
+    documentTypes: docTypes, addDocumentType: (type) => setDocTypes(prev => prev.includes(type) ? prev : [...prev, type]),
+    lastBulkLoadDate, restoreGoldenMaster
   };
 
   return <FleetContext.Provider value={value}>{children}</FleetContext.Provider>;

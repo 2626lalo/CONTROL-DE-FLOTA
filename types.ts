@@ -32,6 +32,7 @@ export interface User {
   ultimoAcceso?: string;
   intentosFallidos: number;
   approved: boolean;
+  resetRequested?: boolean; // NUEVO: Flag para solicitud de reseteo
   centroCosto: {
     id: string;
     nombre: string;
