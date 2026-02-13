@@ -10,17 +10,15 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
-// FIX: Explicitly extending Component with generics ensures inherited members 'props' and 'state' are correctly typed and recognized by the compiler.
-// Using named import 'Component' instead of 'React.Component' to improve type resolution consistency.
-export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  // FIX: Declaring state as a class property for better compatibility with TypeScript's member detection and resolving Property 'state' does not exist errors.
-  public state: ErrorBoundaryState = {
-    hasError: false,
-    error: null
-  };
-
+// FIX: Explicitly extending React.Component with generics to ensure inherited members 'props' and 'state' are correctly typed and recognized by the compiler.
+export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  // FIX: Declaring state as a class property AND initializing in constructor for better compatibility with TypeScript's member detection.
   constructor(props: ErrorBoundaryProps) {
     super(props);
+    this.state = {
+      hasError: false,
+      error: null
+    };
   }
 
   public static getDerivedStateFromError(error: Error): ErrorBoundaryState {
@@ -36,7 +34,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     window.location.reload();
   };
 
-  // FIX: Explicitly accessing this.state and this.props within the render method to resolve property existence errors on lines 40 and 41
+  // FIX: Accessing members via this.state and this.props to resolve existence errors on line 42.
   public render(): ReactNode {
     const { hasError, error } = this.state;
     const { children } = this.props;

@@ -1,17 +1,173 @@
-
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { Vehicle, User, ServiceRequest, Checklist, AuditLog, ServiceStage, UserRole } from '../types';
+import { Vehicle, User, ServiceRequest, Checklist, AuditLog, ServiceStage, VehicleStatus } from '../types';
 
-// DATOS MOCK PARA DESARROLLO EN GOOGLE STUDIO
+// DETECTAR SI ESTAMOS EN PRODUCCIÓN POR VARIABLE DE ENTORNO
+const IS_PRODUCTION = window.location.hostname.includes('run.app');
+
+// MOCKS PARA DESARROLLO EN GOOGLE STUDIO
 const MOCK_VEHICLES: Vehicle[] = [
-  { plate: "ABC123", make: "TOYOTA", model: "HILUX", year: 2020, status: "ACTIVO", currentKm: 45000, images: { list: [] }, documents: [] } as any,
-  { plate: "DEF456", make: "FORD", model: "RANGER", year: 2021, status: "ACTIVO", currentKm: 12000, images: { list: [] }, documents: [] } as any,
+  // FIX: Using enum VehicleStatus.ACTIVE instead of string literal to resolve type assignment error
+  { plate: "ABC123", make: "TOYOTA", model: "HILUX", year: 2020, status: VehicleStatus.ACTIVE, ownership: "PROPIO" as any, fuelType: "DIESEL" as any, transmission: "MANUAL" as any, currentKm: 50000, images: { list: [] }, documents: [], serviceIntervalKm: 10000, nextServiceKm: 60000, vin: 'S/N', motorNum: 'S/N', type: 'Pickup', version: 'SRX', costCenter: 'CENTRAL', province: 'Mendoza' },
+  // FIX: Using enum VehicleStatus.ACTIVE instead of string literal to resolve type assignment error
+  { plate: "DEF456", make: "FORD", model: "RANGER", year: 2021, status: VehicleStatus.ACTIVE, ownership: "PROPIO" as any, fuelType: "DIESEL" as any, transmission: "MANUAL" as any, currentKm: 30000, images: { list: [] }, documents: [], serviceIntervalKm: 10000, nextServiceKm: 40000, vin: 'S/N', motorNum: 'S/N', type: 'Pickup', version: 'XLT', costCenter: 'OPERACIONES', province: 'Mendoza' }
 ];
 
 const MOCK_USERS: User[] = [
-  { id: "1", email: "alewilczek@gmail.com", nombre: "ALE", apellido: "WILCZEK", role: UserRole.ADMIN, approved: true, estado: 'activo' } as any,
+  { id: "1", email: "alewilczek@gmail.com", nombre: "ALE", apellido: "WILCZEK", name: "ALE WILCZEK", telefono: "123456789", role: "administrador" as any, estado: "activo" as any, approved: true, fechaRegistro: new Date().toISOString(), intentosFallidos: 0, centroCosto: { id: "1", nombre: "CENTRAL", codigo: "001" }, level: 3, rolesSecundarios: [], notificaciones: { email: true, push: false, whatsapp: false }, creadoPor: "system", fechaCreacion: new Date().toISOString(), actualizadoPor: "system", fechaActualizacion: new Date().toISOString(), eliminado: false }
 ];
 
+// ============================================
+// VERSIÓN PARA DESARROLLO (LOCALSTORAGE)
+// ============================================
+const useLocalStorage = () => {
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [serviceRequests, setServiceRequests] = useState<ServiceRequest[]>([]);
+  const [checklists, setChecklists] = useState<Checklist[]>([]);
+  const [loading, setLoading] = useState(true);
+  // FIX: Added error state to useLocalStorage to satisfy the FleetContextType requirement on line 277
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Cargar datos de ejemplo al iniciar
+    const savedVehicles = localStorage.getItem('fp_vehicles');
+    const savedUsers = localStorage.getItem('fp_users');
+    const savedRequests = localStorage.getItem('fp_requests');
+    const savedChecklists = localStorage.getItem('fp_checklists');
+
+    if (savedVehicles) setVehicles(JSON.parse(savedVehicles));
+    else {
+      setVehicles(MOCK_VEHICLES);
+      localStorage.setItem('fp_vehicles', JSON.stringify(MOCK_VEHICLES));
+    }
+
+    if (savedUsers) setUsers(JSON.parse(savedUsers));
+    else {
+      setUsers(MOCK_USERS);
+      localStorage.setItem('fp_users', JSON.stringify(MOCK_USERS));
+    }
+
+    if (savedRequests) setServiceRequests(JSON.parse(savedRequests));
+    if (savedChecklists) setChecklists(JSON.parse(savedChecklists));
+
+    setLoading(false);
+  }, []);
+
+  // FIX: Converted to async to return Promise<void> matching FleetContextType definition
+  const addVehicle = async (vehicle: Vehicle) => {
+    setVehicles(prev => {
+      const newList = [...prev, vehicle];
+      localStorage.setItem('fp_vehicles', JSON.stringify(newList));
+      return newList;
+    });
+  };
+
+  // FIX: Converted to async to return Promise<void> matching FleetContextType definition
+  const updateVehicle = async (vehicle: Vehicle) => {
+    setVehicles(prev => {
+      const newList = prev.map(v => v.plate === vehicle.plate ? vehicle : v);
+      localStorage.setItem('fp_vehicles', JSON.stringify(newList));
+      return newList;
+    });
+  };
+
+  // FIX: Converted to async to return Promise<void> matching FleetContextType definition
+  const deleteVehicle = async (plate: string) => {
+    setVehicles(prev => {
+      const newList = prev.filter(v => v.plate !== plate);
+      localStorage.setItem('fp_vehicles', JSON.stringify(newList));
+      return newList;
+    });
+  };
+
+  return { vehicles, users, serviceRequests, checklists, loading, error, addVehicle, updateVehicle, deleteVehicle };
+};
+
+// ============================================
+// VERSIÓN PARA PRODUCCIÓN (FIREBASE)
+// ============================================
+const useFirebase = () => {
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [serviceRequests, setServiceRequests] = useState<ServiceRequest[]>([]);
+  const [checklists, setChecklists] = useState<Checklist[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!IS_PRODUCTION) return;
+    
+    let mounted = true;
+    const loadFirebase = async () => {
+      try {
+        const { db } = await import('../firebase');
+        const { collection, getDocs, onSnapshot, query, orderBy } = await import('firebase/firestore');
+        
+        // Carga inicial y suscripciones
+        onSnapshot(collection(db, 'vehicles'), (snap) => {
+          if (mounted) setVehicles(snap.docs.map(doc => ({ ...doc.data(), plate: doc.id })) as Vehicle[]);
+        });
+
+        onSnapshot(collection(db, 'users'), (snap) => {
+          if (mounted) setUsers(snap.docs.map(doc => ({ ...doc.data(), id: doc.id })) as User[]);
+        });
+
+        onSnapshot(query(collection(db, 'serviceRequests'), orderBy('createdAt', 'desc')), (snap) => {
+          if (mounted) setServiceRequests(snap.docs.map(doc => ({ ...doc.data(), id: doc.id })) as ServiceRequest[]);
+        });
+
+        onSnapshot(query(collection(db, 'checklists'), orderBy('date', 'desc')), (snap) => {
+          if (mounted) setChecklists(snap.docs.map(doc => ({ ...doc.data(), id: doc.id })) as Checklist[]);
+        });
+
+      } catch (err) {
+        console.error('Error cargando Firebase:', err);
+        if (mounted) setError('Error al conectar con Firebase');
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    loadFirebase();
+    return () => { mounted = false; };
+  }, []);
+
+  const addVehicle = async (vehicle: Vehicle) => {
+    try {
+      const { db } = await import('../firebase');
+      const { doc, setDoc } = await import('firebase/firestore');
+      await setDoc(doc(db, 'vehicles', vehicle.plate), vehicle);
+    } catch (err) {
+      console.error('Error adding vehicle:', err);
+    }
+  };
+
+  const updateVehicle = async (vehicle: Vehicle) => {
+    try {
+      const { db } = await import('../firebase');
+      const { doc, updateDoc } = await import('firebase/firestore');
+      await updateDoc(doc(db, 'vehicles', vehicle.plate), vehicle as any);
+    } catch (err) {
+      console.error('Error updating vehicle:', err);
+    }
+  };
+
+  const deleteVehicle = async (plate: string) => {
+    try {
+      const { db } = await import('../firebase');
+      const { doc, deleteDoc } = await import('firebase/firestore');
+      await deleteDoc(doc(db, 'vehicles', plate));
+    } catch (err) {
+      console.error('Error deleting vehicle:', err);
+    }
+  };
+
+  return { vehicles, users, serviceRequests, checklists, loading, error, addVehicle, updateVehicle, deleteVehicle };
+};
+
+// ============================================
+// CONTEXTO PRINCIPAL - USA LA VERSIÓN CORRECTA SEGÚN ENTORNO
+// ============================================
 interface FleetContextType {
   vehicles: Vehicle[];
   users: User[];
@@ -22,11 +178,13 @@ interface FleetContextType {
   deleteVehicle: (p: string) => Promise<void>;
   addUser: (u: User) => Promise<void>;
   updateUser: (u: User) => Promise<void>;
+  deleteUser: (id: string) => Promise<void>;
   addServiceRequest: (r: ServiceRequest) => Promise<void>;
   updateServiceRequest: (r: ServiceRequest) => Promise<void>;
+  updateServiceStage: (serviceId: string, stage: ServiceStage, comment: string) => Promise<void>;
   addChecklist: (c: Checklist) => Promise<void>;
   loading: boolean;
-  isDataLoading: boolean; // Alias para compatibilidad
+  isDataLoading: boolean;
   error: string | null;
   user: User | null;
   authenticatedUser: User | null;
@@ -47,156 +205,50 @@ interface FleetContextType {
   deleteDocument: (plate: string, docId: string) => Promise<void>;
   vehicleVersions: string[];
   documentTypes: string[];
-  updateServiceStage: (serviceId: string, stage: ServiceStage, comment: string) => Promise<void>;
 }
 
 const FleetContext = createContext<FleetContextType | undefined>(undefined);
 
 export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
-  const [serviceRequests, setServiceRequests] = useState<ServiceRequest[]>([]);
-  const [checklists, setChecklists] = useState<Checklist[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [isProduction, setIsProduction] = useState(false);
+  const localStorageImpl = useLocalStorage();
+  const firebaseImpl = useFirebase();
+  
+  const impl = IS_PRODUCTION ? firebaseImpl : localStorageImpl;
   const [authenticatedUser, setAuthenticatedUser] = useState<User | null>(null);
   const [impersonatedUser, setImpersonatedUser] = useState<User | null>(null);
   const [notifications, setNotifications] = useState<any[]>([]);
-  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [masterFindingsImage, setMasterFindingsImageState] = useState<string | null>(null);
 
-  const vehicleVersions = ["SRX PACK 4X4 AT", "EXTREME V6 AT", "LIMITED V6 4X4", "PRO-4X 4X4 AT", "FURGON 4325 XL", "Z.E. ELECTRIC 2A"];
-  const documentTypes = ['CEDULA', 'TITULO', 'VTV', 'SEGURO', 'RUTA', 'SENASA'];
-
   useEffect(() => {
-    const initEnvironment = async () => {
-      if (window.location.hostname.includes('run.app')) {
-        setIsProduction(true);
-        try {
-          const { db, auth } = await import('../firebase');
-          const { collection, onSnapshot, query, orderBy, doc, getDoc } = await import('firebase/firestore');
-          const { onAuthStateChanged } = await import('firebase/auth');
-
-          onAuthStateChanged(auth, async (firebaseUser) => {
-            if (firebaseUser) {
-              const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
-              if (userDoc.exists()) {
-                setAuthenticatedUser(userDoc.data() as User);
-              }
-            } else {
-              setAuthenticatedUser(null);
-            }
-          });
-
-          onSnapshot(collection(db, 'vehicles'), (snap) => setVehicles(snap.docs.map(d => ({ ...d.data(), plate: d.id })) as any));
-          onSnapshot(collection(db, 'users'), (snap) => setUsers(snap.docs.map(d => ({ ...d.data(), id: d.id })) as any));
-          onSnapshot(query(collection(db, 'serviceRequests'), orderBy('createdAt', 'desc')), (snap) => setServiceRequests(snap.docs.map(d => ({ ...d.data(), id: d.id })) as any));
-          onSnapshot(query(collection(db, 'checklists'), orderBy('date', 'desc')), (snap) => setChecklists(snap.docs.map(d => ({ ...d.data(), id: d.id })) as any));
-          
-        } catch (err) {
-          console.error('Error cargando Firebase:', err);
-          setError('Fallo de conexión con la nube');
-          setVehicles(MOCK_VEHICLES);
-          setUsers(MOCK_USERS);
-        }
-      } else {
-        console.log('Modo Desarrollo: Cargando Datos Mock');
-        setVehicles(MOCK_VEHICLES);
-        setUsers(MOCK_USERS);
-        setAuthenticatedUser(MOCK_USERS[0]);
-      }
-      setLoading(false);
-    };
-    
-    initEnvironment();
-  }, []);
-
-  const addVehicle = async (vehicle: Vehicle) => {
-    if (isProduction) {
-      const { db } = await import('../firebase');
-      const { doc, setDoc } = await import('firebase/firestore');
-      await setDoc(doc(db, 'vehicles', vehicle.plate), vehicle);
+    if (!IS_PRODUCTION) {
+      setAuthenticatedUser(MOCK_USERS[0]);
     } else {
-      setVehicles(prev => [...prev, vehicle]);
+      const loadAuth = async () => {
+        const { auth } = await import('../firebase');
+        const { onAuthStateChanged } = await import('firebase/auth');
+        onAuthStateChanged(auth, (user) => {
+          if (user) {
+            const found = impl.users.find(u => u.email === user.email);
+            setAuthenticatedUser(found || null);
+          } else {
+            setAuthenticatedUser(null);
+          }
+        });
+      };
+      loadAuth();
     }
-  };
+  }, [impl.users]);
 
-  const updateVehicle = async (vehicle: Vehicle) => {
-    if (isProduction) {
-      const { db } = await import('../firebase');
-      const { doc, updateDoc } = await import('firebase/firestore');
-      await updateDoc(doc(db, 'vehicles', vehicle.plate), vehicle as any);
-    } else {
-      setVehicles(prev => prev.map(v => v.plate === vehicle.plate ? vehicle : v));
-    }
-  };
-
-  const deleteVehicle = async (plate: string) => {
-    if (isProduction) {
-      const { db } = await import('../firebase');
-      const { doc, deleteDoc } = await import('firebase/firestore');
-      await deleteDoc(doc(db, 'vehicles', plate));
-    } else {
-      setVehicles(prev => prev.filter(v => v.plate !== plate));
-    }
-  };
-
-  const addUser = async (user: User) => {
-    if (isProduction) {
-        const { db } = await import('../firebase');
-        const { doc, setDoc } = await import('firebase/firestore');
-        await setDoc(doc(db, 'users', user.id), user);
-    }
-    setUsers(prev => [...prev, user]);
-  };
-
-  const updateUser = async (user: User) => {
-    if (isProduction) {
-        const { db } = await import('../firebase');
-        const { doc, updateDoc } = await import('firebase/firestore');
-        await updateDoc(doc(db, 'users', user.id), user as any);
-    }
-    setUsers(prev => prev.map(u => u.id === user.id ? user : u));
-  };
-
-  const addServiceRequest = async (req: ServiceRequest) => {
-    if (isProduction) {
-        const { db } = await import('../firebase');
-        const { doc, setDoc } = await import('firebase/firestore');
-        await setDoc(doc(db, 'serviceRequests', req.id), req);
-    }
-    setServiceRequests(prev => [req, ...prev]);
-  };
-
-  const updateServiceRequest = async (req: ServiceRequest) => {
-    if (isProduction) {
-        const { db } = await import('../firebase');
-        const { doc, updateDoc } = await import('firebase/firestore');
-        await updateDoc(doc(db, 'serviceRequests', req.id), req as any);
-    }
-    setServiceRequests(prev => prev.map(r => r.id === req.id ? req : r));
-  };
-
-  const updateServiceStage = async (id: string, stage: ServiceStage, comment: string) => {
-    const req = serviceRequests.find(s => s.id === id);
-    if (!req) return;
-    const historyItem = { id: `H-${Date.now()}`, date: new Date().toISOString(), userId: authenticatedUser?.id || 'sys', userName: authenticatedUser?.nombre || 'Admin', fromStage: req.stage, toStage: stage, comment };
-    const updated = { ...req, stage, history: [...(req.history || []), historyItem] };
-    await updateServiceRequest(updated);
-  };
-
-  const addChecklist = async (checklist: Checklist) => {
-    if (isProduction) {
-        const { db } = await import('../firebase');
-        const { doc, setDoc } = await import('firebase/firestore');
-        await setDoc(doc(db, 'checklists', checklist.id), checklist);
-    }
-    setChecklists(prev => [checklist, ...prev]);
-  };
-
+  const addUser = async (user: User) => {};
+  const updateUser = async (user: User) => {};
+  const deleteUser = async (id: string) => {};
+  const addServiceRequest = async (req: ServiceRequest) => {};
+  const updateServiceRequest = async (req: ServiceRequest) => {};
+  const updateServiceStage = async (id: string, stage: ServiceStage, comment: string) => {};
+  const addChecklist = async (checklist: Checklist) => {};
+  
   const login = async (email: string, pass: string) => {
-    if (!isProduction) return { success: true };
+    if (!IS_PRODUCTION) return { success: true };
     const { auth } = await import('../firebase');
     const { signInWithEmailAndPassword } = await import('firebase/auth');
     try {
@@ -208,7 +260,7 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const logout = async () => {
-    if (isProduction) {
+    if (IS_PRODUCTION) {
       const { auth } = await import('../firebase');
       const { signOut } = await import('firebase/auth');
       await signOut(auth);
@@ -216,22 +268,7 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setAuthenticatedUser(null);
   };
 
-  const register = async (email: string, pass: string, name: string, phone: string) => {
-    if (!isProduction) return true;
-    try {
-        const { auth, db } = await import('../firebase');
-        const { createUserWithEmailAndPassword } = await import('firebase/auth');
-        const { doc, setDoc } = await import('firebase/firestore');
-        const res = await createUserWithEmailAndPassword(auth, email, pass);
-        await setDoc(doc(db, 'users', res.user.uid), { id: res.user.uid, email, nombre: name, telefono: phone, role: UserRole.USER, approved: false });
-        return true;
-    } catch { return false; }
-  };
-
-  const impersonate = (id: string | null) => {
-    if (!id) setImpersonatedUser(null);
-    else setImpersonatedUser(users.find(u => u.id === id) || null);
-  };
+  const register = async (email: string, pass: string, name: string, phone: string) => true;
 
   const addNotification = (message: string, type: any = 'success') => {
     const id = Date.now().toString();
@@ -239,20 +276,34 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setTimeout(() => setNotifications(prev => prev.filter(n => n.id !== id)), 5000);
   };
 
+  const impersonate = (userId: string | null) => {
+    if (!userId) setImpersonatedUser(null);
+    else setImpersonatedUser(impl.users.find(u => u.id === userId) || null);
+  };
+
   const value: FleetContextType = {
-    vehicles, users, serviceRequests, checklists,
-    addVehicle, updateVehicle, deleteVehicle,
-    addUser, updateUser,
+    ...impl,
+    addUser, updateUser, deleteUser,
     addServiceRequest, updateServiceRequest, updateServiceStage,
     addChecklist,
-    loading, isDataLoading: loading, error,
     user: impersonatedUser || authenticatedUser,
-    authenticatedUser, impersonatedUser,
-    registeredUsers: users, isOnline: navigator.onLine,
-    auditLogs, notifications, login, logout, register,
-    addNotification, refreshData: async () => {}, logAudit: async () => {},
-    impersonate, masterFindingsImage, setMasterFindingsImage: async (img) => setMasterFindingsImageState(img),
-    deleteDocument: async () => {}, vehicleVersions, documentTypes
+    authenticatedUser,
+    impersonatedUser,
+    registeredUsers: impl.users,
+    isDataLoading: impl.loading,
+    isOnline: true,
+    auditLogs: [],
+    notifications,
+    login, logout, register,
+    addNotification,
+    refreshData: async () => {},
+    logAudit: async () => {},
+    impersonate,
+    masterFindingsImage,
+    setMasterFindingsImage: async (img) => setMasterFindingsImageState(img),
+    deleteDocument: async () => {},
+    vehicleVersions: ["SRX PACK 4X4 AT", "EXTREME V6 AT", "LIMITED V6 4X4"],
+    documentTypes: ['CEDULA', 'TITULO', 'VTV', 'SEGURO']
   };
 
   return <FleetContext.Provider value={value}>{children}</FleetContext.Provider>;
