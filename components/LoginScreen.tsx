@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { UserRole } from '../types';
 import { useApp } from '../context/FleetContext';
-import { LucideUserPlus, LucideLogIn, LucideArrowLeft, LucideCheckCircle, LucideShieldCheck, LucideShieldAlert, LucideTimer, LucideKeyRound, LucideShieldQuestion } from 'lucide-react';
+import { LucideUserPlus, LucideLogIn, LucideArrowLeft, LucideCheckCircle, LucideShieldCheck, LucideShieldAlert, LucideTimer, LucideKeyRound, LucideShieldQuestion, LucideClock } from 'lucide-react';
 
 export const LoginScreen = () => {
   const { register, login, requestPasswordReset } = useApp();
@@ -30,7 +30,8 @@ export const LoginScreen = () => {
       if (res.success) {
         navigate('/');
       } else {
-        if (res.message?.includes('procesada')) {
+        // Detectar si el mensaje indica que la cuenta no está aprobada
+        if (res.message?.toLowerCase().includes('procesada') || res.message?.toLowerCase().includes('aguarde')) {
             setIsPendingLogin(true);
         }
         setError(res.message || 'Credenciales incorrectas');
@@ -46,18 +47,25 @@ export const LoginScreen = () => {
     e.preventDefault();
     setError('');
     setSuccess('');
-    setLoading(true);
+    
+    // Validación de teléfono numérico
+    const isNumeric = /^\d+$/.test(phone);
+    if (!isNumeric) {
+      setError('El número de teléfono debe contener solo dígitos numéricos');
+      return;
+    }
 
     if (password.length < 6) {
       setError('La contraseña debe tener al menos 6 caracteres');
-      setLoading(false);
       return;
     }
+
+    setLoading(true);
 
     try {
       const res = await register(email, password, name, lastName, phone);
       if (res.success) {
-        setSuccess('¡Registro exitoso! Su solicitud ha sido enviada. Un administrador procesará su alta en la plataforma. Recibirá un aviso cuando pueda ingresar.');
+        setSuccess('¡Registro recibido con éxito! Su solicitud ha sido enviada al Administrador Principal. Por normas de seguridad corporativa, deberá esperar a que su identidad sea validada para poder ingresar.');
         setName(''); setLastName(''); setPhone(''); setEmail(''); setPassword('');
       } else {
         setError(res.message || 'Error al registrarse');
@@ -109,11 +117,15 @@ export const LoginScreen = () => {
 
         <div className="p-8 md:p-10 space-y-6">
           {error && (
-            <div className={`p-4 rounded-2xl text-xs font-bold flex items-center gap-3 animate-fadeIn border ${isPendingLogin ? 'bg-amber-50 border-amber-200 text-amber-700' : 'bg-rose-50 border-rose-100 text-rose-600'}`}>
-              {isPendingLogin ? <LucideShieldAlert size={20} className="shrink-0 animate-pulse"/> : <LucideShieldCheck size={18} className="shrink-0"/>}
+            <div className={`p-4 rounded-2xl text-xs font-bold flex items-center gap-3 animate-fadeIn border ${isPendingLogin ? 'bg-amber-50 border-amber-200 text-amber-700 shadow-amber-100 shadow-lg' : 'bg-rose-50 border-rose-100 text-rose-600'}`}>
+              {isPendingLogin ? <LucideClock size={24} className="shrink-0 animate-pulse text-amber-600"/> : <LucideShieldAlert size={20} className="shrink-0"/>}
               <div className="flex-1">
                 {error}
-                {isPendingLogin && <p className="mt-1 text-[10px] font-black opacity-60 uppercase italic tracking-widest">Sincronización de seguridad activa</p>}
+                {isPendingLogin && (
+                    <p className="mt-1 text-[9px] font-black opacity-60 uppercase italic tracking-widest border-t border-amber-200 pt-1">
+                        Estatus: Pendiente de Aprobación
+                    </p>
+                )}
               </div>
             </div>
           )}
@@ -121,17 +133,17 @@ export const LoginScreen = () => {
           {success ? (
             <div className="space-y-6 animate-fadeIn">
                 <div className="bg-emerald-50 border-2 border-emerald-100 text-emerald-600 p-6 rounded-[2rem] text-sm font-bold flex flex-col items-center text-center gap-4">
-                    <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center shadow-inner"><LucideCheckCircle size={32}/></div>
+                    <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center shadow-inner animate-pulse"><LucideShieldCheck size={32}/></div>
                     <div>
-                        <p className="font-black uppercase tracking-tighter text-lg leading-tight mb-2">Solicitud Procesada</p>
+                        <p className="font-black uppercase tracking-tighter text-lg leading-tight mb-2">Solicitud en Auditoría</p>
                         <p className="text-xs leading-relaxed opacity-80">{success}</p>
                     </div>
                 </div>
                 <button 
-                    onClick={() => { setMode('LOGIN'); setSuccess(''); setError(''); }}
+                    onClick={() => { setMode('LOGIN'); setSuccess(''); setError(''); setIsPendingLogin(false); }}
                     className="w-full py-5 bg-slate-900 text-white rounded-[1.5rem] font-black uppercase text-xs tracking-widest shadow-xl hover:bg-slate-800 transition-all flex items-center justify-center gap-3"
                 >
-                    <LucideArrowLeft size={18}/> Volver al Login Inicial
+                    <LucideArrowLeft size={18}/> Entendido, volver al Inicio
                 </button>
             </div>
           ) : (
@@ -204,7 +216,7 @@ export const LoginScreen = () => {
                           value={phone}
                           onChange={(e) => setPhone(e.target.value)}
                           required
-                          placeholder="+54 9..."
+                          placeholder="Ej: 2612345678"
                         />
                       </div>
                     </div>

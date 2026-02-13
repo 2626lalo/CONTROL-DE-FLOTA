@@ -13,7 +13,7 @@ interface FleetContextType {
   users: User[];
   serviceRequests: ServiceRequest[];
   checklists: Checklist[];
-  costCenters: string[]; // NUEVO: Lista global
+  costCenters: string[]; 
   addVehicle: (v: Vehicle) => Promise<void>;
   updateVehicle: (v: Vehicle) => Promise<void>;
   bulkUpsertVehicles: (vs: Vehicle[]) => Promise<void>;
@@ -21,8 +21,8 @@ interface FleetContextType {
   addUser: (user: User) => Promise<void>;
   updateUser: (user: User) => Promise<void>;
   deleteUser: (id: string) => Promise<void>;
-  addCostCenter: (name: string) => void; // NUEVO
-  removeCostCenter: (name: string) => void; // NUEVO
+  addCostCenter: (name: string) => void;
+  removeCostCenter: (name: string) => void;
   addServiceRequest: (r: ServiceRequest) => Promise<void>;
   updateServiceRequest: (r: ServiceRequest) => Promise<void>;
   updateServiceStage: (serviceId: string, stage: ServiceStage, comment: string) => Promise<void>;
@@ -171,12 +171,20 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       localStorage.setItem('fp_currentUser', JSON.stringify(master));
       return { success: true };
     }
-    if (found && (pass === 'Test123!' || pass === 'Joaquin4')) {
-      if (!found.approved) return { success: false, message: "Su solicitud de acceso aún no ha sido procesada por el Administrador. Por favor, intente más tarde." };
-      setAuthenticatedUser(found);
-      localStorage.setItem('fp_currentUser', JSON.stringify(found));
-      return { success: true };
+
+    if (found) {
+       // Prioridad: Informar si no está aprobado ANTES de validar contraseña para flujo solicitado
+       if (!found.approved) {
+           return { success: false, message: "Su solicitud de acceso aún no ha sido procesada por el Administrador Principal. Por favor, aguarde la validación de identidad." };
+       }
+       
+       if (pass === found.password || pass === 'Test123!' || pass === 'Joaquin4') {
+           setAuthenticatedUser(found);
+           localStorage.setItem('fp_currentUser', JSON.stringify(found));
+           return { success: true };
+       }
     }
+    
     return { success: false, message: "Credenciales incorrectas." };
   };
 
@@ -193,6 +201,7 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const newUser: User = {
         id: emailLower, email: emailLower, nombre: name.toUpperCase(), apellido: lastName.toUpperCase(),
         name: `${name} ${lastName}`.toUpperCase(), telefono: phone, role: UserRole.USER, estado: 'pendiente',
+        password: pass, // Guardamos la contraseña para permitir el login posterior
         approved: false, fechaRegistro: new Date().toISOString(), intentosFallidos: 0,
         centroCosto: { id: "0", nombre: "PENDIENTE", codigo: "000" }, costCenter: "PENDIENTE",
         level: 1, rolesSecundarios: [], notificaciones: { email: true, push: false, whatsapp: false },

@@ -171,7 +171,7 @@ const MasterListView = ({
 );
 
 // --- COMPONENTE DE PERMISOS GRANULARES ---
-const PermissionsManager = ({ user, onUpdate }: { user: User, onUpdate: (u: User) => void }) => {
+const PermissionsManager: React.FC<{ user: User, onUpdate: (u: User) => void }> = ({ user, onUpdate }) => {
   const [localUser, setLocalUser] = useState<User>(user);
   const [isModified, setIsModified] = useState(false);
 
@@ -307,7 +307,6 @@ const PermissionsManager = ({ user, onUpdate }: { user: User, onUpdate: (u: User
                 </table>
             </div>
             
-            {/* BOTÓN DE CONFIRMACIÓN DE CAMBIOS EN MATRIZ */}
             <div className="p-8 bg-slate-50 border-t border-slate-100 flex justify-end">
                 <button 
                     onClick={handleConfirmChanges}
@@ -330,6 +329,7 @@ export const UserManagement = () => {
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [tempPass, setTempPass] = useState('');
   const [showCCDropdown, setShowCCDropdown] = useState(false);
+  const [phoneError, setPhoneError] = useState('');
   
   const [selectedUserIdForPerms, setSelectedUserIdForPerms] = useState<string>('');
 
@@ -368,6 +368,16 @@ export const UserManagement = () => {
 
   const handleSaveDraft = () => {
     if (!draftUser) return;
+    
+    // VALIDACIÓN: Teléfono numérico
+    const isNumeric = /^\d+$/.test(draftUser.telefono || '');
+    if (!isNumeric && draftUser.telefono) {
+        setPhoneError('El teléfono debe contener solo números');
+        addNotification("Error de validación: El teléfono debe ser numérico", "error");
+        return;
+    }
+    setPhoneError('');
+
     const finalUser = { 
         ...draftUser, 
         resetRequested: false, 
@@ -377,7 +387,7 @@ export const UserManagement = () => {
     updateUser(finalUser);
     if (draftUser.costCenter) addCostCenter(draftUser.costCenter);
     setShowDetailModal(false);
-    addNotification("Ficha de usuario sincronizada", "success");
+    addNotification("Ficha de usuario sincronizada y actualizada", "success");
   };
 
   const handleManualReset = () => {
@@ -436,7 +446,7 @@ export const UserManagement = () => {
                 users={filteredUsers} 
                 query={searchQuery} 
                 onQueryChange={setSearchQuery} 
-                onSelectUser={(u) => { setDraftUser(u); setShowDetailModal(true); setTempPass(''); }} 
+                onSelectUser={(u) => { setDraftUser(u); setShowDetailModal(true); setTempPass(''); setPhoneError(''); }} 
                 isMainAdmin={isMainAdmin}
                 onImpersonate={impersonate}
             />
@@ -572,7 +582,8 @@ export const UserManagement = () => {
                                         </div>
                                         <div className="space-y-1">
                                             <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-4">Teléfono de Contacto</p>
-                                            <input className="w-full p-4 bg-slate-50 border border-slate-100 rounded-xl font-bold text-xs outline-none focus:bg-white focus:border-blue-500" value={draftUser.telefono || ''} onChange={e => setDraftUser({...draftUser, telefono: e.target.value})} />
+                                            <input className={`w-full p-4 border rounded-xl font-bold text-xs outline-none transition-all ${phoneError ? 'bg-rose-50 border-rose-500' : 'bg-slate-50 border-slate-100 focus:bg-white focus:border-blue-500'}`} value={draftUser.telefono || ''} onChange={e => setDraftUser({...draftUser, telefono: e.target.value})} />
+                                            {phoneError && <p className="text-[8px] font-black text-rose-500 ml-4 uppercase">{phoneError}</p>}
                                         </div>
                                     </div>
                                 </div>
