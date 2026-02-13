@@ -1,0 +1,6 @@
+FROM nginx:alpine
+COPY dist.tar.gz /tmp/
+RUN tar -xzf /tmp/dist.tar.gz -C /usr/share/nginx/html --strip-components=1
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+EXPOSE 8080
+CMD ["nginx", "-g", "daemon off;"]
