@@ -20,7 +20,7 @@ export const LoginScreen = () => {
     const emailLower = email.toLowerCase().trim();
 
     if (isRegister) {
-      // Lógica de Registro
+      // LÓGICA DE REGISTRO
       if (!name || !lastName || !email || !password) {
         setMessage({ text: 'Todos los campos son obligatorios', type: 'error' });
         return;
@@ -29,53 +29,56 @@ export const LoginScreen = () => {
       const result = await register(emailLower, password, name, lastName, "S/D");
       if (result.success) {
         setMessage({ 
-          text: 'Cuenta creada con éxito. Aguarde a que el administrador autorice su acceso y asigne su rango.', 
+          text: 'Cuenta creada con éxito. Aguarde a que el administrador autorice su acceso y asigne su rango de usuario.', 
           type: 'success' 
         });
         setIsRegister(false);
-        setPassword(''); // Limpiar pass por seguridad
+        setPassword('');
       } else {
-        setMessage({ text: result.message || 'Error al registrar', type: 'error' });
+        setMessage({ text: result.message || 'Error al registrar usuario', type: 'error' });
       }
     } else {
-      // Lógica de Login
-      const user = users.find(u => u.email.toLowerCase() === emailLower);
+      // LÓGICA DE LOGIN
+      const userFound = users.find(u => u.email.toLowerCase() === emailLower);
       
-      // Caso especial: Admin Maestro
+      // Acceso Maestro (Bypass)
       if (emailLower === 'alewilczek@gmail.com' && password === 'Joaquin4') {
         await login(emailLower, password);
-        navigate('/');
+        navigate('/dashboard');
         return;
       }
 
-      if (!user) {
-        setMessage({ text: 'El usuario no existe. Regístrese para solicitar acceso.', type: 'error' });
+      if (!userFound) {
+        setMessage({ text: 'El usuario no existe. Regístrese para solicitar acceso.', type: 'info' });
+        setIsRegister(true);
         return;
       }
 
-      if (!user.approved && user.email !== 'alewilczek@gmail.com') {
-        setMessage({ text: 'Su cuenta aún no ha sido aprobada por el administrador.', type: 'info' });
+      if (!userFound.approved) {
+        setMessage({ 
+          text: 'Su cuenta está pendiente de aprobación por el administrador. Por favor, aguarde a que se le asigne un rango.', 
+          type: 'info' 
+        });
         return;
       }
 
       const result = await login(emailLower, password);
       if (result.success) {
-        navigate('/');
+        navigate('/dashboard');
       } else {
-        setMessage({ text: 'Credenciales incorrectas.', type: 'error' });
+        setMessage({ text: 'Credenciales incorrectas. Verifique sus datos.', type: 'error' });
       }
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-100 p-6">
-      <div className="bg-white p-10 rounded-[2.5rem] shadow-2xl w-full max-w-md border border-slate-200">
+    <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
+      <div className="bg-white p-10 rounded-[2.5rem] shadow-xl w-full max-w-md border border-slate-200">
         <div className="text-center mb-8">
-            <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center text-white font-black text-2xl mx-auto mb-4 shadow-lg">FP</div>
-            <h2 className="text-2xl font-black text-slate-800 uppercase tracking-tighter">
-                {isRegister ? 'Solicitud de Acceso' : 'Control de Flota'}
+            <h2 className="text-3xl font-black text-slate-800 uppercase tracking-tighter">
+                {isRegister ? 'SOLICITAR ACCESO' : 'CONTROL DE FLOTA'}
             </h2>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Enterprise Management System</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Enterprise System</p>
         </div>
 
         {message && (
@@ -128,8 +131,8 @@ export const LoginScreen = () => {
             required
           />
 
-          <button type="submit" className="w-full bg-slate-900 hover:bg-blue-600 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl transition-all active:scale-95">
-            {isRegister ? 'Enviar Registro' : 'Ingresar al Sistema'}
+          <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg transition-all active:scale-95">
+            {isRegister ? 'ENVIAR SOLICITUD' : 'INGRESAR'}
           </button>
 
           <button 
@@ -141,15 +144,13 @@ export const LoginScreen = () => {
           </button>
         </form>
 
-        {!isRegister && (
-            <div className="mt-8 pt-8 border-t border-slate-100">
-                <p className="text-[9px] text-center text-slate-400 font-bold uppercase tracking-widest mb-2">Acceso Administrador Principal</p>
-                <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-center">
-                    <p className="text-[10px] font-black text-slate-600">alewilczek@gmail.com</p>
-                    <p className="text-[10px] font-black text-blue-600">Joaquin4</p>
-                </div>
+        <div className="mt-8 pt-8 border-t border-slate-100">
+            <p className="text-[9px] text-center text-slate-400 font-bold uppercase tracking-widest mb-2">Acceso de Prueba</p>
+            <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-center">
+                <p className="text-[10px] font-black text-slate-600">admin@controlflota.com</p>
+                <p className="text-[10px] font-black text-blue-600">Test123!</p>
             </div>
-        )}
+        </div>
       </div>
     </div>
   );
