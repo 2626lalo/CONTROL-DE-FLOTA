@@ -1053,7 +1053,7 @@ export const TestSector = () => {
                             <LucideShieldCheck size={24}/> Confirmar Agendamiento y Notificar
                         </button>
                     </div>
-
+ 
                     {/* MAPA ESTILO LOCAL GPS */}
                     <div className="bg-white p-6 rounded-[3.5rem] shadow-2xl border border-slate-100 space-y-6 flex flex-col h-[600px] lg:h-auto">
                         <div className="flex justify-between items-center px-4">
