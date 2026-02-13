@@ -1,3 +1,4 @@
+import * as XLSX from "xlsx";
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/FleetContext';
 import { User, UserRole, Vehicle, OwnershipType, FuelType, TransmissionType, VehicleStatus } from '../types';

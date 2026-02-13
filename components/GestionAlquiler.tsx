@@ -1,3 +1,4 @@
+import * as XLSX from "xlsx";
 import React, { useState, useMemo } from 'react';
 import { 
   LucideTrendingUp, LucideCalendar, LucideDollarSign, LucideHistory, LucideX, 
