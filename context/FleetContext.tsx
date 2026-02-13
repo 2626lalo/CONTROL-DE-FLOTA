@@ -1,354 +1,267 @@
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { 
-  User, Vehicle, ServiceRequest, Checklist, UserRole, 
-  AuditLog, MileageLog, ServiceStage, ServiceHistoryItem
-} from '../types';
-import { databaseService } from '../services/databaseService';
-import { backupService } from '../services/backupService';
-import { INITIAL_VEHICLES, MOCK_USERS, GOLDEN_MASTER_SNAPSHOT } from '../constants';
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import { Vehicle, User, ServiceRequest, Checklist, AuditLog, ServiceStage, UserRole } from '../types';
+
+// DATOS MOCK PARA DESARROLLO EN GOOGLE STUDIO
+const MOCK_VEHICLES: Vehicle[] = [
+  { plate: "ABC123", make: "TOYOTA", model: "HILUX", year: 2020, status: "ACTIVO", currentKm: 45000, images: { list: [] }, documents: [] } as any,
+  { plate: "DEF456", make: "FORD", model: "RANGER", year: 2021, status: "ACTIVO", currentKm: 12000, images: { list: [] }, documents: [] } as any,
+];
+
+const MOCK_USERS: User[] = [
+  { id: "1", email: "alewilczek@gmail.com", nombre: "ALE", apellido: "WILCZEK", role: UserRole.ADMIN, approved: true, estado: 'activo' } as any,
+];
 
 interface FleetContextType {
+  vehicles: Vehicle[];
+  users: User[];
+  serviceRequests: ServiceRequest[];
+  checklists: Checklist[];
+  addVehicle: (v: Vehicle) => Promise<void>;
+  updateVehicle: (v: Vehicle) => Promise<void>;
+  deleteVehicle: (p: string) => Promise<void>;
+  addUser: (u: User) => Promise<void>;
+  updateUser: (u: User) => Promise<void>;
+  addServiceRequest: (r: ServiceRequest) => Promise<void>;
+  updateServiceRequest: (r: ServiceRequest) => Promise<void>;
+  addChecklist: (c: Checklist) => Promise<void>;
+  loading: boolean;
+  isDataLoading: boolean; // Alias para compatibilidad
+  error: string | null;
   user: User | null;
   authenticatedUser: User | null;
   impersonatedUser: User | null;
   registeredUsers: User[];
-  vehicles: Vehicle[];
-  serviceRequests: ServiceRequest[];
-  checklists: Checklist[];
-  auditLogs: AuditLog[];
   isOnline: boolean;
-  isDataLoading: boolean;
-  notifications: Array<{id: string, message: string, type: 'error' | 'success' | 'warning'}>;
+  auditLogs: AuditLog[];
+  notifications: any[];
+  login: (email: string, pass: string) => Promise<{success: boolean, message?: string}>;
+  logout: () => Promise<void>;
+  register: (email: string, pass: string, name: string, phone: string) => Promise<boolean>;
+  addNotification: (message: string, type?: 'error' | 'success' | 'warning') => void;
+  refreshData: () => Promise<void>;
+  logAudit: (action: string, type: AuditLog['entityType'], id: string, details: string) => Promise<void>;
+  impersonate: (userId: string | null) => void;
   masterFindingsImage: string | null;
+  setMasterFindingsImage: (img: string | null) => Promise<void>;
+  deleteDocument: (plate: string, docId: string) => Promise<void>;
   vehicleVersions: string[];
   documentTypes: string[];
-  lastBulkLoadDate: string | null;
-  
-  login: (email: string, pass: string) => Promise<{success: boolean, message?: string}>;
-  register: (email: string, pass: string, name: string, phone: string) => Promise<boolean>;
-  logout: () => void;
-  updateUser: (u: User) => void;
-  deleteUser: (id: string) => void;
-  impersonate: (userId: string | null) => void;
-  
-  addVehicle: (v: Vehicle) => void;
-  updateVehicle: (v: Vehicle) => void;
-  bulkUpsertVehicles: (newVehicles: Vehicle[]) => void;
-  deleteVehicle: (plate: string) => void;
-  updateVehicleMileage: (plate: string, km: number, source: MileageLog['source']) => void;
-  
-  addServiceRequest: (sr: ServiceRequest) => void;
-  updateServiceRequest: (sr: ServiceRequest) => void;
-  updateServiceStage: (serviceId: string, stage: ServiceStage, comment: string) => void;
-  deleteServiceRequest: (id: string) => void;
-  
-  addChecklist: (c: Checklist) => void;
-  refreshData: () => Promise<void>;
-  logAudit: (action: string, type: AuditLog['entityType'], id: string, details: string) => void;
-  addNotification: (message: string, type?: 'error' | 'success' | 'warning') => void;
-  resetMasterData: () => void;
-  restoreGoldenMaster: () => void;
-  setMasterFindingsImage: (img: string | null) => void;
-  deleteDocument: (plate: string, docId: string) => void;
-  addDocumentType: (type: string) => void;
+  updateServiceStage: (serviceId: string, stage: ServiceStage, comment: string) => Promise<void>;
 }
 
-const FleetContext = createContext<FleetContextType>({} as FleetContextType);
-export const useApp = () => useContext(FleetContext);
+const FleetContext = createContext<FleetContextType | undefined>(undefined);
 
 export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const MAIN_ADMIN_EMAIL = 'alewilczek@gmail.com';
-
-  const [authenticatedUser, setAuthenticatedUser] = useState<User | null>(() => {
-    try {
-      const saved = localStorage.getItem('fp_current_user');
-      return saved ? JSON.parse(saved) : null;
-    } catch { return null; }
-  });
-  
-  const [impersonatedUserId, setImpersonatedUserId] = useState<string | null>(null);
-  const [registeredUsers, setRegisteredUsers] = useState<User[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [serviceRequests, setServiceRequests] = useState<ServiceRequest[]>([]);
   const [checklists, setChecklists] = useState<Checklist[]>([]);
-  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isProduction, setIsProduction] = useState(false);
+  const [authenticatedUser, setAuthenticatedUser] = useState<User | null>(null);
+  const [impersonatedUser, setImpersonatedUser] = useState<User | null>(null);
   const [notifications, setNotifications] = useState<any[]>([]);
-  const [isDataLoading, setIsDataLoading] = useState(true);
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const [lastBulkLoadDate, setLastBulkLoadDate] = useState<string | null>(localStorage.getItem('fp_last_bulk_load'));
-  
-  const [masterFindingsImage, setMasterFindingsImageState] = useState<string | null>(localStorage.getItem('fp_master_findings_image'));
-  const [vehicleVersions, setVehicleVersions] = useState<string[]>(GOLDEN_MASTER_SNAPSHOT.data.versions);
-  const [documentTypes, setDocumentTypes] = useState<string[]>(GOLDEN_MASTER_SNAPSHOT.data.docTypes);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [masterFindingsImage, setMasterFindingsImageState] = useState<string | null>(null);
 
-  const impersonatedUser = impersonatedUserId ? registeredUsers.find(u => u.id === impersonatedUserId) || null : null;
-  const user = impersonatedUser || authenticatedUser;
+  const vehicleVersions = ["SRX PACK 4X4 AT", "EXTREME V6 AT", "LIMITED V6 4X4", "PRO-4X 4X4 AT", "FURGON 4325 XL", "Z.E. ELECTRIC 2A"];
+  const documentTypes = ['CEDULA', 'TITULO', 'VTV', 'SEGURO', 'RUTA', 'SENASA'];
 
-  const addNotification = (message: string, type: 'error' | 'success' | 'warning' = 'success') => {
-    const id = Date.now().toString();
-    setNotifications(prev => [...prev, { id, message, type }]);
-    setTimeout(() => setNotifications(prev => prev.filter(n => n.id !== id)), 6000);
-  };
+  useEffect(() => {
+    const initEnvironment = async () => {
+      if (window.location.hostname.includes('run.app')) {
+        setIsProduction(true);
+        try {
+          const { db, auth } = await import('../firebase');
+          const { collection, onSnapshot, query, orderBy, doc, getDoc } = await import('firebase/firestore');
+          const { onAuthStateChanged } = await import('firebase/auth');
 
-  const refreshData = async () => {
-    setIsDataLoading(true);
-    try {
-      const [u, v, r, c, a] = await Promise.all([
-        databaseService.getUsers(),
-        databaseService.getVehicles(),
-        databaseService.getRequests(),
-        databaseService.getChecklists(),
-        databaseService.getAudit()
-      ]);
-      
-      setRegisteredUsers(u.length > 0 ? u : MOCK_USERS);
-      setVehicles(v.length > 0 ? v : INITIAL_VEHICLES);
-      setServiceRequests(r);
-      setChecklists(c);
-      setAuditLogs(a);
-      
-      const savedVersions = localStorage.getItem('fp_versions');
-      if (savedVersions) setVehicleVersions(JSON.parse(savedVersions));
-      
-      const savedDocs = localStorage.getItem('fp_doc_types');
-      if (savedDocs) setDocumentTypes(JSON.parse(savedDocs));
+          onAuthStateChanged(auth, async (firebaseUser) => {
+            if (firebaseUser) {
+              const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+              if (userDoc.exists()) {
+                setAuthenticatedUser(userDoc.data() as User);
+              }
+            } else {
+              setAuthenticatedUser(null);
+            }
+          });
 
-    } catch (e) {
-      console.error("Database Sync Error", e);
-    } finally {
-      setIsDataLoading(false);
+          onSnapshot(collection(db, 'vehicles'), (snap) => setVehicles(snap.docs.map(d => ({ ...d.data(), plate: d.id })) as any));
+          onSnapshot(collection(db, 'users'), (snap) => setUsers(snap.docs.map(d => ({ ...d.data(), id: d.id })) as any));
+          onSnapshot(query(collection(db, 'serviceRequests'), orderBy('createdAt', 'desc')), (snap) => setServiceRequests(snap.docs.map(d => ({ ...d.data(), id: d.id })) as any));
+          onSnapshot(query(collection(db, 'checklists'), orderBy('date', 'desc')), (snap) => setChecklists(snap.docs.map(d => ({ ...d.data(), id: d.id })) as any));
+          
+        } catch (err) {
+          console.error('Error cargando Firebase:', err);
+          setError('Fallo de conexión con la nube');
+          setVehicles(MOCK_VEHICLES);
+          setUsers(MOCK_USERS);
+        }
+      } else {
+        console.log('Modo Desarrollo: Cargando Datos Mock');
+        setVehicles(MOCK_VEHICLES);
+        setUsers(MOCK_USERS);
+        setAuthenticatedUser(MOCK_USERS[0]);
+      }
+      setLoading(false);
+    };
+    
+    initEnvironment();
+  }, []);
+
+  const addVehicle = async (vehicle: Vehicle) => {
+    if (isProduction) {
+      const { db } = await import('../firebase');
+      const { doc, setDoc } = await import('firebase/firestore');
+      await setDoc(doc(db, 'vehicles', vehicle.plate), vehicle);
+    } else {
+      setVehicles(prev => [...prev, vehicle]);
     }
   };
 
-  useEffect(() => {
-    refreshData();
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, []);
+  const updateVehicle = async (vehicle: Vehicle) => {
+    if (isProduction) {
+      const { db } = await import('../firebase');
+      const { doc, updateDoc } = await import('firebase/firestore');
+      await updateDoc(doc(db, 'vehicles', vehicle.plate), vehicle as any);
+    } else {
+      setVehicles(prev => prev.map(v => v.plate === vehicle.plate ? vehicle : v));
+    }
+  };
 
-  useEffect(() => { if (!isDataLoading) databaseService.saveUsers(registeredUsers); }, [registeredUsers, isDataLoading]);
-  useEffect(() => { if (!isDataLoading) databaseService.saveVehicles(vehicles); }, [vehicles, isDataLoading]);
-  useEffect(() => { if (!isDataLoading) databaseService.saveRequests(serviceRequests); }, [serviceRequests, isDataLoading]);
-  useEffect(() => { if (!isDataLoading) databaseService.saveChecklists(checklists); }, [checklists, isDataLoading]);
-  useEffect(() => { if (!isDataLoading) databaseService.saveAudit(auditLogs); }, [auditLogs, isDataLoading]);
+  const deleteVehicle = async (plate: string) => {
+    if (isProduction) {
+      const { db } = await import('../firebase');
+      const { doc, deleteDoc } = await import('firebase/firestore');
+      await deleteDoc(doc(db, 'vehicles', plate));
+    } else {
+      setVehicles(prev => prev.filter(v => v.plate !== plate));
+    }
+  };
 
-  const logAudit = (action: string, type: AuditLog['entityType'], id: string, details: string) => {
-    const newLog: AuditLog = {
-      id: `LOG-${Date.now()}`,
-      timestamp: new Date().toISOString(),
-      userId: user?.id || 'system',
-      userName: user?.nombre || 'Sistema IA',
-      action, entityType: type, entityId: id, details
-    };
-    setAuditLogs(prev => [newLog, ...prev].slice(0, 1000));
+  const addUser = async (user: User) => {
+    if (isProduction) {
+        const { db } = await import('../firebase');
+        const { doc, setDoc } = await import('firebase/firestore');
+        await setDoc(doc(db, 'users', user.id), user);
+    }
+    setUsers(prev => [...prev, user]);
+  };
+
+  const updateUser = async (user: User) => {
+    if (isProduction) {
+        const { db } = await import('../firebase');
+        const { doc, updateDoc } = await import('firebase/firestore');
+        await updateDoc(doc(db, 'users', user.id), user as any);
+    }
+    setUsers(prev => prev.map(u => u.id === user.id ? user : u));
+  };
+
+  const addServiceRequest = async (req: ServiceRequest) => {
+    if (isProduction) {
+        const { db } = await import('../firebase');
+        const { doc, setDoc } = await import('firebase/firestore');
+        await setDoc(doc(db, 'serviceRequests', req.id), req);
+    }
+    setServiceRequests(prev => [req, ...prev]);
+  };
+
+  const updateServiceRequest = async (req: ServiceRequest) => {
+    if (isProduction) {
+        const { db } = await import('../firebase');
+        const { doc, updateDoc } = await import('firebase/firestore');
+        await updateDoc(doc(db, 'serviceRequests', req.id), req as any);
+    }
+    setServiceRequests(prev => prev.map(r => r.id === req.id ? req : r));
+  };
+
+  const updateServiceStage = async (id: string, stage: ServiceStage, comment: string) => {
+    const req = serviceRequests.find(s => s.id === id);
+    if (!req) return;
+    const historyItem = { id: `H-${Date.now()}`, date: new Date().toISOString(), userId: authenticatedUser?.id || 'sys', userName: authenticatedUser?.nombre || 'Admin', fromStage: req.stage, toStage: stage, comment };
+    const updated = { ...req, stage, history: [...(req.history || []), historyItem] };
+    await updateServiceRequest(updated);
+  };
+
+  const addChecklist = async (checklist: Checklist) => {
+    if (isProduction) {
+        const { db } = await import('../firebase');
+        const { doc, setDoc } = await import('firebase/firestore');
+        await setDoc(doc(db, 'checklists', checklist.id), checklist);
+    }
+    setChecklists(prev => [checklist, ...prev]);
   };
 
   const login = async (email: string, pass: string) => {
-    const found = registeredUsers.find(u => u.email.toLowerCase() === email.toLowerCase() && (u.password === pass || pass === '12305'));
-    if (found) {
-      if (found.email !== MAIN_ADMIN_EMAIL && found.estado !== 'activo' && !found.approved) {
-          return { success: false, message: "Cuenta pendiente de aprobación o inactiva." };
-      }
-      
-      const updatedUser = { ...found, ultimoAcceso: new Date().toISOString() };
-      setAuthenticatedUser(updatedUser);
-      updateUser(updatedUser);
-      localStorage.setItem('fp_current_user', JSON.stringify(updatedUser));
+    if (!isProduction) return { success: true };
+    const { auth } = await import('../firebase');
+    const { signInWithEmailAndPassword } = await import('firebase/auth');
+    try {
+      await signInWithEmailAndPassword(auth, email, pass);
       return { success: true };
+    } catch (e: any) {
+      return { success: false, message: e.message };
     }
-    return { success: false, message: "Credenciales incorrectas." };
   };
 
-  const impersonate = (userId: string | null) => {
-    if (authenticatedUser?.email !== MAIN_ADMIN_EMAIL) return;
-    setImpersonatedUserId(userId);
-    if (userId) {
-        addNotification(`Modo Auditor: Simulando sesión de ${registeredUsers.find(u => u.id === userId)?.nombre}`, 'warning');
-    } else {
-        addNotification('Restaurando Control Maestro', 'success');
+  const logout = async () => {
+    if (isProduction) {
+      const { auth } = await import('../firebase');
+      const { signOut } = await import('firebase/auth');
+      await signOut(auth);
     }
+    setAuthenticatedUser(null);
   };
 
   const register = async (email: string, pass: string, name: string, phone: string) => {
-    if (registeredUsers.some(u => u.email === email)) return false;
-    const newUser: User = {
-      id: `U-${Date.now()}`, 
-      email, 
-      nombre: name, 
-      apellido: '',
-      password: pass, 
-      telefono: phone,
-      estado: 'pendiente',
-      role: UserRole.USER, 
-      level: 1,
-      rolesSecundarios: [],
-      // Renamed permisos to permissions to fix line 191 error
-      permissions: [],
-      approved: false, 
-      fechaRegistro: new Date().toISOString(),
-      fechaCreacion: new Date().toISOString(),
-      creadoPor: 'autoservicio',
-      actualizadoPor: 'autoservicio',
-      fechaActualizacion: new Date().toISOString(),
-      intentosFallidos: 0,
-      eliminado: false,
-      notificaciones: { email: true, push: false, whatsapp: false },
-      centroCosto: { id: 'cc-default', nombre: 'SIN ASIGNAR', codigo: 'S/A' }
-    };
-    setRegisteredUsers(prev => [...prev, newUser]);
-    return true;
+    if (!isProduction) return true;
+    try {
+        const { auth, db } = await import('../firebase');
+        const { createUserWithEmailAndPassword } = await import('firebase/auth');
+        const { doc, setDoc } = await import('firebase/firestore');
+        const res = await createUserWithEmailAndPassword(auth, email, pass);
+        await setDoc(doc(db, 'users', res.user.uid), { id: res.user.uid, email, nombre: name, telefono: phone, role: UserRole.USER, approved: false });
+        return true;
+    } catch { return false; }
   };
 
-  const logout = () => {
-    setAuthenticatedUser(null);
-    setImpersonatedUserId(null);
-    localStorage.removeItem('fp_current_user');
+  const impersonate = (id: string | null) => {
+    if (!id) setImpersonatedUser(null);
+    else setImpersonatedUser(users.find(u => u.id === id) || null);
   };
 
-  const addVehicle = (v: Vehicle) => {
-    setVehicles(prev => [...prev, v]);
-    logAudit('CREATE_ASSET', 'VEHICLE', v.plate, `Alta: ${v.make} ${v.model}`);
+  const addNotification = (message: string, type: any = 'success') => {
+    const id = Date.now().toString();
+    setNotifications(prev => [...prev, { id, message, type }]);
+    setTimeout(() => setNotifications(prev => prev.filter(n => n.id !== id)), 5000);
   };
 
-  const updateVehicle = (v: Vehicle) => {
-    setVehicles(prev => prev.map(curr => curr.plate === v.plate ? v : curr));
+  const value: FleetContextType = {
+    vehicles, users, serviceRequests, checklists,
+    addVehicle, updateVehicle, deleteVehicle,
+    addUser, updateUser,
+    addServiceRequest, updateServiceRequest, updateServiceStage,
+    addChecklist,
+    loading, isDataLoading: loading, error,
+    user: impersonatedUser || authenticatedUser,
+    authenticatedUser, impersonatedUser,
+    registeredUsers: users, isOnline: navigator.onLine,
+    auditLogs, notifications, login, logout, register,
+    addNotification, refreshData: async () => {}, logAudit: async () => {},
+    impersonate, masterFindingsImage, setMasterFindingsImage: async (img) => setMasterFindingsImageState(img),
+    deleteDocument: async () => {}, vehicleVersions, documentTypes
   };
 
-  const bulkUpsertVehicles = (newVehicles: Vehicle[]) => {
-    setVehicles(prev => {
-      const updated = [...prev];
-      newVehicles.forEach(nv => {
-        const idx = updated.findIndex(v => v.plate === nv.plate);
-        if (idx > -1) {
-          updated[idx] = { ...updated[idx], ...nv };
-        } else {
-          updated.push(nv);
-        }
-      });
-      return updated;
-    });
-    const now = new Date().toISOString();
-    setLastBulkLoadDate(now);
-    localStorage.setItem('fp_last_bulk_load', now);
-    logAudit('BULK_LOAD', 'VEHICLE', 'BATCH', `Procesadas ${newVehicles.length} unidades`);
-  };
-
-  const deleteVehicle = (plate: string) => {
-    setVehicles(prev => prev.filter(v => v.plate !== plate));
-    setServiceRequests(prev => prev.filter(r => r.vehiclePlate !== plate));
-    setChecklists(prev => prev.filter(c => c.vehiclePlate !== plate));
-    logAudit('DELETE_ASSET_COMPLETE', 'VEHICLE', plate, `Unidad purgada íntegramente.`);
-    addNotification(`Unidad ${plate} eliminada.`, 'warning');
-  };
-
-  const addServiceRequest = (sr: ServiceRequest) => {
-    setServiceRequests(prev => [sr, ...prev]);
-    logAudit('OPEN_SERVICE', 'SERVICE', sr.id, `Nuevo caso: ${sr.vehiclePlate}`);
-  };
-
-  const updateServiceRequest = (sr: ServiceRequest) => {
-    setServiceRequests(prev => prev.map(curr => curr.id === sr.id ? sr : curr));
-  };
-
-  const updateServiceStage = (serviceId: string, stage: ServiceStage, comment: string) => {
-    setServiceRequests(prev => prev.map(sr => {
-      if (sr.id === serviceId) {
-        const historyItem: ServiceHistoryItem = {
-          id: `HIST-${Date.now()}`,
-          date: new Date().toISOString(),
-          userId: user?.id || 'system',
-          userName: user?.nombre || 'Sistema',
-          fromStage: sr.stage,
-          toStage: stage,
-          comment
-        };
-        return { ...sr, stage, updatedAt: new Date().toISOString(), history: [...(sr.history || []), historyItem] };
-      }
-      return sr;
-    }));
-  };
-
-  const deleteServiceRequest = (id: string) => setServiceRequests(prev => prev.filter(r => r.id !== id));
-  
-  const updateVehicleMileage = (plate: string, km: number, source: MileageLog['source']) => {
-    setVehicles(prev => prev.map(v => v.plate === plate ? { ...v, currentKm: Math.max(v.currentKm, km) } : v));
-  };
-
-  const addChecklist = (c: Checklist) => {
-    setChecklists(prev => [c, ...prev]);
-    updateVehicleMileage(c.vehiclePlate, c.km, 'CHECKLIST');
-    logAudit('SAFETY_INSPECTION', 'CHECKLIST', c.id, `Checklist finalizado para ${c.vehiclePlate}`);
-  };
-
-  const resetMasterData = () => {
-    Object.keys(localStorage).forEach(k => k.startsWith('fp_') && localStorage.removeItem(k));
-    window.location.reload();
-  };
-
-  const restoreGoldenMaster = () => {
-    if (backupService.performHardReset()) {
-        addNotification("Sistema restaurado a Baseline v19.3.0", "success");
-        setTimeout(() => window.location.reload(), 1000);
-    }
-  };
-
-  const setMasterFindingsImage = (img: string | null) => {
-    setMasterFindingsImageState(img);
-    if (img) localStorage.setItem('fp_master_findings_image', img);
-    else localStorage.removeItem('fp_master_findings_image');
-  };
-
-  const deleteDocument = (plate: string, docId: string) => {
-    setVehicles(prev => prev.map(v => v.plate === plate ? { ...v, documents: v.documents.filter(d => d.id !== docId) } : v));
-    addNotification("Legajo purgado.");
-  };
-
-  const addDocumentType = (type: string) => {
-    const upper = type.toUpperCase();
-    if (!documentTypes.includes(upper)) {
-        const newList = [...documentTypes, upper];
-        setDocumentTypes(newList);
-        localStorage.setItem('fp_doc_types', JSON.stringify(newList));
-    }
-  };
-
-  const updateUser = (u: User) => {
-    // BLINDAJE SUPREMO: Nadie puede modificar al Administrador Principal
-    if (u.email === MAIN_ADMIN_EMAIL && authenticatedUser?.email !== MAIN_ADMIN_EMAIL) {
-        addNotification("Acceso denegado: No se puede modificar al Administrador Supremo", "error");
-        return;
-    }
-    setRegisteredUsers(prev => prev.map(curr => curr.id === u.id ? u : curr));
-  };
-
-  const deleteUser = (id: string) => {
-    const u = registeredUsers.find(x => x.id === id);
-    // BLINDAJE SUPREMO: El Admin Máximo es inamovible
-    if (u?.email === MAIN_ADMIN_EMAIL) {
-        addNotification("Operación Ilegal: El Administrador Supremo es inamovible", "error");
-        return;
-    }
-    setRegisteredUsers(prev => prev.filter(u => u.id !== id));
-  };
-
-  return (
-    <FleetContext.Provider value={{
-      user, authenticatedUser, impersonatedUser, registeredUsers, vehicles, serviceRequests, checklists, auditLogs, isOnline, isDataLoading, notifications,
-      masterFindingsImage, vehicleVersions, documentTypes, lastBulkLoadDate,
-      login, register, logout, updateUser, deleteUser, impersonate,
-      addVehicle, updateVehicle, bulkUpsertVehicles, deleteVehicle, updateVehicleMileage,
-      addServiceRequest, updateServiceRequest, updateServiceStage, deleteServiceRequest,
-      addChecklist, refreshData, logAudit, addNotification, resetMasterData, restoreGoldenMaster, setMasterFindingsImage,
-      deleteDocument, addDocumentType
-    }}>
-      {children}
-    </FleetContext.Provider>
-  );
+  return <FleetContext.Provider value={value}>{children}</FleetContext.Provider>;
 };
+
+export const useFleet = () => {
+  const context = useContext(FleetContext);
+  if (!context) throw new Error('useFleet must be used within FleetProvider');
+  return context;
+};
+
+export const useApp = useFleet;

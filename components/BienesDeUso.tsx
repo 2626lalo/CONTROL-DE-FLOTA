@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { 
   LucideWarehouse, LucidePlus, LucideSearch, LucideFilter, 
@@ -9,19 +10,14 @@ import {
 export const BienesDeUso = () => {
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Mock data para Bienes de Uso
-  const mockBienes = [
-    { id: 'BU-001', nombre: 'Grupo Electrógeno 150kVA', categoria: 'Maquinaria', estado: 'Operativo', valor: 2500000, asignado: 'Planta Mendoza' },
-    { id: 'BU-002', nombre: 'Elevador Hidráulico 4T', categoria: 'Herramientas', estado: 'Mantenimiento', valor: 850000, asignado: 'Taller Central' },
-    { id: 'BU-003', nombre: 'Servidor Dell PowerEdge R740', categoria: 'IT', estado: 'Operativo', valor: 1200000, asignado: 'Data Center' },
-    { id: 'BU-004', nombre: 'Compresor Industrial de Aire', categoria: 'Maquinaria', estado: 'Operativo', valor: 450000, asignado: 'Logística Sur' },
-  ];
+  // Se inicializa vacío para producción
+  const mockBienes: any[] = [];
 
   const stats = [
-    { label: 'Total Activos', val: 142, icon: LucideBox, color: 'blue' },
-    { label: 'En Servicio', val: 128, icon: LucideShieldCheck, color: 'emerald' },
-    { label: 'Patrimonio Total', val: '$42.5M', icon: LucideDollarSign, color: 'indigo' },
-    { label: 'Pendiente Revisión', val: 5, icon: LucideWrench, color: 'rose' },
+    { label: 'Total Activos', val: 0, icon: LucideBox, color: 'blue' },
+    { label: 'En Servicio', val: 0, icon: LucideShieldCheck, color: 'emerald' },
+    { label: 'Patrimonio Total', val: '$0', icon: LucideDollarSign, color: 'indigo' },
+    { label: 'Pendiente Revisión', val: 0, icon: LucideWrench, color: 'rose' },
   ];
 
   return (
@@ -127,6 +123,14 @@ export const BienesDeUso = () => {
                   </td>
                 </tr>
               ))}
+              {mockBienes.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="py-24 text-center">
+                    <LucideBox size={48} className="mx-auto text-slate-100 mb-4"/>
+                    <p className="text-slate-300 font-black uppercase text-xs tracking-widest italic">No hay activos registrados en el inventario</p>
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -139,11 +143,11 @@ export const BienesDeUso = () => {
             <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-8">Proyección Gerencial de Activos</p>
             <div className="space-y-6">
               <div className="h-4 bg-white/5 rounded-full overflow-hidden p-1 border border-white/10">
-                <div className="h-full bg-blue-500 rounded-full w-2/3 shadow-lg shadow-blue-500/50"></div>
+                <div className="h-full bg-blue-500 rounded-full w-0 shadow-lg shadow-blue-500/50"></div>
               </div>
               <div className="flex justify-between text-[9px] font-black uppercase tracking-widest text-slate-500">
-                <span>Depreciación Acumulada: 64%</span>
-                <span className="text-white">Valor Residual: $15.3M</span>
+                <span>Depreciación Acumulada: 0%</span>
+                <span className="text-white">Valor Residual: $0</span>
               </div>
             </div>
           </div>
@@ -154,8 +158,8 @@ export const BienesDeUso = () => {
           <div className="space-y-6">
             <h4 className="text-lg font-black text-slate-800 uppercase italic tracking-tighter flex items-center gap-3"><LucideCalendar className="text-blue-600"/> Próxima Auditoría Patrimonial</h4>
             <div>
-              <p className="text-4xl font-black text-slate-900 leading-none">15 JUN</p>
-              <p className="text-[10px] text-slate-400 font-bold uppercase mt-2 tracking-widest">Relevamiento Físico Trimestral</p>
+              <p className="text-4xl font-black text-slate-900 leading-none">S/D</p>
+              <p className="text-[10px] text-slate-400 font-bold uppercase mt-2 tracking-widest">Relevamiento Físico Pendiente</p>
             </div>
           </div>
           <div className="p-8 bg-blue-50 text-blue-600 rounded-[2rem] shadow-inner">

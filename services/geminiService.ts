@@ -25,6 +25,7 @@ export const analyzeDocumentImage = async (base64: string, side: 'Frente' | 'Dor
     : "Analiza el DORSO de esta cédula vehicular. Extrae en JSON: titular (nombre y apellido de la persona), ownerAddress (dirección/domicilio), motorNum (motor), vin (chasis). IMPORTANTE: Si un dato no es legible o es genérico, NO lo incluyas para no sobreescribir datos previos.";
 
   try {
+    // FIX: Using 'gemini-3-flash-preview' for basic multimodal OCR tasks
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: [{
@@ -62,6 +63,7 @@ export const analyzeDocumentImage = async (base64: string, side: 'Frente' | 'Dor
 export const analyzeBudgetImage = async (base64: string, mimeType: string) => {
   const ai = getAiClient();
   try {
+    // FIX: Using 'gemini-3-flash-preview' for multimodal document analysis
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: [{
@@ -93,8 +95,9 @@ export const analyzeBudgetImage = async (base64: string, mimeType: string) => {
 export const getTechnicalAdvice = async (issue: string, vehicleInfo: string) => {
   const ai = getAiClient();
   try {
+    // FIX: Upgraded to 'gemini-3-pro-preview' for complex technical reasoning and STEM diagnostic tasks
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-3-pro-preview',
       contents: `Actúa como un experto mecánico jefe de flota corporativa. Analiza este problema reportado: "${issue}" para el vehículo: ${vehicleInfo}. 
       Proporciona un diagnóstico técnico preliminar, sugiere repuestos probables y califica la urgencia (Baja/Media/Alta/Crítica). 
       Responde en español de forma profesional y concisa.`
@@ -109,8 +112,9 @@ export const getTechnicalAdvice = async (issue: string, vehicleInfo: string) => 
 export const getFleetHealthReport = async (vehiclesData: string) => {
   const ai = getAiClient();
   try {
+    // FIX: Upgraded to 'gemini-3-pro-preview' for advanced managerial reasoning and fleet analysis tasks
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-3-pro-preview',
       contents: `Realiza un análisis gerencial de la salud de esta flota: ${vehiclesData}. 
       Identifica los 3 riesgos operativos principales (mantenimiento, legal/documental, antigüedad) y propón una acción correctiva prioritaria para el Fleet Manager.
       Utiliza un tono ejecutivo, profesional y estructurado en español.`

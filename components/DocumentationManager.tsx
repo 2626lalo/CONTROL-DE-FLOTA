@@ -78,7 +78,7 @@ export const DocumentationManager: React.FC<Props> = ({ vehiclePlate }) => {
   const handleDeleteDocInternal = (id: string, type: string) => {
     if (!selectedVehicle) return;
     if (window.confirm(`¿Desea eliminar permanentemente el legajo: ${type.toUpperCase()}?`)) {
-      deleteDocument(selectedVehicle.plate, id);
+      deleteDocument(selectedPlate!, id);
     }
   };
 
@@ -194,7 +194,6 @@ export const DocumentationManager: React.FC<Props> = ({ vehiclePlate }) => {
       currentY += 15;
     }
 
-    // FIX: Usar doc.save() en lugar de window.open(blob) para evitar errores de seguridad de Location.assign en sandboxes
     doc.save(`Dossier_${selectedVehicle.plate}_${Date.now()}.pdf`);
     setIsReportModalOpen(false);
     addNotification("Reporte PDF generado correctamente.", "success");

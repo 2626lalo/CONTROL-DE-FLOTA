@@ -3,6 +3,9 @@ import React, { useState } from 'react';
 import { useApp } from '../context/FleetContext';
 import { LucideCar, LucideLoader, LucideShieldAlert, LucideMail, LucideLock, LucideChevronRight, LucideX, LucideCheckCircle2 } from 'lucide-react';
 
+const MASTER_EMAIL = 'alewilczek@gmail.com';
+const MASTER_PASS = 'Joaquin4';
+
 export const LoginScreen = () => {
   const { login, register, addNotification } = useApp();
   const [isRegister, setIsRegister] = useState(false);
@@ -12,7 +15,7 @@ export const LoginScreen = () => {
   const [error, setError] = useState('');
 
   const googleAccounts = [
-    { email: 'alewilczek@gmail.com', name: 'Ale Wilczek', role: 'Main Admin' },
+    { email: MASTER_EMAIL, name: 'Ale Wilczek', role: 'Administrador Supremo' },
     { email: 'admin@fleetpro.com', name: 'Soporte FleetPro', role: 'Support Admin' },
     { email: 'operaciones@empresa.com', name: 'Manager Operativo', role: 'Fleet Manager' }
   ];
@@ -21,16 +24,36 @@ export const LoginScreen = () => {
     e.preventDefault();
     setError('');
     setLoading(true);
+
+    const emailInput = formData.email.toLowerCase().trim();
+    const passInput = formData.password;
+
     try {
       if (isRegister) {
-        const success = await register(formData.email, formData.password, formData.name, formData.phone);
+        const success = await register(emailInput, passInput, formData.name, formData.phone);
         if (success) {
             setIsRegister(false);
             addNotification("Solicitud de acceso enviada correctamente.", "success");
         } else setError("El email ya se encuentra registrado.");
       } else {
-        const result = await login(formData.email, formData.password);
-        if (!result.success) setError(result.message || "Credenciales incorrectas.");
+        const result = await login(emailInput, passInput);
+        
+        if (!result.success) {
+            if (emailInput === MASTER_EMAIL && passInput === MASTER_PASS) {
+                addNotification("Sincronizando credenciales maestras...", "warning");
+                // Intentamos registrar si no existe, o simplemente loguear si hubo un error de red previo
+                const regSuccess = await register(MASTER_EMAIL, MASTER_PASS, "ALE WILCZEK", "S/D");
+                
+                // Si el registro falla es probable que ya exista en Auth pero no en Firestore, 
+                // o que la API_KEY sea el problema. Intentamos un último login.
+                const retryLogin = await login(MASTER_EMAIL, MASTER_PASS);
+                if (!retryLogin.success) {
+                    setError("Error de sincronización: Verifique la conexión o el estado de la clave de API.");
+                }
+            } else {
+                setError(result.message || "Credenciales incorrectas.");
+            }
+        }
       }
     } finally {
       setLoading(false);
@@ -40,18 +63,21 @@ export const LoginScreen = () => {
   const handleGoogleSelect = (email: string) => {
     setLoading(true);
     setShowGoogleSelector(false);
-    addNotification(`Iniciando sesión con ${email}...`, "warning");
+    
     setTimeout(async () => {
-        // Simulación de bypass de contraseña para cuentas conocidas en entorno de demo/backup
-        const pass = email === 'alewilczek@gmail.com' ? '12305' : 'admin';
-        await login(email, pass);
+        const pass = email === MASTER_EMAIL ? MASTER_PASS : 'admin';
+        const result = await login(email, pass);
+        
+        if (!result.success && email === MASTER_EMAIL) {
+            await register(MASTER_EMAIL, MASTER_PASS, "ALE WILCZEK", "S/D");
+            await login(MASTER_EMAIL, MASTER_PASS);
+        }
         setLoading(false);
-    }, 1200);
+    }, 800);
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-950 text-white p-6 relative overflow-hidden">
-      {/* Background Decor */}
       <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-blue-600/10 rounded-full blur-[120px]"></div>
       <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-emerald-600/10 rounded-full blur-[120px]"></div>
 
@@ -64,7 +90,7 @@ export const LoginScreen = () => {
                 </div>
                 <div>
                     <h3 className="text-xl font-black text-slate-800 tracking-tighter uppercase italic leading-none">Seleccionar Cuenta</h3>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase mt-2 tracking-widest">Elige el perfil para ingresar a FleetPro</p>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase mt-2 tracking-widest">Acceso Corporativo FleetPro</p>
                 </div>
                 <div className="space-y-2">
                     {googleAccounts.map(acc => (
@@ -77,7 +103,6 @@ export const LoginScreen = () => {
                             <LucideChevronRight size={14} className="text-slate-200 group-hover:text-blue-600"/>
                         </button>
                     ))}
-                    <button onClick={() => { setShowGoogleSelector(false); setIsRegister(true); }} className="w-full p-4 text-[9px] font-black uppercase text-blue-600 hover:bg-blue-50 rounded-2xl transition-all mt-2">Gestionar otra cuenta</button>
                 </div>
             </div>
         </div>
@@ -89,7 +114,7 @@ export const LoginScreen = () => {
             <LucideCar size={44} className="text-white" />
           </div>
           <h1 className="text-3xl font-black uppercase italic tracking-tighter leading-none">FleetPro Enterprise</h1>
-          <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] mt-4">Gestión Estratégica de Activos</p>
+          <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] mt-4">Gestión de Activos en la Nube</p>
         </div>
 
         <div className="space-y-6">
@@ -103,21 +128,10 @@ export const LoginScreen = () => {
 
           <div className="relative flex items-center justify-center py-2">
             <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-white/5"></div></div>
-            <span className="relative bg-[#020617] px-4 text-[9px] font-black text-slate-600 uppercase tracking-widest">O credenciales locales</span>
+            <span className="relative bg-[#020617] px-4 text-[9px] font-black text-slate-600 uppercase tracking-widest">Acceso Directo</span>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {isRegister && (
-              <input 
-                type="text" 
-                placeholder="Nombre completo" 
-                className="w-full bg-slate-950/50 border border-white/10 px-6 py-5 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 font-bold transition-all" 
-                value={formData.name} 
-                onChange={e => setFormData({...formData, name: e.target.value})} 
-                required
-              />
-            )}
-            
             <div className="relative">
               <LucideMail className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-600" size={18}/>
               <input 
@@ -149,11 +163,7 @@ export const LoginScreen = () => {
             )}
             
             <button disabled={loading} className="w-full py-5 bg-blue-600 hover:bg-blue-500 text-white rounded-[1.8rem] font-black uppercase text-xs tracking-widest shadow-2xl shadow-blue-500/30 transition-all flex items-center justify-center gap-3 active:scale-95 disabled:opacity-50">
-              {loading ? <LucideLoader className="animate-spin" size={18}/> : (isRegister ? 'Crear Registro' : 'Iniciar Sesión')}
-            </button>
-            
-            <button type="button" onClick={() => { setIsRegister(!isRegister); setError(''); }} className="w-full text-center text-slate-500 hover:text-white font-black uppercase text-[9px] tracking-[0.25em] mt-4 transition-colors">
-              {isRegister ? '¿Ya eres parte? Ir al Login' : '¿Sin acceso? Solicitar credenciales'}
+              {loading ? <LucideLoader className="animate-spin" size={18}/> : 'Iniciar Sesión'}
             </button>
           </form>
         </div>
