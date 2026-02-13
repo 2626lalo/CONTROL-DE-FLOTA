@@ -1,0 +1,10 @@
+  {
+    "id": "main-admin",
+    "email": "alewilczek@gmail.com",
+    "nombre": "Alejandro",
+    "apellido": "Wilczek",
+    "role": "ADMIN",
+    "approved": true,
+    "estado": "activo"
+  }
+]
