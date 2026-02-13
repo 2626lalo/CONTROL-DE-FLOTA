@@ -1,4 +1,4 @@
-import React, { Component, ReactNode, ErrorInfo } from 'react';
+import React, { ReactNode, ErrorInfo } from 'react';
 import { LucideShieldAlert, LucideRefreshCcw, LucideTrash2 } from 'lucide-react';
 
 interface ErrorBoundaryProps {
@@ -10,8 +10,8 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
-// FIX: Importing Component directly and using it for inheritance solves property resolution issues for 'props' in class components
-export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+// FIX: Explicitly using React.Component for inheritance ensures 'props' and 'state' are correctly resolved by the TypeScript compiler
+export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   // Explicitly defining state as a class property for better type inference and availability on 'this'
   public state: ErrorBoundaryState = {
     hasError: false,
@@ -44,7 +44,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   };
 
   public render(): ReactNode {
-    // FIX: accessing inherited state and props after ensuring proper inheritance from Component
+    // FIX: Accessing inherited state and props from React.Component to resolve the error on line 49
     const { hasError, error } = this.state;
     const { children } = this.props;
 
