@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/FleetContext';
 import { 
   LucideCar, LucideLoader, LucideShieldAlert, LucideMail, 
@@ -11,6 +12,7 @@ const MASTER_PASS = 'Joaquin4';
 
 export const LoginScreen = () => {
   const { login, register, addNotification } = useApp();
+  const navigate = useNavigate();
   const [isRegister, setIsRegister] = useState(false);
   const [showGoogleSelector, setShowGoogleSelector] = useState(false);
   const [formData, setFormData] = useState({ 
@@ -48,20 +50,29 @@ export const LoginScreen = () => {
         if (result.success) {
             setIsRegister(false);
             addNotification("Cuenta creada. Su acceso está pendiente de aprobación por administración.", "success");
-            // Limpiar password para login
+            // Limpiar password para el siguiente paso
             setFormData(prev => ({ ...prev, password: '' }));
+            // En el registro, como queda pendiente, no navegamos al dashboard aún, 
+            // pero si fuera auto-aprobado (como el master), lo haríamos.
+            if (emailInput === MASTER_EMAIL) {
+                await login(emailInput, passInput);
+                navigate('/');
+            }
         } else {
             setError(result.message || "Error al registrar usuario.");
         }
       } else {
         const result = await login(emailInput, passInput);
         
-        if (!result.success) {
+        if (result.success) {
+            navigate('/');
+        } else {
             if (emailInput === MASTER_EMAIL && passInput === MASTER_PASS) {
                 addNotification("Sincronizando administrador principal...", "warning");
-                // Auto-registro para el master si falla el login inicial (ej: primer despliegue)
+                // Auto-registro para el master si falla el login inicial (ej: primer despliegue en Firebase)
                 await register(MASTER_EMAIL, MASTER_PASS, "ALE", "WILCZEK", "S/D");
                 await login(MASTER_EMAIL, MASTER_PASS);
+                navigate('/');
             } else {
                 setError(result.message || "Credenciales incorrectas.");
             }
@@ -82,9 +93,12 @@ export const LoginScreen = () => {
         const pass = email === MASTER_EMAIL ? MASTER_PASS : 'admin';
         const result = await login(email, pass);
         
-        if (!result.success && email === MASTER_EMAIL) {
+        if (result.success) {
+            navigate('/');
+        } else if (email === MASTER_EMAIL) {
             await register(MASTER_EMAIL, MASTER_PASS, "ALE", "WILCZEK", "S/D");
             await login(MASTER_EMAIL, MASTER_PASS);
+            navigate('/');
         }
         setLoading(false);
     }, 800);
