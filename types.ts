@@ -1,9 +1,9 @@
 export enum UserRole {
-  ADMIN = 'administrador',
-  USER = 'usuario',
-  PROVIDER = 'proveedor',
-  AUDITOR = 'auditor',
-  SUPERVISOR = 'supervisor'
+  ADMIN = 'ADMIN',
+  USER = 'USER',
+  PROVIDER = 'PROVEEDOR',
+  AUDITOR = 'AUDITOR',
+  SUPERVISOR = 'SUPERVISOR'
 }
 
 export type UserStatus = 'activo' | 'inactivo' | 'pendiente' | 'suspendido' | 'bloqueado';

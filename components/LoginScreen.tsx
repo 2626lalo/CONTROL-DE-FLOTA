@@ -1,11 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { UserRole } from '../types';
+import { useApp } from '../context/FleetContext';
+import { LucideUserPlus, LucideLogIn, LucideArrowLeft, LucideCheckCircle, LucideShieldCheck } from 'lucide-react';
 
 export const LoginScreen = () => {
+  const { register, login } = useApp();
+  const navigate = useNavigate();
+  const [mode, setMode] = useState<'LOGIN' | 'REGISTER'>('LOGIN');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [phone, setPhone] = useState('');
+  
   const [error, setError] = useState('');
-  const navigate = useNavigate();
+  const [success, setSuccess] = useState('');
+  const [loading, setLoading] = useState(false);
 
   // Usuario principal que DEBE existir siempre
   const MAIN_USER = {
@@ -13,114 +24,208 @@ export const LoginScreen = () => {
     email: "alewilczek@gmail.com",
     nombre: "Alejandro",
     apellido: "Wilczek",
-    role: "ADMIN",
+    role: UserRole.ADMIN,
     approved: true,
-    estado: "activo"
+    estado: "activo" as const
   };
 
-  // Al cargar la pantalla, asegurar que el usuario principal existe
   useEffect(() => {
     const users = JSON.parse(localStorage.getItem('fp_users') || '[]');
     const mainUserExists = users.some((u: any) => u.email === MAIN_USER.email);
     
     if (!mainUserExists) {
-      console.log('Usuario principal no encontrado. Creándolo...');
       users.push(MAIN_USER);
       localStorage.setItem('fp_users', JSON.stringify(users));
-      console.log('Usuario principal creado:', MAIN_USER);
-    } else {
-      console.log('Usuario principal ya existe');
     }
   }, []);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setLoading(true);
 
     try {
-      const users = JSON.parse(localStorage.getItem('fp_users') || '[]');
-      console.log('Usuarios:', users);
-
-      const user = users.find((u: any) => 
-        u.email?.trim().toLowerCase() === email.trim().toLowerCase()
-      );
-      console.log('Usuario encontrado:', user);
-
-      if (!user) {
-        setError('Usuario no encontrado');
-        return;
-      }
-
-      // CASO ESPECIAL: Usuario principal
-      if (email.trim().toLowerCase() === 'alewilczek@gmail.com') {
-        if (password === 'Joaquin4') {
-          console.log('✅ Login exitoso - Administrador principal');
-          localStorage.setItem('fp_currentUser', JSON.stringify(user));
-          // Forzamos recarga para que el FleetContext tome el nuevo usuario del localStorage
-          window.location.href = '/dashboard';
-        } else {
-          setError('❌ Contraseña incorrecta para el administrador. Debe ser Joaquin4');
-        }
-        return;
-      }
-
-      // CASO GENERAL: otros usuarios
-      if (password === 'Test123!') {
-        console.log('✅ Login exitoso - Usuario secundario');
-        localStorage.setItem('fp_currentUser', JSON.stringify(user));
-        // Forzamos recarga para que el FleetContext tome el nuevo usuario del localStorage
-        window.location.href = '/dashboard';
+      const res = await login(email, password);
+      if (res.success) {
+        // CORRECCIÓN: Usar navigate en lugar de window.location.href para evitar bloqueos de seguridad
+        navigate('/');
       } else {
-        setError('❌ Contraseña incorrecta');
+        setError(res.message || 'Credenciales incorrectas');
       }
     } catch (err) {
-      console.error('Error en login:', err);
       setError('Error al iniciar sesión');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+    setLoading(true);
+
+    if (password.length < 6) {
+      setError('La contraseña debe tener al menos 6 caracteres');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const res = await register(email, password, name, lastName, phone);
+      if (res.success) {
+        setSuccess('¡Registro exitoso! Su cuenta está pendiente de aprobación por el administrador.');
+        setName(''); setLastName(''); setPhone(''); setEmail(''); setPassword('');
+        setTimeout(() => {
+          setMode('LOGIN');
+          setSuccess('');
+        }, 5000);
+      } else {
+        setError(res.message || 'Error al registrarse');
+      }
+    } catch (err) {
+      setError('Error de conexión al registrar');
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50">
-      <form onSubmit={handleLogin} className="bg-white p-12 rounded-3xl shadow-xl w-96">
-        <h2 className="text-3xl font-black mb-8 text-center">CONTROL DE FLOTA</h2>
+    <div className="min-h-screen flex items-center justify-center bg-slate-950 p-4 relative overflow-hidden">
+      <div className="absolute top-[-10%] left-[-10%] w-96 h-96 bg-blue-600/10 rounded-full blur-[120px]"></div>
+      <div className="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-indigo-600/10 rounded-full blur-[120px]"></div>
+
+      <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md overflow-hidden relative z-10 border border-white/10 animate-fadeIn">
         
-        {error && (
-          <div className="bg-red-100 text-red-600 p-3 rounded-xl mb-4 text-sm text-center">
-            {error}
+        <div className="bg-slate-900 p-8 text-center space-y-4">
+          <div className="w-16 h-16 bg-blue-600 rounded-2xl mx-auto flex items-center justify-center text-white font-black text-2xl shadow-xl shadow-blue-900/20">
+            FP
           </div>
-        )}
-        
-        <input 
-          type="email" 
-          placeholder="Email" 
-          className="w-full p-4 mb-4 border rounded-xl"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-          autoComplete="username"
-        />
-        
-        <input 
-          type="password" 
-          placeholder="Contraseña" 
-          className="w-full p-4 mb-6 border rounded-xl"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-          autoComplete="current-password"
-        />
-        
-        <button 
-          type="submit" 
-          className="w-full bg-blue-600 text-white py-4 rounded-xl font-black hover:bg-blue-700 transition-all"
-        >
-          INGRESAR
-        </button>
-        
-        <p className="text-xs text-center mt-4 text-slate-400">
-          Usá: alewilczek@gmail.com / Joaquin4
-        </p>
-      </form>
+          <div>
+            <h2 className="text-white font-black text-2xl tracking-tighter uppercase italic">FleetPro Enterprise</h2>
+            <p className="text-slate-500 text-[10px] font-black uppercase tracking-[0.2em]">Gestión de Flota Profesional</p>
+          </div>
+        </div>
+
+        <div className="p-8 md:p-10 space-y-6">
+          {error && (
+            <div className="bg-rose-50 border border-rose-100 text-rose-600 p-4 rounded-2xl text-xs font-bold flex items-center gap-3 animate-fadeIn">
+              <LucideShieldCheck size={18} className="shrink-0"/>
+              {error}
+            </div>
+          )}
+
+          {success && (
+            <div className="bg-emerald-50 border border-emerald-100 text-emerald-600 p-4 rounded-2xl text-xs font-bold flex items-center gap-3 animate-fadeIn">
+              <LucideCheckCircle size={18} className="shrink-0"/>
+              {success}
+            </div>
+          )}
+
+          <form onSubmit={mode === 'LOGIN' ? handleLogin : handleRegister} className="space-y-4">
+            
+            {mode === 'REGISTER' && (
+              <div className="grid grid-cols-2 gap-4 animate-fadeIn">
+                <div className="space-y-1">
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Nombre</label>
+                  <input 
+                    type="text" 
+                    className="w-full p-4 bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold outline-none focus:ring-4 focus:ring-blue-50"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required
+                    placeholder="Ej: Juan"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Apellido</label>
+                  <input 
+                    type="text" 
+                    className="w-full p-4 bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold outline-none focus:ring-4 focus:ring-blue-50"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    required
+                    placeholder="Ej: Pérez"
+                  />
+                </div>
+                <div className="col-span-2 space-y-1">
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Teléfono de Contacto</label>
+                  <input 
+                    type="tel" 
+                    className="w-full p-4 bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold outline-none focus:ring-4 focus:ring-blue-50"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    required
+                    placeholder="+54 9..."
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-1">
+              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Correo Electrónico</label>
+              <input 
+                type="email" 
+                className="w-full p-4 bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold outline-none focus:ring-4 focus:ring-blue-50 transition-all"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                autoComplete="email"
+                placeholder="usuario@empresa.com"
+              />
+            </div>
+            
+            <div className="space-y-1">
+              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Contraseña</label>
+              <input 
+                type="password" 
+                className="w-full p-4 bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold outline-none focus:ring-4 focus:ring-blue-50 transition-all"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                autoComplete="current-password"
+                placeholder="••••••••"
+              />
+            </div>
+            
+            <button 
+              type="submit" 
+              disabled={loading}
+              className={`w-full py-4 rounded-xl font-black text-xs uppercase tracking-widest shadow-xl transition-all transform active:scale-95 flex items-center justify-center gap-3 ${loading ? 'bg-slate-200 text-slate-400 cursor-wait' : 'bg-blue-600 text-white hover:bg-blue-700 shadow-blue-200'}`}
+            >
+              {loading ? (
+                <div className="w-5 h-5 border-2 border-slate-400 border-t-transparent rounded-full animate-spin"></div>
+              ) : mode === 'LOGIN' ? (
+                <><LucideLogIn size={18}/> Ingresar al Sistema</>
+              ) : (
+                <><LucideUserPlus size={18}/> Crear mi Cuenta</>
+              )}
+            </button>
+          </form>
+          
+          <div className="pt-6 border-t border-slate-100 text-center">
+            {mode === 'LOGIN' ? (
+              <button 
+                onClick={() => setMode('REGISTER')}
+                className="text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-blue-600 transition-colors flex items-center justify-center gap-2 mx-auto"
+              >
+                ¿No tienes cuenta? <span className="text-blue-600">Regístrate aquí</span>
+              </button>
+            ) : (
+              <button 
+                onClick={() => setMode('LOGIN')}
+                className="text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-blue-600 transition-colors flex items-center justify-center gap-2 mx-auto"
+              >
+                <LucideArrowLeft size={14}/> Volver al Inicio de Sesión
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <p className="absolute bottom-8 text-[8px] font-black text-slate-600 uppercase tracking-[0.4em] italic">
+        Authorized Access Only • FleetPro v37.0-SECURED
+      </p>
     </div>
   );
 };
