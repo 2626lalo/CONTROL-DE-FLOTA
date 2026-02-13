@@ -1,7 +1,10 @@
-
 import React, { useState } from 'react';
 import { useApp } from '../context/FleetContext';
-import { LucideCar, LucideLoader, LucideShieldAlert, LucideMail, LucideLock, LucideChevronRight, LucideX, LucideCheckCircle2 } from 'lucide-react';
+import { 
+  LucideCar, LucideLoader, LucideShieldAlert, LucideMail, 
+  LucideLock, LucideChevronRight, LucideX, LucideCheckCircle2, 
+  LucideUser, LucideSmartphone, LucideArrowLeft
+} from 'lucide-react';
 
 const MASTER_EMAIL = 'alewilczek@gmail.com';
 const MASTER_PASS = 'Joaquin4';
@@ -10,7 +13,13 @@ export const LoginScreen = () => {
   const { login, register, addNotification } = useApp();
   const [isRegister, setIsRegister] = useState(false);
   const [showGoogleSelector, setShowGoogleSelector] = useState(false);
-  const [formData, setFormData] = useState({ email: '', password: '', name: '', phone: '' });
+  const [formData, setFormData] = useState({ 
+    email: '', 
+    password: '', 
+    name: '', 
+    lastName: '',
+    phone: '' 
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -30,31 +39,36 @@ export const LoginScreen = () => {
 
     try {
       if (isRegister) {
-        const success = await register(emailInput, passInput, formData.name, formData.phone);
-        if (success) {
+        if (!formData.name || !formData.lastName) {
+          setError("El nombre y apellido son obligatorios.");
+          setLoading(false);
+          return;
+        }
+        const result = await register(emailInput, passInput, formData.name, formData.lastName, formData.phone || "S/D");
+        if (result.success) {
             setIsRegister(false);
-            addNotification("Solicitud de acceso enviada correctamente.", "success");
-        } else setError("El email ya se encuentra registrado.");
+            addNotification("Cuenta creada. Su acceso está pendiente de aprobación por administración.", "success");
+            // Limpiar password para login
+            setFormData(prev => ({ ...prev, password: '' }));
+        } else {
+            setError(result.message || "Error al registrar usuario.");
+        }
       } else {
         const result = await login(emailInput, passInput);
         
         if (!result.success) {
             if (emailInput === MASTER_EMAIL && passInput === MASTER_PASS) {
-                addNotification("Sincronizando credenciales maestras...", "warning");
-                // Intentamos registrar si no existe, o simplemente loguear si hubo un error de red previo
-                const regSuccess = await register(MASTER_EMAIL, MASTER_PASS, "ALE WILCZEK", "S/D");
-                
-                // Si el registro falla es probable que ya exista en Auth pero no en Firestore, 
-                // o que la API_KEY sea el problema. Intentamos un último login.
-                const retryLogin = await login(MASTER_EMAIL, MASTER_PASS);
-                if (!retryLogin.success) {
-                    setError("Error de sincronización: Verifique la conexión o el estado de la clave de API.");
-                }
+                addNotification("Sincronizando administrador principal...", "warning");
+                // Auto-registro para el master si falla el login inicial (ej: primer despliegue)
+                await register(MASTER_EMAIL, MASTER_PASS, "ALE", "WILCZEK", "S/D");
+                await login(MASTER_EMAIL, MASTER_PASS);
             } else {
                 setError(result.message || "Credenciales incorrectas.");
             }
         }
       }
+    } catch (e: any) {
+        setError(e.message || "Error de conexión con el servidor.");
     } finally {
       setLoading(false);
     }
@@ -69,7 +83,7 @@ export const LoginScreen = () => {
         const result = await login(email, pass);
         
         if (!result.success && email === MASTER_EMAIL) {
-            await register(MASTER_EMAIL, MASTER_PASS, "ALE WILCZEK", "S/D");
+            await register(MASTER_EMAIL, MASTER_PASS, "ALE", "WILCZEK", "S/D");
             await login(MASTER_EMAIL, MASTER_PASS);
         }
         setLoading(false);
@@ -118,25 +132,56 @@ export const LoginScreen = () => {
         </div>
 
         <div className="space-y-6">
-          <button 
-            onClick={() => setShowGoogleSelector(true)}
-            className="w-full py-5 bg-white text-slate-900 rounded-3xl font-black uppercase text-[10px] tracking-widest shadow-xl hover:bg-slate-50 transition-all flex items-center justify-center gap-3 border border-slate-200"
-          >
-            <img src="https://www.gstatic.com/images/branding/product/1x/googleg_48dp.png" className="w-5 h-5" alt="G"/>
-            Ingresar vía Google Workspace
-          </button>
+          {!isRegister && (
+            <button 
+              onClick={() => setShowGoogleSelector(true)}
+              className="w-full py-5 bg-white text-slate-900 rounded-3xl font-black uppercase text-[10px] tracking-widest shadow-xl hover:bg-slate-50 transition-all flex items-center justify-center gap-3 border border-slate-200"
+            >
+              <img src="https://www.gstatic.com/images/branding/product/1x/googleg_48dp.png" className="w-5 h-5" alt="G"/>
+              Ingresar vía Google Workspace
+            </button>
+          )}
 
           <div className="relative flex items-center justify-center py-2">
             <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-white/5"></div></div>
-            <span className="relative bg-[#020617] px-4 text-[9px] font-black text-slate-600 uppercase tracking-widest">Acceso Directo</span>
+            <span className="relative bg-[#020617] px-4 text-[9px] font-black text-slate-600 uppercase tracking-widest">
+              {isRegister ? 'Registro de Usuario' : 'Acceso Directo'}
+            </span>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            {isRegister && (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="relative">
+                  <LucideUser className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-600" size={16}/>
+                  <input 
+                    type="text" 
+                    placeholder="Nombre" 
+                    className="w-full bg-slate-950/50 border border-white/10 pl-11 pr-4 py-4 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 font-bold transition-all text-xs" 
+                    value={formData.name} 
+                    onChange={e => setFormData({...formData, name: e.target.value})} 
+                    required
+                  />
+                </div>
+                <div className="relative">
+                  <LucideUser className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-600" size={16}/>
+                  <input 
+                    type="text" 
+                    placeholder="Apellido" 
+                    className="w-full bg-slate-950/50 border border-white/10 pl-11 pr-4 py-4 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 font-bold transition-all text-xs" 
+                    value={formData.lastName} 
+                    onChange={e => setFormData({...formData, lastName: e.target.value})} 
+                    required
+                  />
+                </div>
+              </div>
+            )}
+
             <div className="relative">
               <LucideMail className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-600" size={18}/>
               <input 
                 type="email" 
-                placeholder="Usuario Corporativo" 
+                placeholder="Email Corporativo" 
                 className="w-full bg-slate-950/50 border border-white/10 pl-14 pr-6 py-5 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 font-bold transition-all" 
                 value={formData.email} 
                 onChange={e => setFormData({...formData, email: e.target.value})} 
@@ -156,6 +201,19 @@ export const LoginScreen = () => {
               />
             </div>
             
+            {isRegister && (
+               <div className="relative">
+                <LucideSmartphone className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-600" size={18}/>
+                <input 
+                  type="tel" 
+                  placeholder="Teléfono / WhatsApp" 
+                  className="w-full bg-slate-950/50 border border-white/10 pl-14 pr-6 py-5 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 font-bold transition-all" 
+                  value={formData.phone} 
+                  onChange={e => setFormData({...formData, phone: e.target.value})} 
+                />
+              </div>
+            )}
+            
             {error && (
               <div className="flex items-center gap-2 text-rose-400 text-[10px] font-black uppercase text-center justify-center p-3 bg-rose-400/10 rounded-xl border border-rose-400/20">
                 <LucideShieldAlert size={14}/> {error}
@@ -163,8 +221,18 @@ export const LoginScreen = () => {
             )}
             
             <button disabled={loading} className="w-full py-5 bg-blue-600 hover:bg-blue-500 text-white rounded-[1.8rem] font-black uppercase text-xs tracking-widest shadow-2xl shadow-blue-500/30 transition-all flex items-center justify-center gap-3 active:scale-95 disabled:opacity-50">
-              {loading ? <LucideLoader className="animate-spin" size={18}/> : 'Iniciar Sesión'}
+              {loading ? <LucideLoader className="animate-spin" size={18}/> : isRegister ? 'Confirmar Registro' : 'Iniciar Sesión'}
             </button>
+
+            <div className="pt-4 text-center">
+              <button 
+                type="button"
+                onClick={() => { setIsRegister(!isRegister); setError(''); }}
+                className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-blue-400 transition-colors"
+              >
+                {isRegister ? '¿Ya tiene cuenta? Iniciar Sesión' : '¿No tiene cuenta? Regístrese aquí'}
+              </button>
+            </div>
           </form>
         </div>
       </div>

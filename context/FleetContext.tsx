@@ -1,22 +1,17 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { Vehicle, User, ServiceRequest, Checklist, AuditLog, ServiceStage, VehicleStatus } from '../types';
+import { Vehicle, User, ServiceRequest, Checklist, AuditLog, ServiceStage, VehicleStatus, UserRole } from '../types';
 
-// DETECTAR SI ESTAMOS EN PRODUCCIÓN POR VARIABLE DE ENTORNO
 const IS_PRODUCTION = window.location.hostname.includes('run.app');
 
-// MOCKS PARA DESARROLLO EN GOOGLE STUDIO
 const MOCK_VEHICLES: Vehicle[] = [
   { plate: "ABC123", make: "TOYOTA", model: "HILUX", year: 2020, status: VehicleStatus.ACTIVE, ownership: "PROPIO" as any, fuelType: "DIESEL" as any, transmission: "MANUAL" as any, currentKm: 50000, images: { list: [] }, documents: [], serviceIntervalKm: 10000, nextServiceKm: 60000, vin: 'S/N', motorNum: 'S/N', type: 'Pickup', version: 'SRX', costCenter: 'CENTRAL', province: 'Mendoza' },
   { plate: "DEF456", make: "FORD", model: "RANGER", year: 2021, status: VehicleStatus.ACTIVE, ownership: "PROPIO" as any, fuelType: "DIESEL" as any, transmission: "MANUAL" as any, currentKm: 30000, images: { list: [] }, documents: [], serviceIntervalKm: 10000, nextServiceKm: 40000, vin: 'S/N', motorNum: 'S/N', type: 'Pickup', version: 'XLT', costCenter: 'OPERACIONES', province: 'Mendoza' }
 ];
 
 const MOCK_USERS: User[] = [
-  { id: "1", email: "alewilczek@gmail.com", nombre: "ALE", apellido: "WILCZEK", name: "ALE WILCZEK", telefono: "123456789", role: "administrador" as any, estado: "activo" as any, approved: true, fechaRegistro: new Date().toISOString(), intentosFallidos: 0, centroCosto: { id: "1", nombre: "CENTRAL", codigo: "001" }, level: 3, rolesSecundarios: [], notificaciones: { email: true, push: false, whatsapp: false }, creadoPor: "system", fechaCreacion: new Date().toISOString(), actualizadoPor: "system", fechaActualizacion: new Date().toISOString(), eliminado: false }
+  { id: "alewilczek@gmail.com", email: "alewilczek@gmail.com", nombre: "ALE", apellido: "WILCZEK", name: "ALE WILCZEK", telefono: "123456789", role: UserRole.ADMIN, estado: "activo" as any, approved: true, fechaRegistro: new Date().toISOString(), intentosFallidos: 0, centroCosto: { id: "1", nombre: "CENTRAL", codigo: "001" }, level: 3, rolesSecundarios: [], notificaciones: { email: true, push: false, whatsapp: false }, creadoPor: "system", fechaCreacion: new Date().toISOString(), actualizadoPor: "system", fechaActualizacion: new Date().toISOString(), eliminado: false }
 ];
 
-// ============================================
-// VERSIÓN PARA DESARROLLO (LOCALSTORAGE)
-// ============================================
 const useLocalStorage = () => {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [users, setUsers] = useState<User[]>([]);
@@ -73,12 +68,9 @@ const useLocalStorage = () => {
     });
   };
 
-  return { vehicles, users, serviceRequests, checklists, loading, error, addVehicle, updateVehicle, deleteVehicle };
+  return { vehicles, users, serviceRequests, checklists, loading, error, addVehicle, updateVehicle, deleteVehicle, setUsers };
 };
 
-// ============================================
-// VERSIÓN PARA PRODUCCIÓN (FIREBASE)
-// ============================================
 const useFirebase = () => {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [users, setUsers] = useState<User[]>([]);
@@ -129,9 +121,7 @@ const useFirebase = () => {
       const { db } = await import('../firebase');
       const { doc, setDoc } = await import('firebase/firestore');
       await setDoc(doc(db, 'vehicles', vehicle.plate), vehicle);
-    } catch (err) {
-      console.error('Error adding vehicle:', err);
-    }
+    } catch (err) { console.error(err); }
   };
 
   const updateVehicle = async (vehicle: Vehicle) => {
@@ -139,9 +129,7 @@ const useFirebase = () => {
       const { db } = await import('../firebase');
       const { doc, updateDoc } = await import('firebase/firestore');
       await updateDoc(doc(db, 'vehicles', vehicle.plate), vehicle as any);
-    } catch (err) {
-      console.error('Error updating vehicle:', err);
-    }
+    } catch (err) { console.error(err); }
   };
 
   const deleteVehicle = async (plate: string) => {
@@ -149,17 +137,12 @@ const useFirebase = () => {
       const { db } = await import('../firebase');
       const { doc, deleteDoc } = await import('firebase/firestore');
       await deleteDoc(doc(db, 'vehicles', plate));
-    } catch (err) {
-      console.error('Error deleting vehicle:', err);
-    }
+    } catch (err) { console.error(err); }
   };
 
   return { vehicles, users, serviceRequests, checklists, loading, error, addVehicle, updateVehicle, deleteVehicle };
 };
 
-// ============================================
-// CONTEXTO PRINCIPAL
-// ============================================
 interface FleetContextType {
   vehicles: Vehicle[];
   users: User[];
@@ -187,7 +170,7 @@ interface FleetContextType {
   notifications: any[];
   login: (email: string, pass: string) => Promise<{success: boolean, message?: string}>;
   logout: () => Promise<void>;
-  register: (email: string, pass: string, name: string, phone: string) => Promise<boolean>;
+  register: (email: string, pass: string, name: string, lastName: string, phone: string) => Promise<{success: boolean, message?: string}>;
   addNotification: (message: string, type?: 'error' | 'success' | 'warning') => void;
   refreshData: () => Promise<void>;
   logAudit: (action: string, type: AuditLog['entityType'], id: string, details: string) => Promise<void>;
@@ -211,7 +194,6 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [notifications, setNotifications] = useState<any[]>([]);
   const [masterFindingsImage, setMasterFindingsImageState] = useState<string | null>(null);
 
-  // EFECTO DE AUTENTICACIÓN: Solo Firebase maneja persistencia automática
   useEffect(() => {
     if (IS_PRODUCTION) {
       const loadAuth = async () => {
@@ -219,7 +201,7 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const { onAuthStateChanged } = await import('firebase/auth');
         onAuthStateChanged(auth, (user) => {
           if (user) {
-            const found = impl.users.find(u => u.email === user.email);
+            const found = impl.users.find(u => u.email.toLowerCase() === user.email?.toLowerCase());
             setAuthenticatedUser(found || null);
           } else {
             setAuthenticatedUser(null);
@@ -228,39 +210,72 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       };
       loadAuth();
     }
-    // En desarrollo local, authenticatedUser se inicializa en null 
-    // y solo cambia mediante la función login()
   }, [impl.users]);
 
-  const addUser = async (user: User) => {};
-  const updateUser = async (user: User) => {};
-  const deleteUser = async (id: string) => {};
-  const addServiceRequest = async (req: ServiceRequest) => {};
-  const updateServiceRequest = async (req: ServiceRequest) => {};
-  const updateServiceStage = async (id: string, stage: ServiceStage, comment: string) => {};
-  const addChecklist = async (checklist: Checklist) => {};
-  
   const login = async (email: string, pass: string) => {
     const emailLower = email.toLowerCase().trim();
-    
     if (!IS_PRODUCTION) {
-      // Lógica de login Mock: Validar contra MOCK_USERS o impl.users
       const found = impl.users.find(u => u.email.toLowerCase() === emailLower);
       if (found && (pass === 'Joaquin4' || pass === 'admin')) {
         setAuthenticatedUser(found);
         return { success: true };
       }
-      return { success: false, message: "Credenciales de desarrollo incorrectas." };
+      return { success: false, message: "Credenciales incorrectas." };
     }
-
-    const { auth } = await import('../firebase');
-    const { signInWithEmailAndPassword } = await import('firebase/auth');
     try {
+      const { auth } = await import('../firebase');
+      const { signInWithEmailAndPassword } = await import('firebase/auth');
       await signInWithEmailAndPassword(auth, emailLower, pass);
-      // setAuthenticatedUser se manejará en el onAuthStateChanged
       return { success: true };
     } catch (e: any) {
       return { success: false, message: e.message };
+    }
+  };
+
+  const register = async (email: string, pass: string, name: string, lastName: string, phone: string) => {
+    const emailLower = email.toLowerCase().trim();
+    const newUser: User = {
+        id: emailLower,
+        email: emailLower,
+        nombre: name.toUpperCase(),
+        apellido: lastName.toUpperCase(),
+        name: `${name} ${lastName}`.toUpperCase(),
+        telefono: phone,
+        role: emailLower === 'alewilczek@gmail.com' ? UserRole.ADMIN : UserRole.USER,
+        estado: emailLower === 'alewilczek@gmail.com' ? 'activo' : 'pendiente',
+        approved: emailLower === 'alewilczek@gmail.com',
+        fechaRegistro: new Date().toISOString(),
+        intentosFallidos: 0,
+        centroCosto: { id: "0", nombre: "PENDIENTE", codigo: "000" },
+        level: emailLower === 'alewilczek@gmail.com' ? 3 : 1,
+        rolesSecundarios: [],
+        notificaciones: { email: true, push: false, whatsapp: false },
+        creadoPor: "self",
+        fechaCreacion: new Date().toISOString(),
+        actualizadoPor: "self",
+        fechaActualizacion: new Date().toISOString(),
+        eliminado: false
+    };
+
+    if (!IS_PRODUCTION) {
+        localStorageImpl.setUsers(prev => {
+            const newList = [...prev, newUser];
+            localStorage.setItem('fp_users', JSON.stringify(newList));
+            return newList;
+        });
+        return { success: true };
+    }
+
+    try {
+        const { auth, db } = await import('../firebase');
+        const { createUserWithEmailAndPassword } = await import('firebase/auth');
+        const { doc, setDoc } = await import('firebase/firestore');
+        
+        await createUserWithEmailAndPassword(auth, emailLower, pass);
+        await setDoc(doc(db, 'users', emailLower), newUser);
+        return { success: true };
+    } catch (e: any) {
+        return { success: false, message: e.message };
     }
   };
 
@@ -272,8 +287,6 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
     setAuthenticatedUser(null);
   };
-
-  const register = async (email: string, pass: string, name: string, phone: string) => true;
 
   const addNotification = (message: string, type: any = 'success') => {
     const id = Date.now().toString();
@@ -288,9 +301,9 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const value: FleetContextType = {
     ...impl,
-    addUser, updateUser, deleteUser,
-    addServiceRequest, updateServiceRequest, updateServiceStage,
-    addChecklist,
+    addUser: async () => {}, updateUser: async () => {}, deleteUser: async () => {},
+    addServiceRequest: async () => {}, updateServiceRequest: async () => {}, updateServiceStage: async () => {},
+    addChecklist: async () => {},
     user: impersonatedUser || authenticatedUser,
     authenticatedUser,
     impersonatedUser,
