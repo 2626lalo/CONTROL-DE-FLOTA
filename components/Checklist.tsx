@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useApp } from '../context/FleetContext';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { CHECKLIST_SECTIONS } from '../constants';
 import { Checklist as ChecklistType, ChecklistItem, AccessoryItem, Vehicle, VehicleStatus, FindingMarker } from '../types';
 import { 
@@ -9,7 +9,7 @@ import {
   Camera, X, AlertTriangle, Gauge, LucideLocate, LucideMaximize2,
   LucideFileSearch2, LucideX, LucideChevronRight, LucideMapPinCheck, LucideMapPinHouse,
   LucideMessageSquare, Trash2, Layout, Truck, LucideDownload, LucideClock,
-  LucideShieldCheck, Mail
+  LucideShieldCheck, Mail, LucideAlertCircle
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale/es';
@@ -530,8 +530,25 @@ export const Checklist = () => {
                 )}
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                     <h1 className="text-3xl md:text-4xl font-black text-slate-800 uppercase italic flex items-center gap-3"><FileText className="text-blue-600" size={36}/> Inspecciones</h1>
-                    <button onClick={() => setViewMode('CREATE')} className="w-full md:w-auto bg-blue-600 text-white px-8 py-4 rounded-2xl font-black flex items-center justify-center gap-3 hover:bg-blue-700 shadow-2xl transition-all text-[11px] uppercase tracking-widest"><Plus size={24}/> Nueva Auditoría</button>
+                    <button 
+                      disabled={vehicles.length === 0}
+                      onClick={() => setViewMode('CREATE')} 
+                      className={`w-full md:w-auto px-8 py-4 rounded-2xl font-black flex items-center justify-center gap-3 shadow-2xl transition-all text-[11px] uppercase tracking-widest ${vehicles.length === 0 ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+                    >
+                      <Plus size={24}/> Nueva Auditoría
+                    </button>
                 </div>
+
+                {vehicles.length === 0 && (
+                  <div className="bg-amber-50 border border-amber-200 p-8 rounded-[2.5rem] flex items-center gap-6 animate-fadeIn">
+                     <div className="p-4 bg-amber-100 text-amber-600 rounded-2xl shadow-inner"><LucideAlertCircle size={32}/></div>
+                     <div>
+                        <h4 className="text-sm font-black text-amber-900 uppercase italic tracking-tighter">Sin activos habilitados</h4>
+                        <p className="text-[10px] text-amber-700 font-bold uppercase tracking-widest mt-1">Para iniciar una auditoría, primero debe <Link to="/vehicles/new" className="text-amber-900 underline font-black">registrar unidades</Link> en la base de datos de flota.</p>
+                     </div>
+                  </div>
+                )}
+
                 <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden">
                     <div className="p-6 md:p-8 border-b border-slate-50 flex items-center gap-4 bg-slate-50/50"><Search className="text-slate-400" size={24}/><input type="text" placeholder="Buscar patente..." className="bg-transparent border-none outline-none font-bold text-slate-700 w-full text-lg uppercase" value={searchTerm} onChange={e => setSearchTerm(e.target.value)}/></div>
                     <div className="divide-y divide-slate-50">
@@ -602,7 +619,18 @@ export const Checklist = () => {
                     <div className="space-y-3 relative">
                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Unidad (Patente)</label>
                         <input id="plate_input" type="text" className={`w-full px-6 py-5 bg-slate-50 border rounded-2xl font-black text-2xl uppercase outline-none focus:ring-4 focus:ring-blue-100 ${errors.plate_input ? 'border-rose-500 bg-rose-50' : 'border-slate-200'}`} placeholder="BUSCAR..." value={plateSearch} onChange={e => { setPlateSearch(e.target.value.toUpperCase()); setShowSuggestions(true); }} onFocus={() => setShowSuggestions(true)}/>
-                        {showSuggestions && (<div className="absolute z-[100] w-full mt-2 bg-white rounded-2xl shadow-2xl border border-slate-200 max-h-60 overflow-y-auto">{filteredVehicles.map(v => (<div key={v.plate} className="p-4 hover:bg-blue-50 cursor-pointer flex justify-between items-center border-b border-slate-50" onClick={() => { setPlateSearch(v.plate); setShowSuggestions(false); }}><span className="text-slate-900 font-black text-lg italic">{v.plate}</span><span className="text-slate-400 font-bold text-[9px] uppercase">{v.make} {v.model}</span></div>))}</div>)}
+                        {showSuggestions && (
+                            <div className="absolute z-[100] w-full mt-2 bg-white rounded-2xl shadow-2xl border border-slate-200 max-h-60 overflow-y-auto">
+                              {filteredVehicles.length > 0 ? filteredVehicles.map(v => (
+                                <div key={v.plate} className="p-4 hover:bg-blue-50 cursor-pointer flex justify-between items-center border-b border-slate-50" onClick={() => { setPlateSearch(v.plate); setShowSuggestions(false); }}>
+                                    <span className="text-slate-900 font-black text-lg italic">{v.plate}</span>
+                                    <span className="text-slate-400 font-bold text-[9px] uppercase">{v.make} {v.model}</span>
+                                </div>
+                              )) : (
+                                <div className="p-6 text-center text-[9px] font-black text-slate-400 uppercase">Sin resultados en flota</div>
+                              )}
+                            </div>
+                        )}
                     </div>
                     <div className="space-y-3">
                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Kilometraje Auditado</label>

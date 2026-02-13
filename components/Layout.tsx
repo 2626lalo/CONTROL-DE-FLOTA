@@ -11,7 +11,7 @@ import { useApp } from '../context/FleetContext';
 import { UserRole } from '../types';
 
 export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, authenticatedUser, impersonatedUser, logout, isOnline, vehicles, registeredUsers, impersonate } = useApp();
+  const { user, authenticatedUser, impersonatedUser, logout, isOnline, vehicles, registeredUsers, impersonate, addNotification } = useApp();
   const [globalSearch, setGlobalSearch] = useState('');
   const [showImpersonateMenu, setShowImpersonateMenu] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -22,11 +22,20 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   const handleGlobalSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (!globalSearch) return;
+    
+    if (vehicles.length === 0) {
+      addNotification("No hay unidades registradas para buscar.", "warning");
+      setGlobalSearch('');
+      return;
+    }
+
     const found = vehicles.find(v => v.plate.toLowerCase().includes(globalSearch.toLowerCase()));
     if (found) {
       navigate(`/vehicles/detail/${found.plate}`);
       setGlobalSearch('');
       setIsMobileMenuOpen(false);
+    } else {
+      addNotification(`Unidad ${globalSearch.toUpperCase()} no encontrada.`, "error");
     }
   };
 
@@ -112,9 +121,10 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
             <form onSubmit={handleGlobalSearch} className="relative">
               <LucideSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16}/>
               <input 
+                disabled={vehicles.length === 0}
                 type="text" 
-                placeholder="Buscar Patente..." 
-                className="w-full bg-slate-800/50 border border-slate-700 rounded-xl pl-10 pr-4 py-2 text-xs focus:bg-slate-800 outline-none uppercase font-bold text-white"
+                placeholder={vehicles.length === 0 ? "Sin unidades..." : "Buscar Patente..."} 
+                className="w-full bg-slate-800/50 border border-slate-700 rounded-xl pl-10 pr-4 py-2 text-xs focus:bg-slate-800 outline-none uppercase font-bold text-white disabled:opacity-30 disabled:cursor-not-allowed"
                 value={globalSearch}
                 onChange={(e) => setGlobalSearch(e.target.value)}
               />

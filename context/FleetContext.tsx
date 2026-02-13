@@ -1,10 +1,8 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Vehicle, User, ServiceRequest, Checklist, AuditLog, ServiceStage, VehicleStatus, UserRole } from '../types';
 
-const MOCK_VEHICLES: Vehicle[] = [
-  { plate: "ABC123", make: "TOYOTA", model: "HILUX", year: 2020, status: VehicleStatus.ACTIVE, ownership: "PROPIO" as any, fuelType: "DIESEL" as any, transmission: "MANUAL" as any, currentKm: 50000, images: { list: [] }, documents: [], serviceIntervalKm: 10000, nextServiceKm: 60000, vin: 'S/N', motorNum: 'S/N', type: 'Pickup', version: 'SRX', costCenter: 'CENTRAL', province: 'Mendoza' },
-  { plate: "DEF456", make: "FORD", model: "RANGER", year: 2021, status: VehicleStatus.ACTIVE, ownership: "PROPIO" as any, fuelType: "DIESEL" as any, transmission: "MANUAL" as any, currentKm: 30000, images: { list: [] }, documents: [], serviceIntervalKm: 10000, nextServiceKm: 40000, vin: 'S/N', motorNum: 'S/N', type: 'Pickup', version: 'XLT', costCenter: 'OPERACIONES', province: 'Mendoza' }
-];
+// Se eliminan los MOCK_VEHICLES para iniciar la app limpia
+const MOCK_VEHICLES: Vehicle[] = [];
 
 const MOCK_USERS: User[] = [
   { id: "admin@controlflota.com", email: "admin@controlflota.com", nombre: "ADMIN", apellido: "SISTEMA", name: "ADMIN SISTEMA", telefono: "000000000", role: UserRole.ADMIN, estado: "activo", approved: true, fechaRegistro: new Date().toISOString(), intentosFallidos: 0, centroCosto: { id: "1", nombre: "CENTRAL", codigo: "001" }, level: 3, rolesSecundarios: [], notificaciones: { email: true, push: false, whatsapp: false }, creadoPor: "system", fechaCreacion: new Date().toISOString(), actualizadoPor: "system", fechaActualizacion: new Date().toISOString(), eliminado: false },
@@ -18,6 +16,7 @@ interface FleetContextType {
   checklists: Checklist[];
   addVehicle: (v: Vehicle) => Promise<void>;
   updateVehicle: (v: Vehicle) => Promise<void>;
+  bulkUpsertVehicles: (vs: Vehicle[]) => Promise<void>;
   deleteVehicle: (p: string) => Promise<void>;
   addUser: (user: User) => Promise<void>;
   updateUser: (user: User) => Promise<void>;
@@ -49,6 +48,8 @@ interface FleetContextType {
   vehicleVersions: string[];
   documentTypes: string[];
   addDocumentType: (type: string) => void;
+  lastBulkLoadDate: string | null;
+  restoreGoldenMaster: () => Promise<void>;
 }
 
 const FleetContext = createContext<FleetContextType | undefined>(undefined);
@@ -66,6 +67,7 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [notifications, setNotifications] = useState<any[]>([]);
   const [masterFindingsImage, setMasterFindingsImageState] = useState<string | null>(null);
   const [docTypes, setDocTypes] = useState<string[]>(['CEDULA', 'TITULO', 'VTV', 'SEGURO']);
+  const [lastBulkLoadDate, setLastBulkLoadDate] = useState<string | null>(localStorage.getItem('fp_last_bulk_load'));
 
   useEffect(() => {
     const savedVehicles = localStorage.getItem('fp_vehicles');
@@ -74,11 +76,20 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const savedChecklists = localStorage.getItem('fp_checklists');
     const currentUser = localStorage.getItem('fp_currentUser');
 
-    if (savedVehicles) setVehicles(JSON.parse(savedVehicles));
-    else setVehicles(MOCK_VEHICLES);
+    if (savedVehicles) {
+      setVehicles(JSON.parse(savedVehicles));
+    } else {
+      // Solo cargar mocks si no hay nada guardado en absoluto
+      setVehicles(MOCK_VEHICLES);
+      localStorage.setItem('fp_vehicles', JSON.stringify(MOCK_VEHICLES));
+    }
 
-    if (savedUsers) setUsers(JSON.parse(savedUsers));
-    else setUsers(MOCK_USERS);
+    if (savedUsers) {
+      setUsers(JSON.parse(savedUsers));
+    } else {
+      setUsers(MOCK_USERS);
+      localStorage.setItem('fp_users', JSON.stringify(MOCK_USERS));
+    }
 
     if (savedRequests) setServiceRequests(JSON.parse(savedRequests));
     if (savedChecklists) setChecklists(JSON.parse(savedChecklists));
@@ -103,6 +114,37 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   };
 
+  const bulkUpsertVehicles = async (newVehicles: Vehicle[]) => {
+    setVehicles(prev => {
+      const vehicleMap = new Map<string, Vehicle>(prev.map(v => [v.plate.toUpperCase(), v] as [string, Vehicle]));
+      
+      newVehicles.forEach(nv => {
+        const plate = nv.plate.toUpperCase();
+        if (vehicleMap.has(plate)) {
+          const existing = vehicleMap.get(plate)!;
+          vehicleMap.set(plate, { 
+            ...existing, 
+            ...nv,
+            documents: existing.documents || nv.documents,
+            mileageHistory: existing.mileageHistory || nv.mileageHistory,
+            images: { ...existing.images, ...nv.images }
+          });
+        } else {
+          vehicleMap.set(plate, nv);
+        }
+      });
+
+      const newList = Array.from(vehicleMap.values());
+      localStorage.setItem('fp_vehicles', JSON.stringify(newList));
+      
+      const now = new Date().toISOString();
+      setLastBulkLoadDate(now);
+      localStorage.setItem('fp_last_bulk_load', now);
+      
+      return newList;
+    });
+  };
+
   const deleteVehicle = async (plate: string) => {
     setVehicles(prev => {
       const newList = prev.filter(v => v.plate !== plate);
@@ -115,7 +157,6 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const emailLower = email.toLowerCase().trim();
     const found = users.find(u => u.email.toLowerCase() === emailLower);
     
-    // Master Admin bypass
     if (emailLower === 'alewilczek@gmail.com' && pass === 'Joaquin4') {
       const master = found || MOCK_USERS[1];
       setAuthenticatedUser(master);
@@ -188,9 +229,14 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     else setImpersonatedUser(users.find(u => u.id === userId) || null);
   };
 
+  const restoreGoldenMaster = async () => {
+      localStorage.clear();
+      window.location.reload();
+  };
+
   const value: FleetContextType = {
     vehicles, users, serviceRequests, checklists,
-    addVehicle, updateVehicle, deleteVehicle,
+    addVehicle, updateVehicle, bulkUpsertVehicles, deleteVehicle,
     addUser: async () => {}, updateUser: async (u) => {
       setUsers(prev => {
         const nl = prev.map(x => x.id === u.id ? u : x);
@@ -254,11 +300,22 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     masterFindingsImage,
     setMasterFindingsImage: async (img) => setMasterFindingsImageState(img),
     deleteDocument: async (plate, docId) => {
-        // Implementación básica de borrado de legajo
+      setVehicles(prev => {
+        const nl = prev.map(v => {
+          if (v.plate === plate) {
+            return { ...v, documents: (v.documents || []).filter(d => d.id !== docId) };
+          }
+          return v;
+        });
+        localStorage.setItem('fp_vehicles', JSON.stringify(nl));
+        return nl;
+      });
     },
-    vehicleVersions: ["SRX PACK 4X4 AT", "EXTREME V6 AT", "LIMITED V6 4X4"],
+    vehicleVersions: ["SRX PACK 4X4 AT", "EXTREME V6 AT", "LIMITED V6 4X4", "PRO-4X 4X4 AT", "FURGON 4325 XL", "Z.E. ELECTRIC 2A"],
     documentTypes: docTypes,
-    addDocumentType: (type) => setDocTypes(prev => prev.includes(type) ? prev : [...prev, type])
+    addDocumentType: (type) => setDocTypes(prev => prev.includes(type) ? prev : [...prev, type]),
+    lastBulkLoadDate,
+    restoreGoldenMaster
   };
 
   return <FleetContext.Provider value={value}>{children}</FleetContext.Provider>;

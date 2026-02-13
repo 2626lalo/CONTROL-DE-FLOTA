@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { 
   LucidePlusCircle, LucideCar, LucideSearch, LucideChevronRight, 
   LucideArrowLeft, LucideTrash2, LucideMessageCircle, 
@@ -724,11 +724,23 @@ export const TestSector = () => {
                   </div>
                </div>
                {!isReadOnly && !isProvider && (
-                 <button onClick={() => { setActiveView('NEW_REQUEST'); setRequestStep(1); }} className="px-10 py-5 bg-blue-600 text-white rounded-[2rem] font-black uppercase text-[11px] tracking-widest shadow-2xl hover:bg-blue-700 transition-all flex items-center justify-center gap-3">
+                 <button 
+                  disabled={vehicles.length === 0}
+                  onClick={() => { setActiveView('NEW_REQUEST'); setRequestStep(1); }} 
+                  className={`px-10 py-5 rounded-[2rem] font-black uppercase text-[11px] tracking-widest shadow-2xl transition-all flex items-center justify-center gap-3 ${vehicles.length === 0 ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+                 >
                     <LucidePlusCircle size={22}/> Nueva Gestión de Unidad
                  </button>
                )}
             </div>
+
+            {vehicles.length === 0 && (
+                <div className="bg-blue-50 border border-blue-200 p-10 rounded-[3.5rem] flex flex-col items-center text-center animate-fadeIn">
+                   <LucideWrench size={48} className="text-blue-600 mb-4"/>
+                   <h3 className="text-lg font-black text-blue-900 uppercase">Sin Activos Disponibles</h3>
+                   <p className="text-[10px] text-blue-700 font-bold uppercase tracking-widest mt-2 max-w-md">No existen unidades vinculadas para aperturar solicitudes. <Link to="/vehicles/new" className="text-blue-900 underline font-black">Cargue una unidad</Link> para habilitar el motor de gestión de servicios.</p>
+                </div>
+            )}
 
             {/* KPI PANEL */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">

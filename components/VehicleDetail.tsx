@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useApp } from '../context/FleetContext';
 import { ImageZoomModal } from './ImageZoomModal';
+import { ConfirmationModal } from './ConfirmationModal';
 import { 
   LucideArrowLeft, LucideClipboardCheck, LucideActivity, LucideRefreshCw, 
   LucideImage, LucideMaximize, LucideClock, LucideUserCheck,
@@ -26,13 +27,14 @@ import { FichaTecnica } from './FichaTecnica';
 export const VehicleDetail = () => {
   const { plate } = useParams();
   const navigate = useNavigate();
-  const { vehicles, updateVehicle, user } = useApp();
+  const { vehicles, updateVehicle, deleteVehicle, user, addNotification } = useApp();
   
   const [activeTab, setActiveTab] = useState<'DASH' | 'TECH' | 'ADMON' | 'DOCS' | 'RENTAL' | 'GALLERY' | 'LEASING'>('DASH');
   const [zoomedImage, setZoomedImage] = useState<{url: string, label: string} | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const vehicle = useMemo(() => vehicles.find(v => v.plate === plate), [vehicles, plate]);
-  const isAdmin = user?.role === UserRole.ADMIN || user?.role === UserRole.SUPERVISOR;
+  const isAdmin = user?.role === UserRole.ADMIN;
   const currentDate = format(new Date(), "eeee, d 'de' MMMM", { locale: es });
 
   const dashMetrics = useMemo(() => {
@@ -54,6 +56,14 @@ export const VehicleDetail = () => {
     return { totalDocs, expiredDocs, kmParaService, percMantenimiento, totalIncidents, criticalIncidents, healthScore: Math.max(0, score) };
   }, [vehicle]);
 
+  const handleDeleteVehicle = () => {
+    if (vehicle) {
+      deleteVehicle(vehicle.plate);
+      addNotification("Unidad eliminada del inventario corporativo", "warning");
+      navigate('/vehicles');
+    }
+  };
+
   if (!vehicle) return <div className="p-20 text-center font-black uppercase text-slate-300">Unidad no encontrada</div>;
 
   const tabs = [
@@ -70,6 +80,15 @@ export const VehicleDetail = () => {
     <div className="space-y-6 md:space-y-10 animate-fadeIn pb-24 max-w-full">
       {zoomedImage && <ImageZoomModal url={zoomedImage.url} label={zoomedImage.label} onClose={() => setZoomedImage(null)} />}
       
+      <ConfirmationModal 
+        isOpen={showDeleteConfirm}
+        title="Eliminar Activo"
+        message={`¿Confirma la eliminación total de la unidad ${vehicle.plate}? Esta acción no se puede deshacer.`}
+        onConfirm={handleDeleteVehicle}
+        onClose={() => setShowDeleteConfirm(false)}
+        isDanger={true}
+      />
+
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
             <button onClick={() => navigate('/vehicles')} className="flex items-center gap-2 text-slate-500 hover:text-slate-800 font-black uppercase text-[9px] tracking-widest group mb-4">
@@ -79,14 +98,21 @@ export const VehicleDetail = () => {
                 <LucideCalendar size={12} className="text-blue-500"/> {currentDate}
             </div>
         </div>
-        <div className="flex gap-2 w-full md:w-auto">
+        <div className="flex flex-wrap gap-2 w-full md:w-auto">
           <Link to={`/checklist?plate=${vehicle.plate}`} className="flex-1 md:flex-none justify-center bg-white text-slate-700 px-4 py-4 rounded-2xl text-[9px] font-black uppercase border border-slate-200 flex items-center gap-2 shadow-sm active:scale-95 transition-all"><LucideClipboardCheck size={16}/> Auditoría</Link>
           <Link to={`/vehicles/${vehicle.plate}/edit`} className="flex-1 md:flex-none justify-center bg-slate-900 text-white px-6 py-4 rounded-2xl text-[9px] font-black uppercase flex items-center gap-2 shadow-2xl active:scale-95 transition-all"><LucideSettings size={16}/> Editar</Link>
+          {isAdmin && (
+            <button 
+              onClick={() => setShowDeleteConfirm(true)} 
+              className="flex-1 md:flex-none justify-center bg-rose-50 text-rose-600 px-6 py-4 rounded-2xl text-[9px] font-black uppercase border border-rose-100 flex items-center gap-2 hover:bg-rose-600 hover:text-white transition-all shadow-sm active:scale-95"
+            >
+              <LucideTrash2 size={16}/> Eliminar Unidad
+            </button>
+          )}
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 md:gap-10">
-        {/* SIDEBAR / HEADER DE UNIDAD */}
         <div className="lg:col-span-1 space-y-6">
           <div className="bg-white rounded-[2.5rem] md:rounded-[3.5rem] p-6 md:p-10 shadow-sm border border-slate-100 flex flex-col items-center text-center overflow-hidden">
             <div className="w-full aspect-video md:aspect-square bg-slate-900 rounded-3xl mb-6 md:mb-8 flex items-center justify-center text-white font-black text-4xl md:text-6xl shadow-3xl overflow-hidden cursor-pointer relative group" onClick={() => vehicle.images.front && setZoomedImage({url: vehicle.images.front, label: 'Frontal'})}>
@@ -110,7 +136,6 @@ export const VehicleDetail = () => {
           </div>
         </div>
 
-        {/* CONTENIDO PRINCIPAL */}
         <div className="lg:col-span-3 space-y-8">
            <div className="flex gap-4 md:gap-8 border-b border-slate-100 overflow-x-auto custom-scrollbar scroll-smooth whitespace-nowrap pb-1">
               {tabs.map(tab => (
@@ -145,7 +170,7 @@ export const VehicleDetail = () => {
                      </div>
 
                      <div className="bg-white p-6 md:p-10 rounded-[2.5rem] md:rounded-[3.5rem] border border-slate-100 shadow-sm flex flex-col justify-center items-center text-center space-y-4">
-                        <div className={`p-4 md:p-6 rounded-2xl shadow-lg ${dashMetrics.expiredDocs > 0 ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                        <div className={`p-4 md:p-6 rounded-2xl shadow-lg ${dashMetrics.expiredDocs > 0 ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-700'}`}>
                            {dashMetrics.expiredDocs > 0 ? <LucideShieldAlert size={32}/> : <LucideShieldCheck size={32}/>}
                         </div>
                         <div>
