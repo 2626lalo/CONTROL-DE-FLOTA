@@ -22,6 +22,7 @@ export interface User {
   email: string;
   nombre: string;
   apellido: string;
+  name?: string;
   telefono: string;
   avatar?: string;
   passwordHash?: string;
@@ -130,6 +131,7 @@ export interface ServiceRequest {
   updatedAt: string;
   totalCost?: number;
   providerId?: string;
+  providerName?: string;
   unreadUserCount?: number;
   suggestedDate?: string;
 }
@@ -362,6 +364,7 @@ export interface AdministrativeData {
     directorResponsable: string;
     conductorPrincipal: string;
     propietario: string;
+    direccion?: string;
     tarjetaCombustible: {
       numero: string;
       pin: string;
