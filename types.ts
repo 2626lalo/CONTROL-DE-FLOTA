@@ -1,3 +1,4 @@
+
 export enum UserRole {
   ADMIN = 'ADMIN',
   USER = 'USER',
@@ -32,7 +33,7 @@ export interface User {
   ultimoAcceso?: string;
   intentosFallidos: number;
   approved: boolean;
-  resetRequested?: boolean; // NUEVO: Flag para solicitud de reseteo
+  resetRequested?: boolean; 
   centroCosto: {
     id: string;
     nombre: string;
@@ -40,7 +41,7 @@ export interface User {
   };
   costCenter?: string;
   role: UserRole;
-  level: 1 | 2 | 3; // 1: Básico, 2: Intermedio, 3: Full/Manager
+  level: 1 | 2 | 3; 
   rolesSecundarios: string[];
   permissions?: Permission[];
   notificaciones: {
@@ -54,6 +55,30 @@ export interface User {
   fechaActualizacion: string;
   eliminado: boolean;
   fechaEliminacion?: string;
+}
+
+export interface BienDeUso {
+  id: string;
+  centroCosto: string;
+  descripcion: string;
+  medida: string;
+  metros: number;
+  matricula: string;
+  propiedad: string;
+  esAlquiler: boolean;
+  costoAlquiler: number;
+  valorNeto: number;
+  observaciones: string;
+  area: string;
+  ubicacion: string;
+  uso: string;
+  peso: number;
+  imagen?: string;
+  imagenes?: string[]; // Soporte para múltiples fotos
+  proveedor: string;
+  estado: string;
+  marca: string;
+  fechaCarga: string;
 }
 
 export enum ServiceStage {
@@ -544,7 +569,7 @@ export interface AuditLog {
   userId: string;
   userName: string;
   action: string;
-  entityType: 'VEHICLE' | 'SERVICE' | 'USER' | 'CHECKLIST';
+  entityType: 'VEHICLE' | 'SERVICE' | 'USER' | 'CHECKLIST' | 'BIEN';
   entityId: string;
   details: string;
 }

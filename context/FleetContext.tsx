@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { Vehicle, User, ServiceRequest, Checklist, AuditLog, ServiceStage, VehicleStatus, UserRole } from '../types';
+import { Vehicle, User, ServiceRequest, Checklist, AuditLog, ServiceStage, VehicleStatus, UserRole, BienDeUso } from '../types';
 
 const MOCK_VEHICLES: Vehicle[] = [];
 
@@ -13,6 +13,7 @@ interface FleetContextType {
   users: User[];
   serviceRequests: ServiceRequest[];
   checklists: Checklist[];
+  bienesDeUso: BienDeUso[];
   costCenters: string[]; 
   addVehicle: (v: Vehicle) => Promise<void>;
   updateVehicle: (v: Vehicle) => Promise<void>;
@@ -27,6 +28,8 @@ interface FleetContextType {
   updateServiceRequest: (r: ServiceRequest) => Promise<void>;
   updateServiceStage: (serviceId: string, stage: ServiceStage, comment: string) => Promise<void>;
   addChecklist: (c: Checklist) => Promise<void>;
+  bulkUpsertBienes: (bs: BienDeUso[]) => Promise<void>;
+  deleteBien: (id: string) => Promise<void>;
   loading: boolean;
   isDataLoading: boolean;
   error: string | null;
@@ -63,6 +66,7 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [costCenters, setCostCenters] = useState<string[]>([]);
   const [serviceRequests, setServiceRequests] = useState<ServiceRequest[]>([]);
   const [checklists, setChecklists] = useState<Checklist[]>([]);
+  const [bienesDeUso, setBienesDeUso] = useState<BienDeUso[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -79,6 +83,7 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const savedCC = localStorage.getItem('fp_cost_centers');
     const savedRequests = localStorage.getItem('fp_requests');
     const savedChecklists = localStorage.getItem('fp_checklists');
+    const savedBienes = localStorage.getItem('fp_bienes');
     const currentUser = localStorage.getItem('fp_currentUser');
 
     if (savedVehicles) setVehicles(JSON.parse(savedVehicles));
@@ -96,6 +101,7 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     if (savedRequests) setServiceRequests(JSON.parse(savedRequests));
     if (savedChecklists) setChecklists(JSON.parse(savedChecklists));
+    if (savedBienes) setBienesDeUso(JSON.parse(savedBienes));
     if (currentUser) setAuthenticatedUser(JSON.parse(currentUser));
 
     setLoading(false);
@@ -173,7 +179,6 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
 
     if (found) {
-       // Prioridad: Informar si no está aprobado ANTES de validar contraseña para flujo solicitado
        if (!found.approved) {
            return { success: false, message: "Su solicitud de acceso aún no ha sido procesada por el Administrador Principal. Por favor, aguarde la validación de identidad." };
        }
@@ -201,7 +206,7 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const newUser: User = {
         id: emailLower, email: emailLower, nombre: name.toUpperCase(), apellido: lastName.toUpperCase(),
         name: `${name} ${lastName}`.toUpperCase(), telefono: phone, role: UserRole.USER, estado: 'pendiente',
-        password: pass, // Guardamos la contraseña para permitir el login posterior
+        password: pass, 
         approved: false, fechaRegistro: new Date().toISOString(), intentosFallidos: 0,
         centroCosto: { id: "0", nombre: "PENDIENTE", codigo: "000" }, costCenter: "PENDIENTE",
         level: 1, rolesSecundarios: [], notificaciones: { email: true, push: false, whatsapp: false },
@@ -225,6 +230,32 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return { success: true, message: "Solicitud de reseteo enviada con éxito. Por seguridad, un administrador validará su identidad." };
   };
 
+  const bulkUpsertBienes = async (newBienes: BienDeUso[]) => {
+    setBienesDeUso(prev => {
+      const bienMap = new Map<string, BienDeUso>(prev.map(b => [b.id.toUpperCase(), b] as [string, BienDeUso]));
+      newBienes.forEach(nb => {
+        const id = nb.id.toUpperCase();
+        if (bienMap.has(id)) {
+          const existing = bienMap.get(id)!;
+          bienMap.set(id, { ...existing, ...nb });
+        } else {
+          bienMap.set(id, nb);
+        }
+      });
+      const newList = Array.from(bienMap.values());
+      localStorage.setItem('fp_bienes', JSON.stringify(newList));
+      return newList;
+    });
+  };
+
+  const deleteBien = async (id: string) => {
+    setBienesDeUso(prev => {
+        const nl = prev.filter(b => b.id !== id);
+        localStorage.setItem('fp_bienes', JSON.stringify(nl));
+        return nl;
+    });
+  };
+
   const addNotification = (message: string, type: any = 'success') => {
     const id = Date.now().toString();
     setNotifications(prev => [...prev, { id, message, type }]);
@@ -239,7 +270,7 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const restoreGoldenMaster = async () => { localStorage.clear(); window.location.reload(); };
 
   const value: FleetContextType = {
-    vehicles, users, serviceRequests, checklists, costCenters,
+    vehicles, users, serviceRequests, checklists, bienesDeUso, costCenters,
     addVehicle, updateVehicle, bulkUpsertVehicles, deleteVehicle,
     addUser: async () => {}, 
     updateUser: async (u) => {
@@ -289,6 +320,7 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         return nl;
       });
     },
+    bulkUpsertBienes, deleteBien,
     loading, isDataLoading: loading, error, user: impersonatedUser || authenticatedUser,
     authenticatedUser, impersonatedUser, registeredUsers: users, isOnline: true, auditLogs: [],
     notifications, login, logout, register, requestPasswordReset, addNotification,
