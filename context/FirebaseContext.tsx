@@ -4,6 +4,7 @@ import {
   signInWithEmailAndPassword, 
   signOut, 
   onAuthStateChanged,
+  sendPasswordResetEmail,
   User as FirebaseUser
 } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
@@ -18,6 +19,7 @@ interface FirebaseContextType {
   signUp: (email: string, pass: string, data: any) => Promise<any>;
   signIn: (email: string, pass: string) => Promise<any>;
   logout: () => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
   uploadImage: (file: File, path: string) => Promise<string>;
   db: any;
   storage: any;
@@ -59,26 +61,24 @@ export const FirebaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       nombre: additionalData.nombre.toUpperCase(),
       apellido: additionalData.apellido.toUpperCase(),
       name: `${additionalData.nombre} ${additionalData.apellido}`.toUpperCase(),
-      telefono: additionalData.telefono || '',
       role: 'USER',
-      approved: false, // Requisito: Siempre false por defecto
-      estado: 'pendiente', // Requisito: Siempre pendiente por defecto
-      fechaRegistro: new Date().toISOString(), // Requisito: Campo fechaRegistro
+      approved: false, 
+      estado: 'pendiente',
+      fechaRegistro: new Date().toISOString(),
       createdAt: new Date().toISOString(),
-      intentosFallidos: 0,
       centroCosto: { id: "0", nombre: "PENDIENTE", codigo: "000" },
       costCenter: "PENDIENTE",
       level: 1,
-      rolesSecundarios: [],
-      notificaciones: { email: true, push: false, whatsapp: false },
       eliminado: false
     };
+    // IMPORTANTE: El password NUNCA se guarda en Firestore
     await setDoc(doc(db, 'users', userCredential.user.uid), data);
     return userCredential;
   };
 
   const signIn = (email: string, password: string) => signInWithEmailAndPassword(auth, email, password);
   const logout = () => signOut(auth);
+  const resetPassword = (email: string) => sendPasswordResetEmail(auth, email);
 
   const uploadImage = async (file: File, path: string) => {
     try {
@@ -99,6 +99,7 @@ export const FirebaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     signUp,
     signIn,
     logout,
+    resetPassword,
     uploadImage,
     db,
     storage

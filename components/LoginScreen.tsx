@@ -7,8 +7,8 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { LucideUserPlus, LucideLogIn, LucideArrowLeft, LucideCheckCircle, LucideShieldCheck, LucideShieldAlert, LucideTimer, LucideKeyRound, LucideShieldQuestion, LucideClock } from 'lucide-react';
 
 export const LoginScreen = () => {
-  const { login: fleetLogin, requestPasswordReset: fleetReset } = useApp();
-  const { signIn, signUp, logout, db } = useFirebase();
+  const { login: fleetLogin } = useApp();
+  const { signIn, signUp, logout, resetPassword, db } = useFirebase();
   const navigate = useNavigate();
   const [mode, setMode] = useState<'LOGIN' | 'REGISTER' | 'FORGOT'>('LOGIN');
   const [email, setEmail] = useState('');
@@ -29,64 +29,53 @@ export const LoginScreen = () => {
     setLoading(true);
 
     try {
-      // Intento con Firebase
-      try {
-        const userCredential = await signIn(email, password);
-        const userRef = doc(db, 'users', userCredential.user.uid);
-        let userDoc = await getDoc(userRef);
+      const userCredential = await signIn(email, password);
+      const userRef = doc(db, 'users', userCredential.user.uid);
+      let userDoc = await getDoc(userRef);
 
-        // Asegurar que el admin principal tenga su documento
-        if (!userDoc.exists() && email.toLowerCase() === 'alewilczek@gmail.com') {
-          const adminData = {
-            id: userCredential.user.uid,
-            email: email.toLowerCase(),
-            nombre: "ALE",
-            apellido: "WILCZEK",
-            name: "ALE WILCZEK",
-            telefono: "123456789",
-            role: 'ADMIN',
-            approved: true,
-            estado: 'activo',
-            fechaRegistro: new Date().toISOString(),
-            createdAt: new Date().toISOString(),
-            intentosFallidos: 0,
-            centroCosto: { id: "1", nombre: "CENTRAL", codigo: "001" },
-            costCenter: "CENTRAL",
-            level: 3,
-            rolesSecundarios: [],
-            notificaciones: { email: true, push: false, whatsapp: false },
-            eliminado: false
-          };
-          await setDoc(userRef, adminData);
-          userDoc = await getDoc(userRef);
-        }
-        
-        const userData = userDoc.data();
-
-        if (userData && !userData.approved) {
-            await logout();
-            setIsPendingLogin(true);
-            setError("Su solicitud de acceso aún no ha sido procesada por el Administrador Principal. Por favor, aguarde la validación de identidad.");
-            setLoading(false);
-            return;
-        }
-
-        navigate('/');
-        return;
-      } catch (fbErr: any) {
-        // Fallback a login local (maestro o sesiones offline previas)
-        const res = await fleetLogin(email, password);
-        if (res.success) {
-          navigate('/');
-        } else {
-          if (res.message?.toLowerCase().includes('procesada') || res.message?.toLowerCase().includes('aguarde')) {
-              setIsPendingLogin(true);
-          }
-          setError(res.message || 'Credenciales incorrectas');
-        }
+      // Si el documento no existe, lo creamos con datos básicos
+      if (!userDoc.exists()) {
+        const isAdmin = email.toLowerCase() === 'alewilczek@gmail.com';
+        const userData = {
+          id: userCredential.user.uid,
+          email: email.toLowerCase().trim(),
+          nombre: isAdmin ? "ALE" : "USUARIO",
+          apellido: isAdmin ? "WILCZEK" : "NUEVO",
+          name: isAdmin ? "ALE WILCZEK" : "USUARIO NUEVO",
+          role: isAdmin ? 'ADMIN' : 'USER',
+          approved: isAdmin, // Solo el admin se auto-aprueba
+          estado: isAdmin ? 'activo' : 'pendiente',
+          fechaRegistro: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
+          level: isAdmin ? 3 : 1,
+          eliminado: false
+        };
+        await setDoc(userRef, userData);
+        userDoc = await getDoc(userRef);
       }
-    } catch (err) {
-      setError('Error al iniciar sesión');
+      
+      const userData = userDoc.data();
+
+      if (userData && !userData.approved) {
+          await logout();
+          setIsPendingLogin(true);
+          setError("Su solicitud de acceso aún no ha sido procesada por el Administrador Principal. Por favor, aguarde la validación de identidad.");
+          setLoading(false);
+          return;
+      }
+
+      navigate('/');
+    } catch (fbErr: any) {
+      // Fallback a login local si falló Firebase o credenciales incorrectas
+      const res = await fleetLogin(email, password);
+      if (res.success) {
+        navigate('/');
+      } else {
+        if (res.message?.toLowerCase().includes('procesada') || res.message?.toLowerCase().includes('aguarde')) {
+            setIsPendingLogin(true);
+        }
+        setError(fbErr.message || res.message || 'Credenciales incorrectas');
+      }
     } finally {
       setLoading(false);
     }
@@ -97,8 +86,7 @@ export const LoginScreen = () => {
     setError('');
     setSuccess('');
     
-    const isNumeric = /^\d+$/.test(phone);
-    if (!isNumeric) {
+    if (phone && !/^\d+$/.test(phone)) {
       setError('El número de teléfono debe contener solo dígitos numéricos');
       return;
     }
@@ -133,15 +121,11 @@ export const LoginScreen = () => {
     setLoading(true);
 
     try {
-      const res = await fleetReset(email);
-      if (res.success) {
-        setSuccess(res.message || '');
-        setEmail('');
-      } else {
-        setError(res.message || 'Ocurrió un problema con la solicitud.');
-      }
-    } catch (err) {
-      setError('Error al procesar la solicitud.');
+      await resetPassword(email);
+      setSuccess('Se ha enviado un correo electrónico para restablecer su contraseña. Por favor, revise su bandeja de entrada y spam.');
+      setEmail('');
+    } catch (err: any) {
+      setError(err.message || 'Error al procesar la solicitud de recuperación.');
     } finally {
       setLoading(false);
     }
@@ -184,7 +168,7 @@ export const LoginScreen = () => {
                 <div className="bg-emerald-50 border-2 border-emerald-100 text-emerald-600 p-6 rounded-[2rem] text-sm font-bold flex flex-col items-center text-center gap-4">
                     <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center shadow-inner animate-pulse"><LucideShieldCheck size={32}/></div>
                     <div>
-                        <p className="font-black uppercase tracking-tighter text-lg leading-tight mb-2">Solicitud en Auditoría</p>
+                        <p className="font-black uppercase tracking-tighter text-lg leading-tight mb-2">Solicitud Procesada</p>
                         <p className="text-xs leading-relaxed opacity-80">{success}</p>
                     </div>
                 </div>
@@ -192,7 +176,7 @@ export const LoginScreen = () => {
                     onClick={() => { setMode('LOGIN'); setSuccess(''); setError(''); setIsPendingLogin(false); }}
                     className="w-full py-5 bg-slate-900 text-white rounded-[1.5rem] font-black uppercase text-xs tracking-widest shadow-xl hover:bg-slate-800 transition-all flex items-center justify-center gap-3"
                 >
-                    <LucideArrowLeft size={18}/> Entendido, volver al Inicio
+                    <LucideArrowLeft size={18}/> Volver al Inicio
                 </button>
             </div>
           ) : (
@@ -202,7 +186,7 @@ export const LoginScreen = () => {
                   <div className="text-center mb-6">
                     <LucideKeyRound size={48} className="mx-auto text-blue-600 mb-4 opacity-20"/>
                     <h3 className="font-black uppercase italic text-slate-800">Recuperación de Acceso</h3>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Verificación por Auditoría Administrativa</p>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Restablecimiento vía Firebase Auth</p>
                   </div>
                   <div className="space-y-1">
                     <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Correo Electrónico de su Cuenta</label>
@@ -220,7 +204,7 @@ export const LoginScreen = () => {
                     disabled={loading}
                     className="w-full py-5 bg-blue-600 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-xl hover:bg-blue-700 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
                   >
-                    {loading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> : <><LucideShieldQuestion size={18}/> Solicitar Blanqueo</>}
+                    {loading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> : <><LucideShieldQuestion size={18}/> Enviar Enlace de Recuperación</>}
                   </button>
                   <button 
                     type="button"
@@ -258,13 +242,12 @@ export const LoginScreen = () => {
                         />
                       </div>
                       <div className="col-span-2 space-y-1">
-                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Teléfono de Contacto</label>
+                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Teléfono (opcional)</label>
                         <input 
                           type="tel" 
-                          className="w-full p-4 bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold outline-none focus:ring-4 focus:ring-blue-50"
+                          className="w-full p-4 bg-slate-50 border border-slate-100 rounded-xl font-bold text-sm outline-none focus:ring-4 focus:ring-blue-50"
                           value={phone}
                           onChange={(e) => setPhone(e.target.value)}
-                          required
                           placeholder="Ej: 2612345678"
                         />
                       </div>
