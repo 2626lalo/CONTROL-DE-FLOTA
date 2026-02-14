@@ -1,23 +1,45 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/FleetContext';
 import { Link, useNavigate } from 'react-router-dom';
 import { 
   LucidePlus, LucideSearch, LucideLayoutGrid, LucideList, 
   LucideCar, LucideChevronRight, 
   LucideDatabase, LucideFuel,
-  LucideTrash2, LucideBox
+  LucideTrash2, LucideBox,
+  LucideLoader2
 } from 'lucide-react';
-import { VehicleStatus, UserRole } from '../types';
+import { VehicleStatus, UserRole, Vehicle } from '../types';
 import { ConfirmationModal } from './ConfirmationModal';
+import { db } from '../firebaseConfig';
+import { collection, getDocs } from 'firebase/firestore';
 
 export const VehicleList = () => {
-  const { vehicles, user, deleteVehicle } = useApp();
+  const { user, deleteVehicle } = useApp();
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [viewMode, setViewMode] = useState<'GRID' | 'TABLE'>('GRID');
   const [filterStatus, setFilterStatus] = useState('');
   const [filterCC, setFilterCC] = useState('');
   const [plateToDelete, setPlateToDelete] = useState<string | null>(null);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const fetchVehicles = async () => {
+      try {
+        const querySnapshot = await getDocs(collection(db, 'vehicles'));
+        const vehiclesList = querySnapshot.docs.map(doc => ({
+          ...doc.data()
+        })) as Vehicle[];
+        setVehicles(vehiclesList);
+      } catch (error) {
+        console.error('Error fetching vehicles:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchVehicles();
+  }, []);
 
   const isAdmin = user?.role === UserRole.ADMIN;
   const costCenters = Array.from(new Set(vehicles.map(v => v.costCenter).filter(Boolean)));
@@ -32,12 +54,22 @@ export const VehicleList = () => {
     return matchesSearch && matchesStatus && matchesCC;
   });
 
-  const handleDeleteConfirm = () => {
+  const handleDeleteConfirm = async () => {
     if (plateToDelete) {
-        deleteVehicle(plateToDelete);
+        await deleteVehicle(plateToDelete);
+        setVehicles(prev => prev.filter(v => v.plate !== plateToDelete));
         setPlateToDelete(null);
     }
   };
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-32 space-y-4">
+        <LucideLoader2 className="text-blue-600 animate-spin" size={48} />
+        <p className="text-slate-400 font-black uppercase text-[10px] tracking-[0.2em]">Consultando Inventario en la Nube...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 md:space-y-8 animate-fadeIn pb-24">
