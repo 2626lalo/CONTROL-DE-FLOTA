@@ -1,13 +1,12 @@
 import * as XLSX from 'xlsx';
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/FleetContext';
-import { User, UserRole, Vehicle, OwnershipType, FuelType, TransmissionType, VehicleStatus } from '../types';
+import { Vehicle, OwnershipType, FuelType, TransmissionType, VehicleStatus } from '../types';
 import { 
   LucideCheckCircle, LucideXCircle, 
-  LucideRefreshCcw, LucideTrash2, 
-  LucideFileSpreadsheet, LucideMail, LucideDatabase, 
+  LucideFileSpreadsheet, LucideDatabase, 
   LucideUpload, LucideSave, LucideInfo, 
-  LucideX, LucideZap, LucideImage, LucideCrosshair, LucideSparkles,
+  LucideX, LucideCrosshair,
   LucideLoader2, LucideDownload, LucideHistory, LucideCheckCircle2
 } from 'lucide-react';
 import { GOLDEN_MASTER_SNAPSHOT } from '../constants';
@@ -19,11 +18,10 @@ import { db } from '../firebaseConfig';
 import { collection, getDocs, doc, updateDoc, writeBatch } from 'firebase/firestore';
 
 export const AdminUsers = () => {
-    const { vehicles, bulkUpsertVehicles, user, restoreGoldenMaster, addNotification, masterFindingsImage, setMasterFindingsImage, lastBulkLoadDate } = useApp();
+    const { user, addNotification, masterFindingsImage, setMasterFindingsImage, lastBulkLoadDate } = useApp();
     
     const [users, setUsers] = useState<any[]>([]);
     const MAIN_ADMIN_EMAIL = 'alewilczek@gmail.com';
-    const isMainAdmin = user?.email === MAIN_ADMIN_EMAIL;
     const [isBulkLoading, setIsBulkLoading] = useState(false);
     const [showSuccessBadge, setShowSuccessBadge] = useState(false);
 
@@ -44,19 +42,16 @@ export const AdminUsers = () => {
     }, []);
 
     const handleApproval = async (userId: string, approved: boolean) => {
-        const userToUpdate = users.find(u => u.id === userId);
-        if (userToUpdate && userToUpdate.email !== MAIN_ADMIN_EMAIL) {
-            try {
-                await updateDoc(doc(db, 'users', userId), { approved });
-                // Actualizar estado local para reflejar el cambio
-                setUsers(users.map(u => 
-                    u.id === userId ? { ...u, approved } : u
-                ));
-                addNotification(approved ? "Usuario aprobado" : "Aprobación revocada", "success");
-            } catch (error) {
-                console.error("Error updating user approval:", error);
-                addNotification("Error al actualizar estado", "error");
-            }
+        try {
+            await updateDoc(doc(db, 'users', userId), { approved });
+            // Actualizar estado local para reflejar el cambio
+            setUsers(users.map(u => 
+                u.id === userId ? { ...u, approved } : u
+            ));
+            addNotification(approved ? "Usuario aprobado" : "Aprobación revocada", "success");
+        } catch (error) {
+            console.error("Error updating user approval:", error);
+            addNotification("Error al actualizar estado", "error");
         }
     };
 
@@ -165,7 +160,6 @@ export const AdminUsers = () => {
                 }).filter((v): v is Vehicle => v !== null);
 
                 if (mappedVehicles.length > 0) {
-                    // Migración a Firestore usando Batch Writes
                     const batch = writeBatch(db);
                     mappedVehicles.forEach(vehicle => {
                         const vehicleRef = doc(db, 'vehicles', vehicle.plate);
@@ -209,7 +203,6 @@ export const AdminUsers = () => {
                 </div>
             </div>
             
-            {/* CARGA MASIVA EXCEL */}
             <div className="bg-white rounded-[3rem] shadow-sm border border-slate-100 overflow-hidden">
                 <div className="p-10 border-b bg-indigo-900 flex justify-between items-center text-white">
                     <div className="flex items-center gap-4">
@@ -291,7 +284,6 @@ export const AdminUsers = () => {
                 </div>
             </div>
 
-            {/* RESTO DE LA SECCIÓN ADMINISTRATIVA */}
             <div className="bg-white rounded-[3rem] shadow-sm border border-slate-100 overflow-hidden">
                 <div className="p-10 border-b bg-slate-950 flex justify-between items-center text-white">
                     <div className="flex items-center gap-4">
@@ -331,7 +323,7 @@ export const AdminUsers = () => {
                         <tbody className="divide-y divide-slate-50">
                             {users.map(u => (
                                 <tr key={u.id} className="hover:bg-slate-50/80 transition-colors">
-                                    <td className="px-10 py-6 font-black text-slate-800 uppercase text-xs">{u.nombre}</td>
+                                    <td className="px-10 py-6 font-black text-slate-800 uppercase text-xs">{u.nombre} {u.apellido}</td>
                                     <td className="px-10 py-6 font-bold text-slate-400 text-[10px] uppercase tracking-wider">{u.role}</td>
                                     <td className="px-10 py-6 text-right">
                                         <button onClick={() => handleApproval(u.id, !u.approved)} className={`p-3 rounded-2xl transition-all ${u.approved ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600 hover:scale-110'}`}>

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { UserRole } from '../types';
 import { useApp } from '../context/FleetContext';
 import { useFirebase } from '../context/FirebaseContext';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { LucideUserPlus, LucideLogIn, LucideArrowLeft, LucideCheckCircle, LucideShieldCheck, LucideShieldAlert, LucideTimer, LucideKeyRound, LucideShieldQuestion, LucideClock } from 'lucide-react';
 
 export const LoginScreen = () => {
@@ -32,9 +32,35 @@ export const LoginScreen = () => {
       // Intento con Firebase
       try {
         const userCredential = await signIn(email, password);
+        const userRef = doc(db, 'users', userCredential.user.uid);
+        let userDoc = await getDoc(userRef);
+
+        // Asegurar que el admin principal tenga su documento
+        if (!userDoc.exists() && email.toLowerCase() === 'alewilczek@gmail.com') {
+          const adminData = {
+            id: userCredential.user.uid,
+            email: email.toLowerCase(),
+            nombre: "ALE",
+            apellido: "WILCZEK",
+            name: "ALE WILCZEK",
+            telefono: "123456789",
+            role: 'ADMIN',
+            approved: true,
+            estado: 'activo',
+            fechaRegistro: new Date().toISOString(),
+            createdAt: new Date().toISOString(),
+            intentosFallidos: 0,
+            centroCosto: { id: "1", nombre: "CENTRAL", codigo: "001" },
+            costCenter: "CENTRAL",
+            level: 3,
+            rolesSecundarios: [],
+            notificaciones: { email: true, push: false, whatsapp: false },
+            eliminado: false
+          };
+          await setDoc(userRef, adminData);
+          userDoc = await getDoc(userRef);
+        }
         
-        // Verificación obligatoria de aprobación en Firestore
-        const userDoc = await getDoc(doc(db, 'users', userCredential.user.uid));
         const userData = userDoc.data();
 
         if (userData && !userData.approved) {
