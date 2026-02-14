@@ -59,7 +59,7 @@ export const LoginScreen = () => {
       if (userData && !userData.approved) {
           await logout();
           setIsPendingLogin(true);
-          setError("Su solicitud de acceso aún no ha sido procesada por el Administrador Principal. Por favor, aguarde la validación de identidad.");
+          setError('Tu cuenta está pendiente de aprobación por el administrador.');
           setLoading(false);
           return;
       }

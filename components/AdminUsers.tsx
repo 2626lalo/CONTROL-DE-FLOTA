@@ -151,9 +151,9 @@ export const AdminUsers = () => {
                             tarjetaTelepase: { numero: '', pin: '', proveedor: '', limiteMensual: 0, saldoActual: 0, fechaVencimiento: '', estado: 'activa' },
                             unidadActiva: String(row['UNIDAD ACTIVA']).toUpperCase() === 'SI' || row['UNIDAD ACTIVA'] === true,
                             leasing_cuotaMensual: Number(row['VALOR LEASING'] || 0),
-                            fechaInicioContrato: row['FECHA ACTIVACION'] ? String(row['FECHA ACTIVACION']) : undefined,
-                            fechaFinContrato: row['FECHA VENCIMIENTO'] ? String(row['FECHA VENCIMIENTO']) : undefined,
-                            leasing_estadoContrato: row['VALOR LEASING'] ? 'activo' : undefined,
+                            fechaInicioContrato: row['FECHA ACTIVACION'] ? String(row['FECHA ACTIVACION']) : null,
+                            fechaFinContrato: row['FECHA VENCIMIENTO'] ? String(row['FECHA VENCIMIENTO']) : null,
+                            leasing_estadoContrato: row['VALOR LEASING'] ? 'activo' : null,
                             opcionesListas: {
                                 operandoPara: [], zona: [], sitio: [], uso: [], director: [], conductor: [], propietario: []
                             }
