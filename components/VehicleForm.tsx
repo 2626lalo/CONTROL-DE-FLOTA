@@ -1,7 +1,8 @@
-// FIX: Added useMemo to React imports to resolve line 51 error
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/FleetContext';
+import { useFirebase } from '../context/FirebaseContext';
 import { Vehicle, VehicleStatus, OwnershipType, FuelType, TransmissionType } from '../types';
 import { 
   LucideArrowLeft, LucideCar, LucideCheck, LucideCamera, LucideTrash2, 
@@ -18,6 +19,7 @@ export const VehicleForm = () => {
   const { plate } = useParams();
   const navigate = useNavigate();
   const { vehicles, addVehicle, updateVehicle, addNotification, logAudit, vehicleVersions } = useApp();
+  const { uploadImage } = useFirebase();
   const isEdit = !!plate;
 
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -49,7 +51,6 @@ export const VehicleForm = () => {
     }
   }, [isEdit, plate, vehicles]);
 
-  // FIX: isFormValid now uses useMemo which is correctly imported
   const isFormValid = useMemo(() => {
     return (
       formData.plate.trim() !== '' &&
@@ -102,13 +103,32 @@ export const VehicleForm = () => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // First compress for local preview and AI analysis
     const reader = new FileReader();
     reader.onloadend = async () => {
       const base64 = await compressImage(reader.result as string);
-      if (side === 'Frente') setCedulaFront(base64);
-      else setCedulaBack(base64);
+      
+      // Upload to Firebase and use the public URL
+      try {
+        addNotification(`Subiendo ${side} a la nube...`, "warning");
+        const url = await uploadImage(file, `vehicles/cedulas/${Date.now()}_${side}.jpg`);
+        
+        if (side === 'Frente') {
+          setCedulaFront(url);
+          setFormData((prev: any) => ({ ...prev, images: { ...prev.images, front: url } }));
+        } else {
+          setCedulaBack(url);
+          setFormData((prev: any) => ({ ...prev, images: { ...prev.images, rear: url } }));
+        }
 
-      await runAnalysis(base64, side);
+        // Run analysis on the base64 for speed
+        await runAnalysis(base64, side);
+      } catch (err) {
+        console.error("Firebase upload error:", err);
+        addNotification("Error subiendo imagen. Se usará copia local temporal.", "error");
+        if (side === 'Frente') setCedulaFront(base64);
+        else setCedulaBack(base64);
+      }
     };
     reader.readAsDataURL(file);
   };
@@ -225,7 +245,7 @@ export const VehicleForm = () => {
                       <img src={cedulaFront} className="w-full h-full object-contain" />
                       <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center transition-all gap-3">
                         <div className="flex gap-2">
-                          <button type="button" onClick={() => setZoomedImage({url: cedulaFront, label: 'Cédula Frente'})} className="bg-white text-slate-800 p-3 rounded-xl shadow-2xl hover:bg-blue-600 hover:text-white transition-all">
+                          <button type="button" onClick={() => setZoomedImage({url: cedulaFront!, label: 'Cédula Frente'})} className="bg-white text-slate-800 p-3 rounded-xl shadow-2xl hover:bg-blue-600 hover:text-white transition-all">
                             <LucideMaximize size={18}/>
                           </button>
                           <label className="cursor-pointer bg-white text-slate-800 p-3 rounded-xl shadow-2xl hover:bg-blue-600 hover:text-white transition-all">
@@ -261,7 +281,7 @@ export const VehicleForm = () => {
                       <img src={cedulaBack} className="w-full h-full object-contain" />
                       <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center transition-all gap-3">
                         <div className="flex gap-2">
-                          <button type="button" onClick={() => setZoomedImage({url: cedulaBack, label: 'Cédula Dorso'})} className="bg-white text-slate-800 p-3 rounded-xl shadow-2xl hover:bg-blue-600 hover:text-white transition-all">
+                          <button type="button" onClick={() => setZoomedImage({url: cedulaBack!, label: 'Cédula Dorso'})} className="bg-white text-slate-800 p-3 rounded-xl shadow-2xl hover:bg-blue-600 hover:text-white transition-all">
                             <LucideMaximize size={18}/>
                           </button>
                           <label className="cursor-pointer bg-white text-slate-800 p-3 rounded-xl shadow-2xl hover:bg-blue-600 hover:text-white transition-all">

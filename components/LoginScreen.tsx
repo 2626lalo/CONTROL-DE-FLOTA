@@ -1,11 +1,14 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { UserRole } from '../types';
 import { useApp } from '../context/FleetContext';
+import { useFirebase } from '../context/FirebaseContext';
 import { LucideUserPlus, LucideLogIn, LucideArrowLeft, LucideCheckCircle, LucideShieldCheck, LucideShieldAlert, LucideTimer, LucideKeyRound, LucideShieldQuestion, LucideClock } from 'lucide-react';
 
 export const LoginScreen = () => {
-  const { register, login, requestPasswordReset } = useApp();
+  const { register: fleetRegister, login: fleetLogin, requestPasswordReset: fleetReset } = useApp();
+  const { signIn, signUp, logout } = useFirebase();
   const navigate = useNavigate();
   const [mode, setMode] = useState<'LOGIN' | 'REGISTER' | 'FORGOT'>('LOGIN');
   const [email, setEmail] = useState('');
@@ -26,15 +29,22 @@ export const LoginScreen = () => {
     setLoading(true);
 
     try {
-      const res = await login(email, password);
-      if (res.success) {
+      // First try Firebase
+      try {
+        await signIn(email, password);
         navigate('/');
-      } else {
-        // Detectar si el mensaje indica que la cuenta no está aprobada
-        if (res.message?.toLowerCase().includes('procesada') || res.message?.toLowerCase().includes('aguarde')) {
-            setIsPendingLogin(true);
+        return;
+      } catch (fbErr: any) {
+        // If firebase fails, try mock login for dev/admin
+        const res = await fleetLogin(email, password);
+        if (res.success) {
+          navigate('/');
+        } else {
+          if (res.message?.toLowerCase().includes('procesada') || res.message?.toLowerCase().includes('aguarde')) {
+              setIsPendingLogin(true);
+          }
+          setError(res.message || 'Credenciales incorrectas');
         }
-        setError(res.message || 'Credenciales incorrectas');
       }
     } catch (err) {
       setError('Error al iniciar sesión');
@@ -48,7 +58,6 @@ export const LoginScreen = () => {
     setError('');
     setSuccess('');
     
-    // Validación de teléfono numérico
     const isNumeric = /^\d+$/.test(phone);
     if (!isNumeric) {
       setError('El número de teléfono debe contener solo dígitos numéricos');
@@ -63,15 +72,18 @@ export const LoginScreen = () => {
     setLoading(true);
 
     try {
-      const res = await register(email, password, name, lastName, phone);
-      if (res.success) {
-        setSuccess('¡Registro recibido con éxito! Su solicitud ha sido enviada al Administrador Principal. Por normas de seguridad corporativa, deberá esperar a que su identidad sea validada para poder ingresar.');
-        setName(''); setLastName(''); setPhone(''); setEmail(''); setPassword('');
-      } else {
-        setError(res.message || 'Error al registrarse');
-      }
-    } catch (err) {
-      setError('Error de conexión al registrar');
+      // Register in Firebase
+      await signUp(email, password, { 
+        nombre: name.toUpperCase(), 
+        apellido: lastName.toUpperCase(), 
+        telefono: phone,
+        name: `${name} ${lastName}`.toUpperCase()
+      });
+      
+      setSuccess('¡Registro recibido con éxito! Su solicitud ha sido enviada al Administrador Principal. Por normas de seguridad corporativa, deberá esperar a que su identidad sea validada para poder ingresar.');
+      setName(''); setLastName(''); setPhone(''); setEmail(''); setPassword('');
+    } catch (err: any) {
+      setError(err.message || 'Error al registrarse');
     } finally {
       setLoading(false);
     }
@@ -84,7 +96,7 @@ export const LoginScreen = () => {
     setLoading(true);
 
     try {
-      const res = await requestPasswordReset(email);
+      const res = await fleetReset(email);
       if (res.success) {
         setSuccess(res.message || '');
         setEmail('');

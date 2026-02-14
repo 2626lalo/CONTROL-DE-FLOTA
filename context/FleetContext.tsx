@@ -1,5 +1,16 @@
+
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Vehicle, User, ServiceRequest, Checklist, AuditLog, ServiceStage, VehicleStatus, UserRole, BienDeUso } from '../types';
+import { useFirebase } from './FirebaseContext';
+import { 
+  collection, 
+  onSnapshot, 
+  doc, 
+  setDoc, 
+  deleteDoc, 
+  query, 
+  where 
+} from 'firebase/firestore';
 
 const MOCK_VEHICLES: Vehicle[] = [];
 
@@ -61,6 +72,7 @@ interface FleetContextType {
 const FleetContext = createContext<FleetContextType | undefined>(undefined);
 
 export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { user: firebaseUser, db } = useFirebase();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [costCenters, setCostCenters] = useState<string[]>([]);
@@ -77,35 +89,88 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [docTypes, setDocTypes] = useState<string[]>(['CEDULA', 'TITULO', 'VTV', 'SEGURO']);
   const [lastBulkLoadDate, setLastBulkLoadDate] = useState<string | null>(localStorage.getItem('fp_last_bulk_load'));
 
+  // FIRESTORE SYNC LOGIC
   useEffect(() => {
-    const savedVehicles = localStorage.getItem('fp_vehicles');
-    const savedUsers = localStorage.getItem('fp_users');
-    const savedCC = localStorage.getItem('fp_cost_centers');
-    const savedRequests = localStorage.getItem('fp_requests');
-    const savedChecklists = localStorage.getItem('fp_checklists');
-    const savedBienes = localStorage.getItem('fp_bienes');
-    const currentUser = localStorage.getItem('fp_currentUser');
+    if (!firebaseUser) {
+        // Fallback to localStorage if no Firebase user
+        const savedVehicles = localStorage.getItem('fp_vehicles');
+        const savedUsers = localStorage.getItem('fp_users');
+        const savedCC = localStorage.getItem('fp_cost_centers');
+        const savedRequests = localStorage.getItem('fp_requests');
+        const savedChecklists = localStorage.getItem('fp_checklists');
+        const savedBienes = localStorage.getItem('fp_bienes');
+        const currentUser = localStorage.getItem('fp_currentUser');
 
-    if (savedVehicles) setVehicles(JSON.parse(savedVehicles));
-    else { setVehicles(MOCK_VEHICLES); localStorage.setItem('fp_vehicles', JSON.stringify(MOCK_VEHICLES)); }
+        if (savedVehicles) setVehicles(JSON.parse(savedVehicles));
+        else { setVehicles(MOCK_VEHICLES); localStorage.setItem('fp_vehicles', JSON.stringify(MOCK_VEHICLES)); }
 
-    if (savedUsers) setUsers(JSON.parse(savedUsers));
-    else { setUsers(MOCK_USERS); localStorage.setItem('fp_users', JSON.stringify(MOCK_USERS)); }
+        if (savedUsers) setUsers(JSON.parse(savedUsers));
+        else { setUsers(MOCK_USERS); localStorage.setItem('fp_users', JSON.stringify(MOCK_USERS)); }
 
-    if (savedCC) setCostCenters(JSON.parse(savedCC));
-    else { 
-        const initialCC = ["CENTRAL", "LOGÍSTICA", "OPERACIONES", "MANTENIMIENTO"];
-        setCostCenters(initialCC);
-        localStorage.setItem('fp_cost_centers', JSON.stringify(initialCC));
+        if (savedCC) setCostCenters(JSON.parse(savedCC));
+        else { 
+            const initialCC = ["CENTRAL", "LOGÍSTICA", "OPERACIONES", "MANTENIMIENTO"];
+            setCostCenters(initialCC);
+            localStorage.setItem('fp_cost_centers', JSON.stringify(initialCC));
+        }
+
+        if (savedRequests) setServiceRequests(JSON.parse(savedRequests));
+        if (savedChecklists) setChecklists(JSON.parse(savedChecklists));
+        if (savedBienes) setBienesDeUso(JSON.parse(savedBienes));
+        if (currentUser) setAuthenticatedUser(JSON.parse(currentUser));
+        
+        setLoading(false);
+        return;
     }
 
-    if (savedRequests) setServiceRequests(JSON.parse(savedRequests));
-    if (savedChecklists) setChecklists(JSON.parse(savedChecklists));
-    if (savedBienes) setBienesDeUso(JSON.parse(savedBienes));
-    if (currentUser) setAuthenticatedUser(JSON.parse(currentUser));
+    // Cloud mode: Listen to Firestore
+    setLoading(true);
+    const unsubVehicles = onSnapshot(collection(db, 'vehicles'), (snap) => {
+      const vs = snap.docs.map(d => d.data() as Vehicle);
+      setVehicles(vs);
+      localStorage.setItem('fp_vehicles', JSON.stringify(vs));
+    });
+
+    const unsubUsers = onSnapshot(collection(db, 'users'), (snap) => {
+      const us = snap.docs.map(d => d.data() as User);
+      setUsers(us);
+      localStorage.setItem('fp_users', JSON.stringify(us));
+      
+      const current = us.find(u => u.id === firebaseUser.uid);
+      if (current) {
+        setAuthenticatedUser(current);
+        localStorage.setItem('fp_currentUser', JSON.stringify(current));
+      }
+    });
+
+    const unsubBienes = onSnapshot(collection(db, 'bienes'), (snap) => {
+      const bs = snap.docs.map(d => d.data() as BienDeUso);
+      setBienesDeUso(bs);
+      localStorage.setItem('fp_bienes', JSON.stringify(bs));
+    });
+
+    const unsubChecklists = onSnapshot(collection(db, 'checklists'), (snap) => {
+      const chs = snap.docs.map(d => d.data() as Checklist);
+      setChecklists(chs);
+      localStorage.setItem('fp_checklists', JSON.stringify(chs));
+    });
+
+    const unsubRequests = onSnapshot(collection(db, 'requests'), (snap) => {
+      const rs = snap.docs.map(d => d.data() as ServiceRequest);
+      setServiceRequests(rs);
+      localStorage.setItem('fp_requests', JSON.stringify(rs));
+    });
 
     setLoading(false);
-  }, []);
+
+    return () => {
+      unsubVehicles();
+      unsubUsers();
+      unsubBienes();
+      unsubChecklists();
+      unsubRequests();
+    };
+  }, [firebaseUser, db]);
 
   const addCostCenter = (name: string) => {
     const upper = name.toUpperCase().trim();
@@ -122,48 +187,66 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const addVehicle = async (vehicle: Vehicle) => {
-    setVehicles(prev => {
-      const newList = [...prev, vehicle];
-      localStorage.setItem('fp_vehicles', JSON.stringify(newList));
-      return newList;
-    });
+    if (firebaseUser) {
+        await setDoc(doc(db, 'vehicles', vehicle.plate), vehicle);
+    } else {
+        setVehicles(prev => {
+            const newList = [...prev, vehicle];
+            localStorage.setItem('fp_vehicles', JSON.stringify(newList));
+            return newList;
+        });
+    }
     if (vehicle.costCenter) addCostCenter(vehicle.costCenter);
   };
 
   const updateVehicle = async (vehicle: Vehicle) => {
-    setVehicles(prev => {
-      const newList = prev.map(v => v.plate === vehicle.plate ? vehicle : v);
-      localStorage.setItem('fp_vehicles', JSON.stringify(newList));
-      return newList;
-    });
+    if (firebaseUser) {
+        await setDoc(doc(db, 'vehicles', vehicle.plate), vehicle);
+    } else {
+        setVehicles(prev => {
+            const newList = prev.map(v => v.plate === vehicle.plate ? vehicle : v);
+            localStorage.setItem('fp_vehicles', JSON.stringify(newList));
+            return newList;
+        });
+    }
     if (vehicle.costCenter) addCostCenter(vehicle.costCenter);
   };
 
   const bulkUpsertVehicles = async (newVehicles: Vehicle[]) => {
-    setVehicles(prev => {
-      const vehicleMap = new Map<string, Vehicle>(prev.map(v => [v.plate.toUpperCase(), v] as [string, Vehicle]));
-      newVehicles.forEach(nv => {
-        const plate = nv.plate.toUpperCase();
-        if (vehicleMap.has(plate)) {
-          const existing = vehicleMap.get(plate)!;
-          vehicleMap.set(plate, { ...existing, ...nv });
-        } else {
-          vehicleMap.set(plate, nv);
+    if (firebaseUser) {
+        for (const v of newVehicles) {
+            await setDoc(doc(db, 'vehicles', v.plate), v);
         }
-        if (nv.costCenter) addCostCenter(nv.costCenter);
-      });
-      const newList = Array.from(vehicleMap.values());
-      localStorage.setItem('fp_vehicles', JSON.stringify(newList));
-      return newList;
-    });
+    } else {
+        setVehicles(prev => {
+            const vehicleMap = new Map<string, Vehicle>(prev.map(v => [v.plate.toUpperCase(), v] as [string, Vehicle]));
+            newVehicles.forEach(nv => {
+                const plate = nv.plate.toUpperCase();
+                if (vehicleMap.has(plate)) {
+                    const existing = vehicleMap.get(plate)!;
+                    vehicleMap.set(plate, { ...existing, ...nv });
+                } else {
+                    vehicleMap.set(plate, nv);
+                }
+                if (nv.costCenter) addCostCenter(nv.costCenter);
+            });
+            const newList = Array.from(vehicleMap.values());
+            localStorage.setItem('fp_vehicles', JSON.stringify(newList));
+            return newList;
+        });
+    }
   };
 
   const deleteVehicle = async (plate: string) => {
-    setVehicles(prev => {
-      const newList = prev.filter(v => v.plate !== plate);
-      localStorage.setItem('fp_vehicles', JSON.stringify(newList));
-      return newList;
-    });
+    if (firebaseUser) {
+        await deleteDoc(doc(db, 'vehicles', plate));
+    } else {
+        setVehicles(prev => {
+            const newList = prev.filter(v => v.plate !== plate);
+            localStorage.setItem('fp_vehicles', JSON.stringify(newList));
+            return newList;
+        });
+    }
   };
 
   const login = async (email: string, pass: string) => {
@@ -231,29 +314,39 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const bulkUpsertBienes = async (newBienes: BienDeUso[]) => {
-    setBienesDeUso(prev => {
-      const bienMap = new Map<string, BienDeUso>(prev.map(b => [b.id.toUpperCase(), b] as [string, BienDeUso]));
-      newBienes.forEach(nb => {
-        const id = nb.id.toUpperCase();
-        if (bienMap.has(id)) {
-          const existing = bienMap.get(id)!;
-          bienMap.set(id, { ...existing, ...nb });
-        } else {
-          bienMap.set(id, nb);
+    if (firebaseUser) {
+        for (const b of newBienes) {
+            await setDoc(doc(db, 'bienes', b.id), b);
         }
-      });
-      const newList = Array.from(bienMap.values());
-      localStorage.setItem('fp_bienes', JSON.stringify(newList));
-      return newList;
-    });
+    } else {
+        setBienesDeUso(prev => {
+            const bienMap = new Map<string, BienDeUso>(prev.map(b => [b.id.toUpperCase(), b] as [string, BienDeUso]));
+            newBienes.forEach(nb => {
+                const id = nb.id.toUpperCase();
+                if (bienMap.has(id)) {
+                    const existing = bienMap.get(id)!;
+                    bienMap.set(id, { ...existing, ...nb });
+                } else {
+                    bienMap.set(id, nb);
+                }
+            });
+            const newList = Array.from(bienMap.values());
+            localStorage.setItem('fp_bienes', JSON.stringify(newList));
+            return newList;
+        });
+    }
   };
 
   const deleteBien = async (id: string) => {
-    setBienesDeUso(prev => {
-        const nl = prev.filter(b => b.id !== id);
-        localStorage.setItem('fp_bienes', JSON.stringify(nl));
-        return nl;
-    });
+    if (firebaseUser) {
+        await deleteDoc(doc(db, 'bienes', id));
+    } else {
+        setBienesDeUso(prev => {
+            const nl = prev.filter(b => b.id !== id);
+            localStorage.setItem('fp_bienes', JSON.stringify(nl));
+            return nl;
+        });
+    }
   };
 
   const addNotification = (message: string, type: any = 'success') => {
@@ -274,51 +367,82 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     addVehicle, updateVehicle, bulkUpsertVehicles, deleteVehicle,
     addUser: async () => {}, 
     updateUser: async (u) => {
-      setUsers(prev => {
-        const nl = prev.map(x => x.id === u.id ? u : x);
-        localStorage.setItem('fp_users', JSON.stringify(nl));
-        return nl;
-      });
+      if (firebaseUser) {
+        await setDoc(doc(db, 'users', u.id), u);
+      } else {
+        setUsers(prev => {
+            const nl = prev.map(x => x.id === u.id ? u : x);
+            localStorage.setItem('fp_users', JSON.stringify(nl));
+            return nl;
+        });
+      }
       if (u.costCenter) addCostCenter(u.costCenter);
     }, 
     deleteUser: async (id) => {
-       setUsers(prev => {
-        const nl = prev.filter(x => x.id !== id);
-        localStorage.setItem('fp_users', JSON.stringify(nl));
-        return nl;
-      });
+       if (firebaseUser) {
+         await deleteDoc(doc(db, 'users', id));
+       } else {
+         setUsers(prev => {
+            const nl = prev.filter(x => x.id !== id);
+            localStorage.setItem('fp_users', JSON.stringify(nl));
+            return nl;
+        });
+       }
     },
     addCostCenter, removeCostCenter,
     addServiceRequest: async (r) => {
-      setServiceRequests(prev => {
-        const nl = [...prev, r];
-        localStorage.setItem('fp_requests', JSON.stringify(nl));
-        return nl;
-      });
+      if (firebaseUser) {
+          await setDoc(doc(db, 'requests', r.id), r);
+      } else {
+          setServiceRequests(prev => {
+            const nl = [...prev, r];
+            localStorage.setItem('fp_requests', JSON.stringify(nl));
+            return nl;
+          });
+      }
     }, 
     updateServiceRequest: async (r) => {
-      setServiceRequests(prev => {
-        const nl = prev.map(x => x.id === r.id ? r : x);
-        localStorage.setItem('fp_requests', JSON.stringify(nl));
-        return nl;
-      });
+      if (firebaseUser) {
+          await setDoc(doc(db, 'requests', r.id), r);
+      } else {
+          setServiceRequests(prev => {
+            const nl = prev.map(x => x.id === r.id ? r : x);
+            localStorage.setItem('fp_requests', JSON.stringify(nl));
+            return nl;
+          });
+      }
     }, 
     updateServiceStage: async (id, stage, comment) => {
-      setServiceRequests(prev => {
-        const nl = prev.map(x => x.id === id ? {
-          ...x, stage, 
-          history: [...(x.history || []), { id: Date.now().toString(), date: new Date().toISOString(), userId: authenticatedUser?.id || 'sys', userName: authenticatedUser?.nombre || 'Sist', toStage: stage, comment }]
-        } : x);
-        localStorage.setItem('fp_requests', JSON.stringify(nl));
-        return nl;
-      });
+      if (firebaseUser) {
+        const found = serviceRequests.find(r => r.id === id);
+        if (found) {
+            const updated = {
+                ...found, stage,
+                history: [...(found.history || []), { id: Date.now().toString(), date: new Date().toISOString(), userId: authenticatedUser?.id || 'sys', userName: authenticatedUser?.nombre || 'Sist', toStage: stage, comment }]
+            };
+            await setDoc(doc(db, 'requests', id), updated);
+        }
+      } else {
+        setServiceRequests(prev => {
+            const nl = prev.map(x => x.id === id ? {
+              ...x, stage, 
+              history: [...(x.history || []), { id: Date.now().toString(), date: new Date().toISOString(), userId: authenticatedUser?.id || 'sys', userName: authenticatedUser?.nombre || 'Sist', toStage: stage, comment }]
+            } : x);
+            localStorage.setItem('fp_requests', JSON.stringify(nl));
+            return nl;
+          });
+      }
     },
     addChecklist: async (c) => {
-      setChecklists(prev => {
-        const nl = [...prev, c];
-        localStorage.setItem('fp_checklists', JSON.stringify(nl));
-        return nl;
-      });
+      if (firebaseUser) {
+          await setDoc(doc(db, 'checklists', c.id), c);
+      } else {
+          setChecklists(prev => {
+            const nl = [...prev, c];
+            localStorage.setItem('fp_checklists', JSON.stringify(nl));
+            return nl;
+          });
+      }
     },
     bulkUpsertBienes, deleteBien,
     loading, isDataLoading: loading, error, user: impersonatedUser || authenticatedUser,
@@ -327,11 +451,18 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     refreshData: async () => {}, logAudit: async () => {}, impersonate,
     masterFindingsImage, setMasterFindingsImage: async (img) => setMasterFindingsImageState(img),
     deleteDocument: async (plate, docId) => {
-      setVehicles(prev => {
-        const nl = prev.map(v => v.plate === plate ? { ...v, documents: (v.documents || []).filter(d => d.id !== docId) } : v);
-        localStorage.setItem('fp_vehicles', JSON.stringify(nl));
-        return nl;
-      });
+      const v = vehicles.find(x => x.plate === plate);
+      if (v) {
+        const updated = { ...v, documents: (v.documents || []).filter(d => d.id !== docId) };
+        if (firebaseUser) await setDoc(doc(db, 'vehicles', plate), updated);
+        else {
+            setVehicles(prev => {
+                const nl = prev.map(x => x.plate === plate ? updated : x);
+                localStorage.setItem('fp_vehicles', JSON.stringify(nl));
+                return nl;
+            });
+        }
+      }
     },
     vehicleVersions: ["SRX PACK 4X4 AT", "EXTREME V6 AT", "LIMITED V6 4X4", "PRO-4X 4X4 AT", "FURGON 4325 XL", "Z.E. ELECTRIC 2A"],
     documentTypes: docTypes, addDocumentType: (type) => setDocTypes(prev => prev.includes(type) ? prev : [...prev, type]),
