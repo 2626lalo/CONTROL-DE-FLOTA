@@ -8,16 +8,28 @@ import {
   LucideWrench, LucideMenu, LucideX, LucideWarehouse
 } from 'lucide-react';
 import { useApp } from '../context/FleetContext';
+import { useFirebase } from '../context/FirebaseContext';
 import { UserRole } from '../types';
 
 export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, authenticatedUser, impersonatedUser, logout, isOnline, vehicles, registeredUsers, impersonate, addNotification } = useApp();
+  const { user, authenticatedUser, impersonatedUser, logout: fleetLogout, isOnline, vehicles, registeredUsers, impersonate, addNotification } = useApp();
+  const { logout } = useFirebase();
   const [globalSearch, setGlobalSearch] = useState('');
   const [showImpersonateMenu, setShowImpersonateMenu] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const navigate = useNavigate();
 
   const isMainAdmin = authenticatedUser?.email === 'alewilczek@gmail.com';
+
+  const handleLogout = async () => {
+    try {
+      await logout(); // Firebase logout
+      await fleetLogout(); // Limpieza de estado local
+      navigate('/login');
+    } catch (error) {
+      console.error("Error al cerrar sesión:", error);
+    }
+  };
 
   const handleGlobalSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -191,7 +203,10 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
                   <p className="text-[10px] text-slate-500 truncate font-bold uppercase tracking-tighter">{user?.role}</p>
                 </div>
               </div>
-              <button onClick={logout} className="flex items-center justify-center gap-2 text-red-400 hover:bg-red-500/10 w-full py-2 rounded-lg transition-colors text-[10px] font-black uppercase tracking-wider border border-red-500/20">
+              <button 
+                onClick={handleLogout} 
+                className="flex items-center justify-center gap-2 text-red-400 hover:bg-red-500/10 w-full py-2 rounded-lg transition-colors text-[10px] font-black uppercase tracking-wider border border-red-500/20"
+              >
                 <LucideLogOut size={14} /> Cerrar Sesión
               </button>
             </div>
