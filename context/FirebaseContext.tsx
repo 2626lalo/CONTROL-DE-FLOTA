@@ -61,9 +61,9 @@ export const FirebaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       name: `${additionalData.nombre} ${additionalData.apellido}`.toUpperCase(),
       telefono: additionalData.telefono || '',
       role: 'USER',
-      approved: false,
-      estado: 'pendiente',
-      fechaRegistro: new Date().toISOString(),
+      approved: false, // Requisito: Siempre false por defecto
+      estado: 'pendiente', // Requisito: Siempre pendiente por defecto
+      fechaRegistro: new Date().toISOString(), // Requisito: Campo fechaRegistro
       createdAt: new Date().toISOString(),
       intentosFallidos: 0,
       centroCosto: { id: "0", nombre: "PENDIENTE", codigo: "000" },

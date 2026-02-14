@@ -16,6 +16,8 @@ const MOCK_USERS: User[] = [
   { id: "alewilczek@gmail.com", email: "alewilczek@gmail.com", nombre: "ALE", apellido: "WILCZEK", name: "ALE WILCZEK", telefono: "123456789", role: UserRole.ADMIN, estado: "activo", approved: true, fechaRegistro: new Date().toISOString(), intentosFallidos: 0, centroCosto: { id: "1", nombre: "CENTRAL", codigo: "001" }, costCenter: "CENTRAL", level: 3, rolesSecundarios: [], notificaciones: { email: true, push: false, whatsapp: false }, creadoPor: "system", fechaCreacion: new Date().toISOString(), actualizadoPor: "system", fechaActualizacion: new Date().toISOString(), eliminado: false }
 ];
 
+const MASTER_EMAIL = 'alewilczek@gmail.com';
+
 interface FleetContextType {
   vehicles: Vehicle[];
   users: User[];
@@ -86,7 +88,7 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [docTypes, setDocTypes] = useState<string[]>(['CEDULA', 'TITULO', 'VTV', 'SEGURO']);
   const [lastBulkLoadDate, setLastBulkLoadDate] = useState<string | null>(localStorage.getItem('fp_last_bulk_load'));
 
-  // ESCUCHA DE DATOS DESDE FIRESTORE
+  // ESCUCHA DE DATOS DESDE FIRESTORE (Persistencia Principal)
   useEffect(() => {
     if (!firebaseUser) {
         const savedVehicles = localStorage.getItem('fp_vehicles');
@@ -119,13 +121,11 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     setLoading(true);
     
-    // Listener de Vehículos
+    // Listeners en tiempo real
     const unsubVehicles = onSnapshot(collection(db, 'vehicles'), (snap) => {
-      const vs = snap.docs.map(d => d.data() as Vehicle);
-      setVehicles(vs);
+      setVehicles(snap.docs.map(d => d.data() as Vehicle));
     });
 
-    // Listener de Usuarios
     const unsubUsers = onSnapshot(collection(db, 'users'), (snap) => {
       const us = snap.docs.map(d => d.data() as User);
       setUsers(us);
@@ -133,17 +133,14 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (current) setAuthenticatedUser(current);
     });
 
-    // Listener de Bienes
     const unsubBienes = onSnapshot(collection(db, 'bienes'), (snap) => {
       setBienesDeUso(snap.docs.map(d => d.data() as BienDeUso));
     });
 
-    // Listener de Checklists
     const unsubChecklists = onSnapshot(collection(db, 'checklists'), (snap) => {
       setChecklists(snap.docs.map(d => d.data() as Checklist));
     });
 
-    // Listener de Solicitudes
     const unsubRequests = onSnapshot(collection(db, 'requests'), (snap) => {
       setServiceRequests(snap.docs.map(d => d.data() as ServiceRequest));
     });
@@ -159,7 +156,7 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
   }, [firebaseUser, db]);
 
-  // LÓGICA DE MIGRACIÓN AUTOMÁTICA
+  // MIGRACIÓN AUTOMÁTICA (LocalStorage a Firestore)
   useEffect(() => {
     const migrateLocalData = async () => {
         if (!firebaseUser || localStorage.getItem('fp_migrated') === 'true') return;
@@ -167,18 +164,24 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         try {
             const localVehicles = JSON.parse(localStorage.getItem('fp_vehicles') || '[]');
             const localBienes = JSON.parse(localStorage.getItem('fp_bienes') || '[]');
+            const localRequests = JSON.parse(localStorage.getItem('fp_requests') || '[]');
+            const localChecklists = JSON.parse(localStorage.getItem('fp_checklists') || '[]');
             
             if (localVehicles.length > 0) await bulkUpsertVehicles(localVehicles);
             if (localBienes.length > 0) await bulkUpsertBienes(localBienes);
             
+            // Migrar también servicios y checklists si existen localmente
+            for (const r of localRequests) await setDoc(doc(db, 'requests', r.id), r);
+            for (const c of localChecklists) await setDoc(doc(db, 'checklists', c.id), c);
+            
             localStorage.setItem('fp_migrated', 'true');
-            addNotification("Datos locales sincronizados con la nube", "success");
+            addNotification("Datos locales sincronizados exitosamente", "success");
         } catch (e) {
             console.error("Error migrando datos:", e);
         }
     };
     migrateLocalData();
-  }, [firebaseUser]);
+  }, [firebaseUser, db]);
 
   const addCostCenter = (name: string) => {
     const upper = name.toUpperCase().trim();
@@ -220,13 +223,20 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const bulkUpsertVehicles = async (newVehicles: Vehicle[]) => {
+    const now = new Date().toISOString();
     if (firebaseUser) {
-        const batch = writeBatch(db);
-        newVehicles.forEach(v => {
-            const ref = doc(db, 'vehicles', v.plate);
-            batch.set(ref, v);
-        });
-        await batch.commit();
+        // Chunking for Firestore limits (500 per batch)
+        for (let i = 0; i < newVehicles.length; i += 500) {
+            const chunk = newVehicles.slice(i, i + 500);
+            const batch = writeBatch(db);
+            chunk.forEach(v => {
+                const ref = doc(db, 'vehicles', v.plate);
+                batch.set(ref, v);
+            });
+            await batch.commit();
+        }
+        setLastBulkLoadDate(now);
+        localStorage.setItem('fp_last_bulk_load', now);
     } else {
         setVehicles(prev => {
             const vehicleMap = new Map<string, Vehicle>(prev.map(v => [v.plate.toUpperCase(), v]));
@@ -237,6 +247,8 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             });
             const newList = Array.from(vehicleMap.values());
             localStorage.setItem('fp_vehicles', JSON.stringify(newList));
+            setLastBulkLoadDate(now);
+            localStorage.setItem('fp_last_bulk_load', now);
             return newList;
         });
     }
@@ -255,7 +267,6 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const login = async (email: string, pass: string) => {
-    // Esta función ahora solo sirve como fallback para el usuario maestro o sesiones offline
     const emailLower = email.toLowerCase().trim();
     const currentUsers = JSON.parse(localStorage.getItem('fp_users') || JSON.stringify(users));
     const found = currentUsers.find((u: User) => u.email.toLowerCase() === emailLower);
@@ -286,7 +297,6 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const register = async (email: string, pass: string, name: string, lastName: string, phone: string) => {
-    // Lógica para modo offline (Firebase usa signUp del FirebaseContext)
     const emailLower = email.toLowerCase().trim();
     const newUser: User = {
         id: emailLower, email: emailLower, nombre: name.toUpperCase(), apellido: lastName.toUpperCase(),
@@ -303,18 +313,21 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const requestPasswordReset = async (email: string) => {
-    addNotification("Solicitud enviada al Administrador", "warning");
+    addNotification("Solicitud de recuperación enviada", "warning");
     return { success: true, message: "Solicitud enviada." };
   };
 
   const bulkUpsertBienes = async (newBienes: BienDeUso[]) => {
     if (firebaseUser) {
-        const batch = writeBatch(db);
-        newBienes.forEach(b => {
-            const ref = doc(db, 'bienes', b.id);
-            batch.set(ref, b);
-        });
-        await batch.commit();
+        for (let i = 0; i < newBienes.length; i += 500) {
+            const chunk = newBienes.slice(i, i + 500);
+            const batch = writeBatch(db);
+            chunk.forEach(b => {
+                const ref = doc(db, 'bienes', b.id);
+                batch.set(ref, b);
+            });
+            await batch.commit();
+        }
     } else {
         setBienesDeUso(prev => {
             const bienMap = new Map<string, BienDeUso>(prev.map(b => [b.id.toUpperCase(), b]));
@@ -449,8 +462,6 @@ export const FleetProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   return <FleetContext.Provider value={value}>{children}</FleetContext.Provider>;
 };
-
-const MASTER_EMAIL = 'alewilczek@gmail.com';
 
 export const useFleet = () => {
   const context = useContext(FleetContext);
