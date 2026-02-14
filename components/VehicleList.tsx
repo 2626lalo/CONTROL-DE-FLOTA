@@ -27,13 +27,16 @@ export const VehicleList = () => {
   useEffect(() => {
     const fetchVehicles = async () => {
       try {
+        console.log('🔍 Intentando cargar vehículos desde Firestore...');
         const querySnapshot = await getDocs(collection(db, 'vehicles'));
-        const vehiclesList = querySnapshot.docs.map(doc => ({
-          ...doc.data()
-        })) as Vehicle[];
+        console.log('✅ Vehículos encontrados:', querySnapshot.size);
+        const vehiclesList = querySnapshot.docs.map(doc => {
+          console.log('   - Documento:', doc.id, doc.data());
+          return { ...doc.data() };
+        }) as Vehicle[];
         setVehicles(vehiclesList);
-      } catch (error) {
-        console.error('Error fetching vehicles:', error);
+      } catch (error: any) {
+        console.error('🔥 ERROR cargando vehículos:', error.code, error.message);
       } finally {
         setLoading(false);
       }

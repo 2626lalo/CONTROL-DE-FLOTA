@@ -28,14 +28,16 @@ export const AdminUsers = () => {
     useEffect(() => {
         const fetchUsers = async () => {
             try {
+                console.log('🔍 Intentando cargar usuarios desde Firestore...');
                 const querySnapshot = await getDocs(collection(db, 'users'));
-                const usersList = querySnapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data()
-                }));
+                console.log('✅ Usuarios encontrados:', querySnapshot.size);
+                const usersList = querySnapshot.docs.map(doc => {
+                    console.log('   - Documento:', doc.id, doc.data());
+                    return { id: doc.id, ...doc.data() };
+                });
                 setUsers(usersList);
-            } catch (error) {
-                console.error("Error fetching users from Firestore:", error);
+            } catch (error: any) {
+                console.error('🔥 ERROR cargando usuarios:', error.code, error.message);
             }
         };
         fetchUsers();
