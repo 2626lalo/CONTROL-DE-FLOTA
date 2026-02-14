@@ -13,9 +13,9 @@ import {
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale/es';
-import { compressImage } from '../utils/imageCompressor';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { compressImage } from '../utils/imageCompressor';
 import { ImageZoomModal } from './ImageZoomModal';
 
 const SignaturePad = ({ onEnd, label, error, id }: { onEnd: (base64: string) => void, label: string, error?: boolean, id?: string }) => {
@@ -290,9 +290,24 @@ export const Checklist = () => {
         setEmailRecipients(emailRecipients.filter(e => e !== email));
     };
 
+    // Función de limpieza recursiva para reemplazar undefined por null (requerido por Firestore)
+    const cleanData = (obj: any): any => {
+        if (Array.isArray(obj)) {
+            return obj.map(item => cleanData(item));
+        } else if (obj !== null && typeof obj === 'object') {
+            const newObj: any = {};
+            Object.keys(obj).forEach(key => {
+                newObj[key] = obj[key] === undefined ? null : cleanData(obj[key]);
+            });
+            return newObj;
+        }
+        return obj === undefined ? null : obj;
+    };
+
     const handleSave = () => {
         if (!validateForm()) return;
-        addChecklist({
+        
+        const rawChecklist = {
             id: `CHK-${Date.now()}`, vehiclePlate: plateSearch, userId: user?.id || 'sys',
             userName: clarification, date: new Date().toISOString(), type: checkType, 
             km, costCenter: selectedVehicle?.costCenter || 'S/A', currentProvince: province, canCirculate, 
@@ -301,7 +316,12 @@ export const Checklist = () => {
             findingsMarkers, signature, clarification, generalObservations, 
             receivedBy, receiverSignature, originSector, destinationSector,
             emailRecipients: sendEmail ? emailRecipients : []
-        });
+        };
+
+        // Limpiar datos antes de enviar al contexto (que usa setDoc de Firestore)
+        const cleanChecklist = cleanData(rawChecklist);
+        
+        addChecklist(cleanChecklist);
         addNotification("Reporte generado y guardado.", "success");
         setViewMode('LIST');
     };

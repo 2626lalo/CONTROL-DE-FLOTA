@@ -30,14 +30,15 @@ export const LoginScreen = () => {
 
     try {
       const userCredential = await signIn(email, password);
-      const userRef = doc(db, 'users', userCredential.user.uid);
-      let userDoc = await getDoc(userRef);
-
-      // Si el documento no existe, lo creamos con datos básicos
+      const user = userCredential.user;
+      
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      
+      // Si el documento no existe, lo creamos con datos básicos (fallback)
       if (!userDoc.exists()) {
         const isAdmin = email.toLowerCase() === 'alewilczek@gmail.com';
         const userData = {
-          id: userCredential.user.uid,
+          id: user.uid,
           email: email.toLowerCase().trim(),
           nombre: isAdmin ? "ALE" : "USUARIO",
           apellido: isAdmin ? "WILCZEK" : "NUEVO",
@@ -50,18 +51,25 @@ export const LoginScreen = () => {
           level: isAdmin ? 3 : 1,
           eliminado: false
         };
-        await setDoc(userRef, userData);
-        userDoc = await getDoc(userRef);
-      }
-      
-      const userData = userDoc.data();
-
-      if (userData && !userData.approved) {
+        await setDoc(doc(db, 'users', user.uid), userData);
+        
+        // Verificamos aprobación después de creación
+        if (!userData.approved) {
+           await logout();
+           setError('Tu cuenta está pendiente de aprobación por el administrador.');
+           setLoading(false);
+           return;
+        }
+      } else {
+        const userData = userDoc.data();
+        
+        // Verificación de aprobación obligatoria solicitada
+        if (!userData || !userData.approved) {
           await logout();
-          setIsPendingLogin(true);
           setError('Tu cuenta está pendiente de aprobación por el administrador.');
           setLoading(false);
           return;
+        }
       }
 
       navigate('/');
@@ -223,7 +231,7 @@ export const LoginScreen = () => {
                         <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Nombre</label>
                         <input 
                           type="text" 
-                          className="w-full p-4 bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold outline-none focus:ring-4 focus:ring-blue-50"
+                          className="w-full p-4 bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold outline-none focus:ring-4 focus:ring-blue-100"
                           value={name}
                           onChange={(e) => setName(e.target.value)}
                           required
@@ -234,7 +242,7 @@ export const LoginScreen = () => {
                         <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Apellido</label>
                         <input 
                           type="text" 
-                          className="w-full p-4 bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold outline-none focus:ring-4 focus:ring-blue-50"
+                          className="w-full p-4 bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold outline-none focus:ring-4 focus:ring-blue-100"
                           value={lastName}
                           onChange={(e) => setLastName(e.target.value)}
                           required
@@ -245,7 +253,7 @@ export const LoginScreen = () => {
                         <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Teléfono (opcional)</label>
                         <input 
                           type="tel" 
-                          className="w-full p-4 bg-slate-50 border border-slate-100 rounded-xl font-bold text-sm outline-none focus:ring-4 focus:ring-blue-50"
+                          className="w-full p-4 bg-slate-50 border border-slate-100 rounded-xl font-bold text-sm outline-none focus:ring-4 focus:ring-blue-100"
                           value={phone}
                           onChange={(e) => setPhone(e.target.value)}
                           placeholder="Ej: 2612345678"
@@ -258,7 +266,7 @@ export const LoginScreen = () => {
                     <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Correo Electrónico</label>
                     <input 
                       type="email" 
-                      className="w-full p-4 bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold outline-none focus:ring-4 focus:ring-blue-50 transition-all"
+                      className="w-full p-4 bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold outline-none focus:ring-4 focus:ring-blue-100 transition-all"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       required
@@ -282,7 +290,7 @@ export const LoginScreen = () => {
                     </div>
                     <input 
                       type="password" 
-                      className="w-full p-4 bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold outline-none focus:ring-4 focus:ring-blue-50 transition-all"
+                      className="w-full p-4 bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold outline-none focus:ring-4 focus:ring-blue-100 transition-all"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       required
