@@ -16,7 +16,7 @@ import { databaseService } from '../services/databaseService';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale/es';
 import { db } from '../firebaseConfig';
-import { collection, getDocs, doc, updateDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, updateDoc, writeBatch } from 'firebase/firestore';
 
 export const AdminUsers = () => {
     const { vehicles, bulkUpsertVehicles, user, restoreGoldenMaster, addNotification, masterFindingsImage, setMasterFindingsImage, lastBulkLoadDate } = useApp();
@@ -94,7 +94,7 @@ export const AdminUsers = () => {
         setShowSuccessBadge(false);
         const reader = new FileReader();
         
-        reader.onload = (event) => {
+        reader.onload = async (event) => {
             try {
                 const data = new Uint8Array(event.target?.result as ArrayBuffer);
                 const workbook = XLSX.read(data, { type: 'array' });
@@ -165,7 +165,14 @@ export const AdminUsers = () => {
                 }).filter((v): v is Vehicle => v !== null);
 
                 if (mappedVehicles.length > 0) {
-                    bulkUpsertVehicles(mappedVehicles);
+                    // Migración a Firestore usando Batch Writes
+                    const batch = writeBatch(db);
+                    mappedVehicles.forEach(vehicle => {
+                        const vehicleRef = doc(db, 'vehicles', vehicle.plate);
+                        batch.set(vehicleRef, vehicle);
+                    });
+                    await batch.commit();
+
                     addNotification(`Sincronización masiva exitosa: ${mappedVehicles.length} unidades procesadas.`, "success");
                     setShowSuccessBadge(true);
                     setTimeout(() => setShowSuccessBadge(false), 5000);

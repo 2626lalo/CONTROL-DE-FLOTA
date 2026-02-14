@@ -200,11 +200,11 @@ export const Checklist = () => {
     
     const [findingsMarkers, setFindingsMarkers] = useState<FindingMarker[]>([]);
     const [openSections, setOpenSections] = useState<Record<string, boolean>>({ 
-      motor: true, lights: false, general: true, bodywork: false, accessories: true, findings: false 
+      motor: true, lights: false, general: true, bodywork: false, accessories: true, findings: true 
     });
 
     const filteredVehicles = useMemo(() => 
-        vehicles.filter(v => v.plate.toUpperCase().includes(plateSearch.toUpperCase())).slice(0, 5)
+        vehicles.filter(v => v.plate.toUpperCase().includes(plateSearch.toUpperCase()))
     , [plateSearch, vehicles]);
 
     const selectedVehicle = useMemo(() => vehicles.find(v => v.plate === plateSearch), [plateSearch, vehicles]);
@@ -483,6 +483,31 @@ export const Checklist = () => {
                                         </div>
                                     </div>
                                 ))}
+
+                                {data.findingsMarkers && data.findingsMarkers.length > 0 && masterFindingsImage && (
+                                    <div className="space-y-4">
+                                        <div className="flex items-center gap-3 border-b pb-2">
+                                            <LucideMaximize2 className="text-indigo-900" size={18}/>
+                                            <h4 className="text-xs font-black text-slate-800 uppercase italic tracking-widest">SECCIÓN F: MAPEO DE HALLAZGOS</h4>
+                                        </div>
+                                        <div className="relative border-2 border-slate-100 rounded-[2rem] overflow-hidden bg-slate-50 mb-6">
+                                            <img src={masterFindingsImage} className="w-full h-auto" alt="Plano" />
+                                            {data.findingsMarkers.map((m, idx) => (
+                                                <div key={m.id} className="absolute w-6 h-6 -ml-3 -mt-3 bg-rose-600 text-white rounded-full flex items-center justify-center font-black text-[8px] shadow-lg border-2 border-white" style={{ left: `${m.x}%`, top: `${m.y}%` }}>
+                                                    {idx + 1}
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            {data.findingsMarkers.map((m, idx) => (
+                                                <div key={m.id} className="p-3 bg-slate-50 rounded-xl border border-slate-100 flex gap-3">
+                                                    <span className="font-black text-rose-600 text-[10px]">{idx + 1}.</span>
+                                                    <p className="text-[9px] font-bold text-slate-600 uppercase italic">"{m.comment || 'SIN DETALLE TÉCNICO'}"</p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-10 pt-10 border-t-2 border-slate-100">
@@ -593,6 +618,7 @@ export const Checklist = () => {
         general: generalItems,
         bodywork: bodyworkItems,
         accessories: accessoryItems,
+        findingsMarkers,
         signature: signature,
         clarification: clarification,
         generalObservations: generalObservations
@@ -620,7 +646,7 @@ export const Checklist = () => {
                         <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-4">Unidad (Patente)</label>
                         <input id="plate_input" type="text" className={`w-full px-6 py-5 bg-slate-50 border rounded-2xl font-black text-2xl uppercase outline-none focus:ring-4 focus:ring-blue-100 ${errors.plate_input ? 'border-rose-500 bg-rose-50' : 'border-slate-200'}`} placeholder="BUSCAR..." value={plateSearch} onChange={e => { setPlateSearch(e.target.value.toUpperCase()); setShowSuggestions(true); }} onFocus={() => setShowSuggestions(true)}/>
                         {showSuggestions && (
-                            <div className="absolute z-[100] w-full mt-2 bg-white rounded-2xl shadow-2xl border border-slate-200 max-h-60 overflow-y-auto">
+                            <div className="absolute z-[100] w-full mt-2 bg-white rounded-2xl shadow-2xl border border-slate-200 max-h-60 overflow-y-auto custom-scrollbar">
                               {filteredVehicles.length > 0 ? filteredVehicles.map(v => (
                                 <div key={v.plate} className="p-4 hover:bg-blue-50 cursor-pointer flex justify-between items-center border-b border-slate-50" onClick={() => { setPlateSearch(v.plate); setShowSuggestions(false); }}>
                                     <span className="text-slate-900 font-black text-lg italic">{v.plate}</span>
@@ -770,6 +796,61 @@ export const Checklist = () => {
                     </div>
                 )}
             </div>
+
+            {masterFindingsImage && (
+                <div id="findings" className={`bg-white rounded-[2.5rem] shadow-sm border transition-all ${errors.findings ? 'border-rose-500 ring-4 ring-rose-50' : 'border-slate-100'} overflow-hidden`}>
+                    <button type="button" onClick={() => setOpenSections(p => ({...p, findings: !p.findings}))} className="w-full p-6 flex justify-between items-center bg-slate-50 border-l-8 border-indigo-900 hover:bg-slate-100 transition-all">
+                        <div className="flex items-center gap-4">
+                            <LucideMaximize2 className="text-indigo-900" size={24}/>
+                            <h3 className="font-black uppercase text-xs italic tracking-widest text-slate-800">Sección F: Mapeo de Hallazgos Técnicos</h3>
+                        </div>
+                        {openSections.findings ? <ChevronUp/> : <ChevronDown/>}
+                    </button>
+                    {openSections.findings && (
+                        <div className="p-6 space-y-8 animate-fadeIn">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-relaxed">Presione sobre el diagrama para marcar un hallazgo o daño detectado en la unidad.</p>
+                            <div className="relative border-2 border-slate-100 rounded-[2rem] overflow-hidden bg-slate-50 cursor-crosshair group shadow-inner" onClick={(e) => {
+                                const rect = e.currentTarget.getBoundingClientRect();
+                                const x = ((e.clientX - rect.left) / rect.width) * 100;
+                                const y = ((e.clientY - rect.top) / rect.height) * 100;
+                                setFindingsMarkers([...findingsMarkers, { id: Date.now(), x, y, comment: '' }]);
+                            }}>
+                                <img src={masterFindingsImage} className="w-full h-auto select-none" alt="Plano Maestro" draggable={false} />
+                                {findingsMarkers.map((m, idx) => (
+                                    <div key={m.id} className="absolute w-6 h-6 md:w-8 md:h-8 -ml-3 -mt-3 md:-ml-4 md:-mt-4 bg-rose-600 text-white rounded-full flex items-center justify-center font-black text-[10px] shadow-2xl border-2 border-white animate-pulse z-20" style={{ left: `${m.x}%`, top: `${m.y}%` }}>
+                                        {idx + 1}
+                                    </div>
+                                ))}
+                            </div>
+                            <div className="space-y-4">
+                                {findingsMarkers.map((m, idx) => (
+                                    <div key={m.id} className="p-4 bg-slate-50 rounded-2xl border border-slate-200 flex flex-col md:flex-row gap-4 items-start md:items-center animate-fadeIn">
+                                        <div className="w-10 h-10 bg-rose-600 text-white rounded-xl flex items-center justify-center font-black shrink-0 shadow-lg">{idx + 1}</div>
+                                        <input 
+                                            placeholder="Describa el hallazgo detectado..." 
+                                            className="flex-1 w-full bg-white px-4 py-3 rounded-xl text-[10px] font-bold outline-none border border-slate-200 focus:border-rose-400" 
+                                            value={m.comment} 
+                                            onChange={e => {
+                                                const nm = [...findingsMarkers];
+                                                nm[idx].comment = e.target.value.toUpperCase();
+                                                setFindingsMarkers(nm);
+                                            }} 
+                                        />
+                                        <button type="button" onClick={(e) => { e.stopPropagation(); setFindingsMarkers(findingsMarkers.filter(x => x.id !== m.id)); }} className="p-2 text-slate-300 hover:text-rose-600 transition-colors">
+                                            <Trash2 size={18}/>
+                                        </button>
+                                    </div>
+                                ))}
+                                {findingsMarkers.length === 0 && (
+                                    <div className="py-10 text-center border-2 border-dashed border-slate-100 rounded-3xl">
+                                        <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest italic">Sin marcadores de hallazgos registrados</p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
 
             <section className={`bg-slate-950 p-8 md:p-12 rounded-[4rem] text-white space-y-12 shadow-2xl relative transition-all ${errors.received_by_input || errors.signature_pad ? 'ring-4 ring-rose-500/50' : ''}`}>
                 <div className="pt-6 border-b border-white/5 pb-12">
