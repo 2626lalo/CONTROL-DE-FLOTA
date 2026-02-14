@@ -15,19 +15,48 @@ import { compressImage } from '../utils/imageCompressor';
 import { databaseService } from '../services/databaseService';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale/es';
+import { db } from '../firebaseConfig';
+import { collection, getDocs, doc, updateDoc } from 'firebase/firestore';
 
 export const AdminUsers = () => {
-    const { registeredUsers, updateUser, vehicles, bulkUpsertVehicles, user, restoreGoldenMaster, addNotification, masterFindingsImage, setMasterFindingsImage, lastBulkLoadDate } = useApp();
+    const { vehicles, bulkUpsertVehicles, user, restoreGoldenMaster, addNotification, masterFindingsImage, setMasterFindingsImage, lastBulkLoadDate } = useApp();
     
+    const [users, setUsers] = useState<any[]>([]);
     const MAIN_ADMIN_EMAIL = 'alewilczek@gmail.com';
     const isMainAdmin = user?.email === MAIN_ADMIN_EMAIL;
     const [isBulkLoading, setIsBulkLoading] = useState(false);
     const [showSuccessBadge, setShowSuccessBadge] = useState(false);
 
-    const handleApproval = (userId: string, approved: boolean) => {
-        const userToUpdate = registeredUsers.find(u => u.id === userId);
+    useEffect(() => {
+        const fetchUsers = async () => {
+            try {
+                const querySnapshot = await getDocs(collection(db, 'users'));
+                const usersList = querySnapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
+                setUsers(usersList);
+            } catch (error) {
+                console.error("Error fetching users from Firestore:", error);
+            }
+        };
+        fetchUsers();
+    }, []);
+
+    const handleApproval = async (userId: string, approved: boolean) => {
+        const userToUpdate = users.find(u => u.id === userId);
         if (userToUpdate && userToUpdate.email !== MAIN_ADMIN_EMAIL) {
-            updateUser({ ...userToUpdate, approved });
+            try {
+                await updateDoc(doc(db, 'users', userId), { approved });
+                // Actualizar estado local para reflejar el cambio
+                setUsers(users.map(u => 
+                    u.id === userId ? { ...u, approved } : u
+                ));
+                addNotification(approved ? "Usuario aprobado" : "Aprobación revocada", "success");
+            } catch (error) {
+                console.error("Error updating user approval:", error);
+                addNotification("Error al actualizar estado", "error");
+            }
         }
     };
 
@@ -281,7 +310,7 @@ export const AdminUsers = () => {
             <div className="bg-white rounded-[3rem] shadow-sm border border-slate-100 overflow-hidden">
                 <div className="p-10 border-b bg-slate-50 flex justify-between items-center">
                     <h3 className="font-black text-slate-800 uppercase tracking-widest text-xs">Directorio de Usuarios Autorizados</h3>
-                    <span className="bg-blue-600 text-white px-4 py-1 rounded-full text-[10px] font-black uppercase">{registeredUsers.length} Activos</span>
+                    <span className="bg-blue-600 text-white px-4 py-1 rounded-full text-[10px] font-black uppercase">{users.length} Activos</span>
                 </div>
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm text-left">
@@ -293,7 +322,7 @@ export const AdminUsers = () => {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50">
-                            {registeredUsers.map(u => (
+                            {users.map(u => (
                                 <tr key={u.id} className="hover:bg-slate-50/80 transition-colors">
                                     <td className="px-10 py-6 font-black text-slate-800 uppercase text-xs">{u.nombre}</td>
                                     <td className="px-10 py-6 font-bold text-slate-400 text-[10px] uppercase tracking-wider">{u.role}</td>
