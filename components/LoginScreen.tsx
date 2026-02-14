@@ -33,43 +33,13 @@ export const LoginScreen = () => {
       const user = userCredential.user;
       
       const userDoc = await getDoc(doc(db, 'users', user.uid));
+      const userData = userDoc.data();
       
-      // Si el documento no existe, lo creamos con datos básicos (fallback)
-      if (!userDoc.exists()) {
-        const isAdmin = email.toLowerCase() === 'alewilczek@gmail.com';
-        const userData = {
-          id: user.uid,
-          email: email.toLowerCase().trim(),
-          nombre: isAdmin ? "ALE" : "USUARIO",
-          apellido: isAdmin ? "WILCZEK" : "NUEVO",
-          name: isAdmin ? "ALE WILCZEK" : "USUARIO NUEVO",
-          role: isAdmin ? 'ADMIN' : 'USER',
-          approved: isAdmin, // Solo el admin se auto-aprueba
-          estado: isAdmin ? 'activo' : 'pendiente',
-          fechaRegistro: new Date().toISOString(),
-          createdAt: new Date().toISOString(),
-          level: isAdmin ? 3 : 1,
-          eliminado: false
-        };
-        await setDoc(doc(db, 'users', user.uid), userData);
-        
-        // Verificamos aprobación después de creación
-        if (!userData.approved) {
-           await logout();
-           setError('Tu cuenta está pendiente de aprobación por el administrador.');
-           setLoading(false);
-           return;
-        }
-      } else {
-        const userData = userDoc.data();
-        
-        // Verificación de aprobación obligatoria solicitada
-        if (!userData || !userData.approved) {
-          await logout();
-          setError('Tu cuenta está pendiente de aprobación por el administrador.');
-          setLoading(false);
-          return;
-        }
+      if (!userData || !userData.approved) {
+        await logout();
+        setError('Tu cuenta está pendiente de aprobación por el administrador.');
+        setLoading(false);
+        return;
       }
 
       navigate('/');
@@ -200,7 +170,7 @@ export const LoginScreen = () => {
                     <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-2">Correo Electrónico de su Cuenta</label>
                     <input 
                         type="email" 
-                        className="w-full p-4 bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold outline-none focus:ring-4 focus:ring-blue-50 transition-all"
+                        className="w-full p-4 bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold outline-none focus:ring-4 focus:ring-blue-100"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         required

@@ -10,12 +10,13 @@ import {
   LucideLoader2, LucideDownload, LucideHistory, LucideCheckCircle2
 } from 'lucide-react';
 import { GOLDEN_MASTER_SNAPSHOT } from '../constants';
-import { compressImage } from '../utils/imageCompressor';
+import { compressImage, compressFileToBlob } from '../utils/imageCompressor';
 import { databaseService } from '../services/databaseService';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale/es';
-import { db } from '../firebaseConfig';
-import { collection, getDocs, doc, updateDoc, writeBatch } from 'firebase/firestore';
+import { db, storage } from '../firebaseConfig';
+import { collection, getDocs, doc, updateDoc, writeBatch, setDoc } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 export const AdminUsers = () => {
     const { user, addNotification, masterFindingsImage, setMasterFindingsImage, lastBulkLoadDate } = useApp();
@@ -60,13 +61,25 @@ export const AdminUsers = () => {
     const handleMasterDiagramUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
-        const reader = new FileReader();
-        reader.onloadend = async () => {
-            const compressed = await compressImage(reader.result as string);
-            setMasterFindingsImage(compressed);
-            addNotification("Plano maestro de hallazgos actualizado", "success");
-        };
-        reader.readAsDataURL(file);
+
+        try {
+            addNotification("Procesando y subiendo plano maestro...", "warning");
+            const compressed = await compressFileToBlob(file);
+            const storageRef = ref(storage, 'config/master-findings.jpg');
+            await uploadBytes(storageRef, compressed);
+            const url = await getDownloadURL(storageRef);
+            
+            await setDoc(doc(db, 'config', 'app'), 
+                { masterFindingsImage: url }, 
+                { merge: true }
+            );
+            
+            setMasterFindingsImage(url);
+            addNotification("Plano maestro de hallazgos actualizado en la nube", "success");
+        } catch (error) {
+            console.error("Error subiendo plano maestro:", error);
+            addNotification("Error al sincronizar plano con la nube", "error");
+        }
     };
 
     const downloadTemplate = () => {
