@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { 
   createUserWithEmailAndPassword, 
@@ -55,12 +54,24 @@ export const FirebaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const signUp = async (email: string, password: string, additionalData: any) => {
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     const data = {
-      ...additionalData,
-      email,
       id: userCredential.user.uid,
-      createdAt: new Date().toISOString(),
+      email: email.toLowerCase().trim(),
+      nombre: additionalData.nombre.toUpperCase(),
+      apellido: additionalData.apellido.toUpperCase(),
+      name: `${additionalData.nombre} ${additionalData.apellido}`.toUpperCase(),
+      telefono: additionalData.telefono || '',
       role: 'USER',
-      approved: false
+      approved: false,
+      estado: 'pendiente',
+      fechaRegistro: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
+      intentosFallidos: 0,
+      centroCosto: { id: "0", nombre: "PENDIENTE", codigo: "000" },
+      costCenter: "PENDIENTE",
+      level: 1,
+      rolesSecundarios: [],
+      notificaciones: { email: true, push: false, whatsapp: false },
+      eliminado: false
     };
     await setDoc(doc(db, 'users', userCredential.user.uid), data);
     return userCredential;

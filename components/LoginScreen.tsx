@@ -1,14 +1,14 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { UserRole } from '../types';
 import { useApp } from '../context/FleetContext';
 import { useFirebase } from '../context/FirebaseContext';
+import { doc, getDoc } from 'firebase/firestore';
 import { LucideUserPlus, LucideLogIn, LucideArrowLeft, LucideCheckCircle, LucideShieldCheck, LucideShieldAlert, LucideTimer, LucideKeyRound, LucideShieldQuestion, LucideClock } from 'lucide-react';
 
 export const LoginScreen = () => {
-  const { register: fleetRegister, login: fleetLogin, requestPasswordReset: fleetReset } = useApp();
-  const { signIn, signUp, logout } = useFirebase();
+  const { login: fleetLogin, requestPasswordReset: fleetReset } = useApp();
+  const { signIn, signUp, logout, db } = useFirebase();
   const navigate = useNavigate();
   const [mode, setMode] = useState<'LOGIN' | 'REGISTER' | 'FORGOT'>('LOGIN');
   const [email, setEmail] = useState('');
@@ -29,13 +29,26 @@ export const LoginScreen = () => {
     setLoading(true);
 
     try {
-      // First try Firebase
+      // Intento con Firebase
       try {
-        await signIn(email, password);
+        const userCredential = await signIn(email, password);
+        
+        // Verificación obligatoria de aprobación en Firestore
+        const userDoc = await getDoc(doc(db, 'users', userCredential.user.uid));
+        const userData = userDoc.data();
+
+        if (userData && !userData.approved) {
+            await logout();
+            setIsPendingLogin(true);
+            setError("Su solicitud de acceso aún no ha sido procesada por el Administrador Principal. Por favor, aguarde la validación de identidad.");
+            setLoading(false);
+            return;
+        }
+
         navigate('/');
         return;
       } catch (fbErr: any) {
-        // If firebase fails, try mock login for dev/admin
+        // Fallback a login local (maestro o sesiones offline previas)
         const res = await fleetLogin(email, password);
         if (res.success) {
           navigate('/');
@@ -72,12 +85,10 @@ export const LoginScreen = () => {
     setLoading(true);
 
     try {
-      // Register in Firebase
       await signUp(email, password, { 
         nombre: name.toUpperCase(), 
         apellido: lastName.toUpperCase(), 
-        telefono: phone,
-        name: `${name} ${lastName}`.toUpperCase()
+        telefono: phone
       });
       
       setSuccess('¡Registro recibido con éxito! Su solicitud ha sido enviada al Administrador Principal. Por normas de seguridad corporativa, deberá esperar a que su identidad sea validada para poder ingresar.');
