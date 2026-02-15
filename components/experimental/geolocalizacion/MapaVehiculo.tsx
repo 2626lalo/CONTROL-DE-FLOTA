@@ -1,8 +1,11 @@
-
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
+import { GoogleMap, Marker, InfoWindow } from '@react-google-maps/api';
 import { LucideCar, LucideNavigation2, LucideX, LucideClock, LucideGauge, LucideActivity } from 'lucide-react';
 import { Vehicle } from '../../../types';
 import { format, parseISO } from 'date-fns';
+
+// FIX: Declare google global variable to avoid TypeScript errors when using Google Maps SDK members
+declare const google: any;
 
 interface Props {
   activeView: 'GLOBAL' | 'VEHICLE' | 'HISTORY' | 'GEOFENCES';
@@ -12,107 +15,121 @@ interface Props {
   onClose: () => void;
 }
 
+const mapContainerStyle = {
+  width: '100%',
+  height: '100%'
+};
+
+const center = {
+  lat: -34.6037,
+  lng: -58.3816
+};
+
+const mapOptions = {
+  disableDefaultUI: true,
+  zoomControl: true,
+  styles: [
+    { featureType: "all", elementType: "labels.text.fill", stylers: [{ color: "#334155" }] },
+    { featureType: "landscape", elementType: "all", stylers: [{ color: "#f1f5f9" }] },
+    { featureType: "road", elementType: "all", stylers: [{ color: "#ffffff" }] },
+    { featureType: "water", elementType: "all", stylers: [{ color: "#cbd5e1" }] }
+  ]
+};
+
 export const MapaVehiculo: React.FC<Props> = ({ activeView, selectedPlate, vehicles, ubicaciones, onClose }) => {
-  const mapRef = useRef<HTMLDivElement>(null);
-  const mapInstance = useRef<any>(null);
-  const markersRef = useRef<Record<string, any>>({});
-  const polylineRef = useRef<any>(null);
+  const [selectedMarker, setSelectedMarker] = useState<any | null>(null);
 
-  useEffect(() => {
-    if (!(window as any).L) {
-      const link = document.createElement('link');
-      link.rel = 'stylesheet';
-      link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-      document.head.appendChild(link);
-
-      const script = document.createElement('script');
-      script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-      script.onload = () => initMap();
-      document.head.appendChild(script);
-    } else {
-      initMap();
-    }
-
-    return () => {
-      if (mapInstance.current) {
-        mapInstance.current.remove();
-        mapInstance.current = null;
-      }
-    };
-  }, []);
-
-  const initMap = () => {
-    if (!mapRef.current || !(window as any).L) return;
-    const L = (window as any).L;
-    
-    if (mapInstance.current) return;
-
-    mapInstance.current = L.map(mapRef.current, {
-      zoomControl: false,
-      attributionControl: false
-    }).setView([-34.6037, -58.3816], 12);
-
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(mapInstance.current);
-    
-    updateMarkers();
-  };
-
-  const updateMarkers = () => {
-    if (!mapInstance.current || !(window as any).L) return;
-    const L = (window as any).L;
-
-    // Limpiar marcadores viejos si cambiamos a modo vehículo
-    if (activeView === 'VEHICLE') {
-      Object.values(markersRef.current).forEach(m => m.remove());
-      markersRef.current = {};
-    }
-
-    const unitsToRender = activeView === 'VEHICLE' 
+  const markers = useMemo(() => {
+    const unitsToRender = activeView === 'VEHICLE' && selectedPlate
       ? vehicles.filter(v => v.plate === selectedPlate)
       : vehicles;
 
-    unitsToRender.forEach(v => {
+    return unitsToRender.map(v => {
       const lastPos = ubicaciones.find(u => u.vehiclePlate === v.plate);
-      if (!lastPos) return;
+      if (!lastPos) return null;
 
-      const coords: [number, number] = [lastPos.lat, lastPos.lng];
-      
-      const icon = L.divIcon({
-        className: 'custom-div-icon',
-        html: `
-          <div class="relative group">
-            <div class="p-2 bg-slate-950 text-white rounded-xl shadow-2xl border-2 border-white transition-all transform group-hover:scale-110">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-400"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-1.1 0-2 .9-2 2v7c0 1.1.9 2 2 2h10c0-1.1.9-2 2-2z"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg>
-            </div>
-            <div class="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-3 py-1 rounded-lg text-[9px] font-black uppercase whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
-              ${v.plate}
-            </div>
-          </div>
-        `,
-        iconSize: [30, 30],
-        iconAnchor: [15, 15]
-      });
+      const diffMin = (Date.now() - new Date(lastPos.timestamp).getTime()) / 60000;
+      let color = '#10b981'; // Verde: Activo < 5 min
+      if (diffMin > 60) color = '#ef4444'; // Rojo: Detenido > 1 hora
+      else if (diffMin > 5) color = '#f59e0b'; // Amarillo: Inactivo > 5 min
 
-      if (markersRef.current[v.plate]) {
-        markersRef.current[v.plate].setLatLng(coords);
-      } else {
-        markersRef.current[v.plate] = L.marker(coords, { icon }).addTo(mapInstance.current);
-      }
+      return {
+        ...lastPos,
+        vehicle: v,
+        color
+      };
+    }).filter(Boolean);
+  }, [vehicles, ubicaciones, activeView, selectedPlate]);
 
-      if (activeView === 'VEHICLE' && selectedPlate === v.plate) {
-        mapInstance.current.setView(coords, 16);
-      }
-    });
-  };
+  const mapCenter = useMemo(() => {
+    if (activeView === 'VEHICLE' && selectedPlate) {
+      const lastPos = ubicaciones.find(u => u.vehiclePlate === selectedPlate);
+      if (lastPos) return { lat: lastPos.lat, lng: lastPos.lng };
+    }
+    return center;
+  }, [activeView, selectedPlate, ubicaciones]);
 
-  useEffect(() => {
-    updateMarkers();
-  }, [ubicaciones, activeView, selectedPlate]);
+  const getMarkerIcon = (color: string) => ({
+    path: "M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z",
+    fillColor: color,
+    fillOpacity: 1,
+    strokeWeight: 2,
+    strokeColor: '#FFFFFF',
+    scale: 2,
+    anchor: new google.maps.Point(12, 22)
+  });
 
   return (
     <div className="w-full h-full relative group">
-      <div ref={mapRef} className="w-full h-full z-0" />
-      
+      <GoogleMap
+        mapContainerStyle={mapContainerStyle}
+        center={mapCenter}
+        zoom={activeView === 'VEHICLE' ? 16 : 12}
+        options={mapOptions}
+      >
+        {markers.map((m: any) => (
+          <Marker
+            key={m.vehiclePlate}
+            position={{ lat: m.lat, lng: m.lng }}
+            icon={getMarkerIcon(m.color)}
+            onClick={() => setSelectedMarker(m)}
+          />
+        ))}
+
+        {selectedMarker && (
+          <InfoWindow
+            position={{ lat: selectedMarker.lat, lng: selectedMarker.lng }}
+            onCloseClick={() => setSelectedMarker(null)}
+          >
+            <div className="p-2 min-w-[180px] space-y-3">
+              <div className="flex justify-between items-start border-b pb-2">
+                <div>
+                   <h4 className="font-black text-slate-800 text-lg leading-none uppercase italic">{selectedMarker.vehiclePlate}</h4>
+                   <p className="text-[8px] font-bold text-slate-400 uppercase mt-1">{selectedMarker.vehicle.make} {selectedMarker.vehicle.model}</p>
+                </div>
+                <div className={`w-2 h-2 rounded-full mt-1 ${selectedMarker.color === '#10b981' ? 'bg-emerald-500' : selectedMarker.color === '#ef4444' ? 'bg-rose-500' : 'bg-amber-500'}`}></div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-2">
+                <div className="text-center p-2 bg-slate-50 rounded-lg">
+                   <p className="text-[7px] font-black text-slate-400 uppercase">Velocidad</p>
+                   <p className="text-xs font-black text-slate-700">{selectedMarker.velocidad} KM/H</p>
+                </div>
+                <div className="text-center p-2 bg-slate-50 rounded-lg">
+                   <p className="text-[7px] font-black text-slate-400 uppercase">Dirección</p>
+                   <p className="text-xs font-black text-slate-700">{selectedMarker.direccion}°</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 text-[8px] font-black text-slate-400 uppercase">
+                <LucideClock size={10}/>
+                Sincronizado: {format(parseISO(selectedMarker.timestamp), 'HH:mm:ss')} HS
+              </div>
+            </div>
+          </InfoWindow>
+        )}
+      </GoogleMap>
+
       {activeView === 'VEHICLE' && selectedPlate && (
         <div className="absolute top-8 left-8 right-8 md:right-auto md:w-96 bg-white/90 backdrop-blur-md p-8 rounded-[3rem] border border-slate-100 shadow-2xl z-20 animate-fadeIn">
            <div className="flex justify-between items-start mb-8">
@@ -120,7 +137,7 @@ export const MapaVehiculo: React.FC<Props> = ({ activeView, selectedPlate, vehic
                  <div className="p-3 bg-slate-950 text-white rounded-2xl shadow-xl"><LucideCar size={24}/></div>
                  <div>
                     <h3 className="text-3xl font-black italic tracking-tighter uppercase leading-none">{selectedPlate}</h3>
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">Monitoreo en Tiempo Real</p>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">Rastreo Satelital Activo</p>
                  </div>
               </div>
               <button onClick={onClose} className="p-2 text-slate-400 hover:text-rose-500 transition-colors"><LucideX/></button>
@@ -128,17 +145,17 @@ export const MapaVehiculo: React.FC<Props> = ({ activeView, selectedPlate, vehic
 
            <div className="grid grid-cols-2 gap-4">
               <div className="p-4 bg-slate-50 rounded-2xl space-y-1">
-                 <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1"><LucideGauge size={10}/> Velocidad</p>
-                 <p className="text-lg font-black text-slate-800 italic">45 <span className="text-[10px] not-italic text-slate-400">KM/H</span></p>
+                 <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1"><LucideGauge size={10}/> Velocidad Actual</p>
+                 <p className="text-lg font-black text-slate-800 italic">{ubicaciones.find(u => u.vehiclePlate === selectedPlate)?.velocidad || 0} <span className="text-[10px] not-italic text-slate-400">KM/H</span></p>
               </div>
               <div className="p-4 bg-slate-50 rounded-2xl space-y-1">
                  <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1"><LucideClock size={10}/> Última Señal</p>
-                 <p className="text-[10px] font-black text-blue-600">HACE 2 MIN</p>
+                 <p className="text-[10px] font-black text-blue-600">SINCRO ONLINE</p>
               </div>
            </div>
 
            <button className="w-full mt-6 py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl hover:bg-blue-600 transition-all flex items-center justify-center gap-3">
-              <LucideActivity size={16}/> Abrir Telemetría Completa
+              <LucideActivity size={16}/> Abrir Telemetría Integral
            </button>
         </div>
       )}

@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { LucideClipboardCheck, LucideCheck, LucideAlertTriangle, LucideCamera, LucideSave, LucideTruck, LucideGauge, LucideLocate, LucideX, LucideEraser, LucideShieldCheck, LucideRefreshCw } from 'lucide-react';
 import { useApp } from '../../../context/FleetContext';
@@ -77,13 +76,34 @@ export const ChecklistDiarioConductor: React.FC = () => {
     { id: 'docs', label: 'Documentación Vigente a Bordo', status: 'OK' },
   ]);
 
+  // RASTREO SATELITAL EN TIEMPO REAL (ORQUESTADOR)
   useEffect(() => {
-    if ("geolocation" in navigator) {
-      navigator.geolocation.getCurrentPosition(pos => {
-        setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-      });
-    }
-  }, []);
+    if (!plate || plate.length < 6) return;
+
+    const watchId = navigator.geolocation.watchPosition(
+      async (pos) => {
+        try {
+          await addDoc(collection(db, 'ubicaciones'), {
+            vehiclePlate: plate,
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+            velocidad: Math.round((pos.coords.speed || 0) * 3.6), // Convertir a km/h
+            direccion: pos.coords.heading || 0,
+            timestamp: new Date().toISOString(),
+            precision: pos.coords.accuracy,
+            conductorId: user?.id
+          });
+          setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        } catch (error) {
+          console.error('Telemetría Error:', error);
+        }
+      },
+      (err) => console.error("GPS Signal Loss:", err),
+      { enableHighAccuracy: true, maximumAge: 10000, timeout: 5000 }
+    );
+
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, [plate, user?.id]);
 
   const toggleStatus = (id: string) => {
     setItems(items.map(it => it.id === id ? { ...it, status: it.status === 'OK' ? 'NOVEDAD' : 'OK' } : it));
@@ -187,7 +207,7 @@ export const ChecklistDiarioConductor: React.FC = () => {
                         <p className="text-[10px] font-bold italic">{location.lat.toFixed(6)}, {location.lng.toFixed(6)}</p>
                       </div>
                    </div>
-                   <span className="px-3 py-1 bg-emerald-500 text-white rounded-lg text-[8px] font-black uppercase">GPS OK</span>
+                   <span className="px-3 py-1 bg-emerald-500 text-white rounded-lg text-[8px] font-black uppercase">GPS ONLINE</span>
                 </div>
             )}
          </div>
@@ -201,7 +221,7 @@ export const ChecklistDiarioConductor: React.FC = () => {
                {isSubmitting ? <LucideRefreshCw className="animate-spin" size={24}/> : <LucideSave size={24}/>} 
                Finalizar y Enviar Reporte
             </button>
-            <p className="text-[9px] font-black text-slate-300 uppercase text-center tracking-[0.4em] italic">Certificación Cloud FleetPro Enterprise</p>
+            <p className="text-[9px] font-black text-slate-300 uppercase text-center tracking-[0.4em] italic">Rastreo Satelital Sincronizado</p>
          </div>
       </div>
     </div>
