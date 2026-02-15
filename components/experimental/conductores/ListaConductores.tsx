@@ -1,8 +1,10 @@
 
-import React, { useState } from 'react';
-import { LucideSearch, LucideUser, LucideChevronRight, LucidePhone, LucideMail, LucideCar } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { LucideSearch, LucideUser, LucideChevronRight, LucidePhone, LucideMail, LucideCar, LucideFilter, LucideRotateCcw, LucideChevronLeft, LucideLoader2 } from 'lucide-react';
 import { useApp } from '../../../context/FleetContext';
-import { UserRole } from '../../../types';
+import { User, UserRole } from '../../../types';
+import { db } from '../../../firebaseConfig';
+import { collection, query, where, getDocs, onSnapshot } from 'firebase/firestore';
 
 interface Props {
   onSelectDriver: (id: string) => void;
@@ -10,59 +12,121 @@ interface Props {
 }
 
 export const ListaConductores: React.FC<Props> = ({ onSelectDriver, limit }) => {
-  const { registeredUsers } = useApp();
+  const { user: currentUser, addNotification } = useApp();
+  const [conductores, setConductores] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
+  
+  // Filtros
   const [search, setSearch] = useState('');
+  const [filterCC, setFilterCC] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const rowsPerPage = limit || 10;
 
-  // Filtramos usuarios que puedan ser conductores (USER o CONDUCTOR)
-  const drivers = registeredUsers.filter(u => 
-    u.role === UserRole.USER || (u as any).role === 'CONDUCTOR'
-  ).filter(u => 
-    u.nombre.toLowerCase().includes(search.toLowerCase()) || 
-    u.apellido.toLowerCase().includes(search.toLowerCase()) ||
-    u.email.toLowerCase().includes(search.toLowerCase())
+  useEffect(() => {
+    setLoading(true);
+    const q = query(
+      collection(db, 'users'), 
+      where('role', 'in', ['USER', 'CONDUCTOR', 'CONDUCTOR'])
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as User));
+      // Filtro por rol supervisor (solo ve los de su CC)
+      if (currentUser?.role === UserRole.SUPERVISOR) {
+        const myCC = (currentUser.costCenter || currentUser.centroCosto?.nombre || '').toUpperCase();
+        setConductores(docs.filter(d => (d.costCenter || d.centroCosto?.nombre || '').toUpperCase() === myCC));
+      } else {
+        setConductores(docs);
+      }
+      setLoading(false);
+    }, (error) => {
+      console.error("Error loading conductores:", error);
+      addNotification("Error al sincronizar lista de conductores", "error");
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [currentUser]);
+
+  const allCCs = useMemo(() => {
+    const set = new Set(conductores.map(c => c.costCenter || c.centroCosto?.nombre).filter(Boolean));
+    return Array.from(set).sort();
+  }, [conductores]);
+
+  const filtered = useMemo(() => {
+    return conductores.filter(c => {
+      const term = search.toLowerCase();
+      const matchSearch = c.nombre.toLowerCase().includes(term) || 
+                          c.apellido.toLowerCase().includes(term) || 
+                          c.email.toLowerCase().includes(term);
+      const matchCC = !filterCC || (c.costCenter || c.centroCosto?.nombre) === filterCC;
+      return matchSearch && matchCC;
+    });
+  }, [conductores, search, filterCC]);
+
+  const totalPages = Math.ceil(filtered.length / rowsPerPage);
+  const paginated = filtered.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
+
+  if (loading) return (
+    <div className="flex flex-col items-center justify-center py-20 animate-pulse">
+      <LucideLoader2 className="text-blue-600 animate-spin mb-4" size={40} />
+      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Sincronizando Directorio...</p>
+    </div>
   );
-
-  const displayDrivers = limit ? drivers.slice(0, limit) : drivers;
 
   return (
     <div className="space-y-6">
-      {!limit && (
-        <div className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm">
-          <div className="relative">
+      <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm space-y-6">
+        <div className="flex flex-col md:flex-row gap-4 items-center">
+          <div className="relative flex-1 w-full">
             <LucideSearch className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300" size={20}/>
             <input 
               type="text" 
               placeholder="BUSCAR CONDUCTOR POR NOMBRE O EMAIL..." 
               className="w-full pl-14 pr-6 py-4 bg-slate-50 border-none rounded-2xl font-bold uppercase text-xs outline-none focus:ring-4 focus:ring-blue-100 transition-all"
               value={search}
-              onChange={e => setSearch(e.target.value)}
+              onChange={e => { setSearch(e.target.value); setCurrentPage(1); }}
             />
           </div>
+          <div className="flex gap-4 w-full md:w-auto">
+            <select 
+              className="flex-1 md:w-64 px-6 py-4 bg-slate-50 border-none rounded-2xl font-black uppercase text-[10px] outline-none"
+              value={filterCC}
+              onChange={e => { setFilterCC(e.target.value); setCurrentPage(1); }}
+            >
+              <option value="">CENTRO DE COSTO: TODOS</option>
+              {allCCs.map(cc => <option key={cc} value={cc}>{cc}</option>)}
+            </select>
+            <button onClick={() => { setSearch(''); setFilterCC(''); }} className="p-4 bg-slate-100 text-slate-400 rounded-2xl hover:text-rose-500 transition-all">
+              <LucideRotateCcw size={20}/>
+            </button>
+          </div>
         </div>
-      )}
+      </div>
 
-      <div className="bg-white rounded-[3rem] border border-slate-100 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-[3rem] border border-slate-100 shadow-sm overflow-hidden flex flex-col">
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead className="bg-slate-50 text-[9px] font-black uppercase text-slate-400 tracking-widest border-b">
               <tr>
-                <th className="px-8 py-6">Identidad</th>
+                <th className="px-8 py-6">Identidad / Perfil</th>
                 <th className="px-8 py-6">Contacto</th>
                 <th className="px-8 py-6">Centro de Costo</th>
-                <th className="px-8 py-6 text-right">Acciones</th>
+                <th className="px-8 py-6 text-center">Estado</th>
+                <th className="px-8 py-6 text-right">Detalle</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {displayDrivers.map(d => (
+              {paginated.map(d => (
                 <tr key={d.id} onClick={() => onSelectDriver(d.id)} className="hover:bg-blue-50/50 transition-all cursor-pointer group">
                   <td className="px-8 py-6">
                     <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 bg-slate-900 text-white rounded-xl flex items-center justify-center font-black text-sm uppercase">
+                      <div className="w-12 h-12 bg-slate-900 text-white rounded-2xl flex items-center justify-center font-black text-lg uppercase shadow-lg group-hover:bg-blue-600 transition-colors">
                         {d.nombre.charAt(0)}
                       </div>
                       <div>
                         <p className="font-black text-slate-800 uppercase italic leading-none">{d.nombre} {d.apellido}</p>
-                        <p className="text-[9px] font-bold text-slate-400 uppercase mt-1.5 tracking-widest">Legajo Cloud: {d.id.substring(0, 8)}</p>
+                        <p className="text-[9px] font-bold text-slate-400 uppercase mt-1.5 tracking-widest">Rol: {d.role}</p>
                       </div>
                     </div>
                   </td>
@@ -77,8 +141,15 @@ export const ListaConductores: React.FC<Props> = ({ onSelectDriver, limit }) => 
                     </div>
                   </td>
                   <td className="px-8 py-6">
-                    <span className="px-3 py-1 bg-white border border-slate-200 text-[9px] font-black uppercase text-blue-600 rounded-lg italic">
-                      {d.costCenter || (d as any).centroCosto?.nombre || 'S/A'}
+                    <span className="px-3 py-1 bg-blue-50 text-blue-600 text-[9px] font-black uppercase rounded-lg border border-blue-100">
+                      {d.costCenter || d.centroCosto?.nombre || 'S/A'}
+                    </span>
+                  </td>
+                  <td className="px-8 py-6 text-center">
+                    <span className={`px-4 py-1.5 rounded-full text-[8px] font-black uppercase tracking-widest border ${
+                      d.approved && d.estado === 'activo' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-rose-50 text-rose-700 border-rose-100'
+                    }`}>
+                      {d.approved ? 'AUTORIZADO' : 'PENDIENTE'}
                     </span>
                   </td>
                   <td className="px-8 py-6 text-right">
@@ -86,14 +157,21 @@ export const ListaConductores: React.FC<Props> = ({ onSelectDriver, limit }) => 
                   </td>
                 </tr>
               ))}
-              {drivers.length === 0 && (
-                <tr>
-                  <td colSpan={4} className="py-20 text-center font-black text-slate-200 uppercase tracking-widest italic">No se encontraron conductores registrados</td>
-                </tr>
-              )}
             </tbody>
           </table>
         </div>
+
+        {/* Paginación */}
+        {totalPages > 1 && (
+          <div className="p-6 bg-slate-50 border-t flex justify-between items-center shrink-0">
+            <p className="text-[10px] font-black text-slate-400 uppercase">Mostrando {paginated.length} de {filtered.length} conductores</p>
+            <div className="flex gap-2">
+              <button disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)} className="p-2 bg-white rounded-xl border border-slate-200 disabled:opacity-30"><LucideChevronLeft size={18}/></button>
+              <div className="px-4 py-2 bg-white rounded-xl border border-slate-200 text-[10px] font-black">{currentPage} / {totalPages}</div>
+              <button disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => p + 1)} className="p-2 bg-white rounded-xl border border-slate-200 disabled:opacity-30"><LucideChevronRight size={18}/></button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
