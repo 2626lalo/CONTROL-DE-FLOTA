@@ -64,7 +64,8 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   navItems.push(
     { to: '/checklist', icon: LucideClipboardCheck, label: 'Inspecciones' },
     { to: '/documentation', icon: LucideFileText, label: 'Documentación' },
-    { to: '/reports', icon: LucideBarChart3, label: 'Reportes' }
+    { to: '/reports', icon: LucideBarChart3, label: 'Reportes' },
+    { to: '/reportes-experimental', icon: LucidePieChart, label: 'Reportes Maestro' }
   );
 
   const serviceLabel = user?.role === UserRole.ADMIN ? 'Mesa de Control' : 

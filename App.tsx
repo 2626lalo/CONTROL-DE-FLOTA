@@ -18,6 +18,7 @@ import { UserManagement } from './components/UserManagement';
 import { BienesDeUso } from './components/BienesDeUso';
 import { DashboardAdmin } from './components/DashboardAdmin';
 import { MesaControlExperimental } from './components/experimental/MesaControlExperimental';
+import { ReportesExperimental } from './components/experimental/reportes/ReportesExperimental';
 import { LucideLoader } from 'lucide-react';
 
 const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -65,6 +66,7 @@ export default function App() {
               <Route path="/users-management" element={<UserManagement />} />
               <Route path="/admin/dashboard" element={<DashboardAdmin />} />
               <Route path="/reports" element={<Reports />} />
+              <Route path="/reportes-experimental" element={<ReportesExperimental />} />
               <Route path="/test-sector" element={<TestSector />} />
               <Route path="/mesa-experimental" element={<MesaControlExperimental />} />
               <Route path="*" element={<Navigate to="/" />}  />
