@@ -7,7 +7,7 @@ import {
   LucideBarChart3, LucideSearch, LucideFileText,
   LucideShieldCheck, LucideGhost, LucideChevronDown, LucideXCircle, LucideUserCircle,
   LucideWrench, LucideMenu, LucideX, LucideWarehouse, LucidePieChart, LucideFlaskConical,
-  LucideZap
+  LucideZap, LucideActivity
 } from 'lucide-react';
 import { useApp } from '../context/FleetContext';
 import { useFirebase } from '../context/FirebaseContext';
@@ -65,6 +65,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
     { to: '/checklist', icon: LucideClipboardCheck, label: 'Inspecciones' },
     { to: '/documentation', icon: LucideFileText, label: 'Documentación' },
     { to: '/reports', icon: LucideBarChart3, label: 'Reportes' },
+    { to: '/mantenimiento-predictivo', icon: LucideActivity, label: 'Mantenimiento Maestro' },
     { to: '/reportes-experimental', icon: LucidePieChart, label: 'Reportes Maestro' }
   );
 
