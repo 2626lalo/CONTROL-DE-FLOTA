@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   LucideLayout, LucidePlusCircle, LucideRefreshCw, LucideArrowLeft, 
@@ -14,9 +14,26 @@ import { FiltrosAvanzados } from './FiltrosAvanzados';
 import { BuscadorVehiculos } from './BuscadorVehiculos';
 import { format, parseISO, isWithinInterval, startOfDay, endOfDay, subDays } from 'date-fns';
 import { db } from '../../firebaseConfig';
-import { collection, query, onSnapshot, doc, updateDoc, arrayUnion, orderBy, setDoc } from 'firebase/firestore';
+import { collection, query, onSnapshot, doc, updateDoc, arrayUnion, orderBy, setDoc, limit } from 'firebase/firestore';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 5, // 5 minutos
+    },
+  },
+});
 
 export const MesaControlExperimental: React.FC = () => {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <MesaControlContent />
+    </QueryClientProvider>
+  );
+};
+
+const MesaControlContent: React.FC = () => {
   const { vehicles, user, registeredUsers, addNotification, checklists } = useApp();
   
   // UI States
@@ -45,13 +62,19 @@ export const MesaControlExperimental: React.FC = () => {
   const [filterDateFrom, setFilterDateFrom] = useState(format(subDays(new Date(), 90), 'yyyy-MM-dd'));
   const [filterDateTo, setFilterDateTo] = useState(format(new Date(), 'yyyy-MM-dd'));
 
-  // 1. SINCRONIZACIÓN EN TIEMPO REAL
+  // 1. SINCRONIZACIÓN EN TIEMPO REAL OPTIMIZADA CON LIMIT
   useEffect(() => {
-    const q = query(collection(db, 'requests'), orderBy('createdAt', 'desc'));
+    console.time('Firestore_Requests_Snapshot');
+    const q = query(
+      collection(db, 'requests'), 
+      orderBy('createdAt', 'desc'),
+      limit(100) // Optimización: Solo traer los últimos 100 registros para el tablero
+    );
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const requests = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ServiceRequest));
       setLocalRequests(requests);
       setIsLoadingRealtime(false);
+      console.timeEnd('Firestore_Requests_Snapshot');
     }, (error) => {
       console.error("Firestore Error:", error);
       setIsLoadingRealtime(false);
@@ -59,9 +82,9 @@ export const MesaControlExperimental: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
-  // 2. KERNEL DE SEGURIDAD
+  // 2. KERNEL DE SEGURIDAD - MEMOIZADO
   const userRole = user?.role || UserRole.USER;
-  const userCC = (user?.costCenter || user?.centroCosto?.nombre || '').toUpperCase();
+  const userCC = useMemo(() => (user?.costCenter || user?.centroCosto?.nombre || '').toUpperCase(), [user]);
 
   const filteredRequests = useMemo(() => {
     return localRequests.filter(r => {
@@ -98,7 +121,7 @@ export const MesaControlExperimental: React.FC = () => {
   }, [localRequests]);
 
   // 3. HANDLERS DE ACCIÓN
-  const handleCreateRequest = async (e: React.FormEvent) => {
+  const handleCreateRequest = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newReq.vehicle || !newReq.description) {
       addNotification("Complete los campos obligatorios", "error");
@@ -152,9 +175,9 @@ export const MesaControlExperimental: React.FC = () => {
     } finally {
       setIsSubmitting(false);
     }
-  };
+  }, [newReq, user, userCC, addNotification]);
 
-  const handleUpdateStage = async (reqId: string, newStage: ServiceStage | string, comment: string, extras: any = {}) => {
+  const handleUpdateStage = useCallback(async (reqId: string, newStage: ServiceStage | string, comment: string, extras: any = {}) => {
     const request = localRequests.find(r => r.id === reqId);
     if (!request) return;
 
@@ -181,10 +204,9 @@ export const MesaControlExperimental: React.FC = () => {
     } catch (error) {
       addNotification("Error al sincronizar cambio", "error");
     }
-  };
+  }, [localRequests, user, addNotification]);
 
-  // FIX: Added handleSendMessage to process real-time chat messages via Firestore updateDoc and arrayUnion
-  const handleSendMessage = async (reqId: string, text: string) => {
+  const handleSendMessage = useCallback(async (reqId: string, text: string) => {
     const request = localRequests.find(r => r.id === reqId);
     if (!request || !text.trim()) return;
 
@@ -206,7 +228,7 @@ export const MesaControlExperimental: React.FC = () => {
       console.error("Chat Error:", error);
       addNotification("Error al enviar mensaje", "error");
     }
-  };
+  }, [localRequests, user, userRole, addNotification]);
 
   const selectedRequest = useMemo(() => localRequests.find(r => r.id === selectedReqId), [localRequests, selectedReqId]);
   
@@ -352,7 +374,7 @@ export const MesaControlExperimental: React.FC = () => {
                   <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-4">Ubicación del Activo</label>
                   <div className="relative">
                     <LucideMapPin className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300" size={20}/>
-                    <input type="text" className="w-full pl-16 pr-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-xs uppercase outline-none" placeholder="LUGAR O BASE..." value={newReq.location} onChange={e => setNewReq({...newReq, location: e.target.value.toUpperCase()})} />
+                    <input type="text" className="w-full pl-16 pr-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-xs uppercase outline-none" placeholder="LUGAR OR BASE..." value={newReq.location} onChange={e => setNewReq({...newReq, location: e.target.value.toUpperCase()})} />
                   </div>
                </div>
             </div>

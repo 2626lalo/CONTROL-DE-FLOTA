@@ -1,17 +1,26 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, Suspense, lazy, useCallback } from 'react';
 import { LucideBarChart3, LucideFileSpreadsheet, LucideFileText, LucideRefreshCw, LucideActivity, LucideLoader2 } from 'lucide-react';
 import { useApp } from '../../../context/FleetContext';
 import { FiltrosReportes } from './FiltrosReportes';
-import { TablaReporte } from './TablaReporte';
-import { GraficosReporte } from './GraficosReporte';
 import { exportReportToExcel } from './ExportarExcel';
 import { exportReportToPDF } from './ExportarPDF';
 import { format, subDays, startOfDay, endOfDay, parseISO } from 'date-fns';
-import { collection, getDocs, query, where, orderBy, Query } from 'firebase/firestore';
+import { collection, getDocs, query, where, orderBy, limit } from 'firebase/firestore';
 import { db } from '../../../firebaseConfig';
 
+// Optimización: Lazy loading de componentes de visualización pesados
+const TablaReporte = lazy(() => import('./TablaReporte').then(m => ({ default: m.TablaReporte })));
+const GraficosReporte = lazy(() => import('./GraficosReporte').then(m => ({ default: m.GraficosReporte })));
+
+const ReportLoader = () => (
+  <div className="py-40 flex flex-col items-center justify-center gap-4 animate-pulse">
+     <LucideLoader2 size={64} className="text-blue-600 animate-spin"/>
+     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Generando Inteligencia de Datos...</p>
+  </div>
+);
+
 export const ReportesExperimental: React.FC = () => {
-  const { addNotification, vehicles: contextVehicles, serviceRequests: contextServices, registeredUsers: contextUsers } = useApp();
+  const { addNotification, vehicles: contextVehicles } = useApp();
   
   // States de Datos
   const [reportData, setReportData] = useState<any[]>([]);
@@ -29,8 +38,9 @@ export const ReportesExperimental: React.FC = () => {
     return Array.from(set).sort();
   }, [contextVehicles]);
 
-  const loadReportData = async () => {
+  const loadReportData = useCallback(async () => {
     setLoading(true);
+    console.time('Report_Data_Fetch');
     try {
       let data: any[] = [];
       let collectionName = '';
@@ -51,28 +61,27 @@ export const ReportesExperimental: React.FC = () => {
           collectionName = 'vehicles';
       }
       
-      let queryRef: Query = collection(db, collectionName);
+      // Optimización: Usar query optimizada con limit para no saturar memoria del cliente
+      const queryRef = query(
+        collection(db, collectionName), 
+        limit(500) // Paginación de seguridad
+      );
       
-      // Aplicar filtros de Firestore si es posible (en producción es mejor)
-      // Para este prototipo, cargamos y filtramos localmente para asegurar compatibilidad total con el esquema
       const snapshot = await getDocs(queryRef);
       const rawData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       
-      // Filtrado Local Avanzado
+      // Filtrado Local Memoizado
       data = rawData.filter(item => {
-        // Filtro CC
         if (costCenter) {
           const itemCC = (item.costCenter || item.centroCosto?.nombre || '').toUpperCase();
           if (itemCC !== costCenter.toUpperCase()) return false;
         }
 
-        // Filtro Estado
         if (status) {
           const itemStatus = (item.status || item.stage || item.estado || '').toUpperCase();
           if (itemStatus !== status.toUpperCase()) return false;
         }
         
-        // Filtro Fecha (si aplica al tipo)
         const dateField = item.createdAt || item.fechaRegistro || item.fechaCarga;
         if (dateField && (type === 'SERVICIOS' || type === 'USUARIOS')) {
           const d = parseISO(dateField);
@@ -90,16 +99,24 @@ export const ReportesExperimental: React.FC = () => {
       addNotification('Error al cargar datos de Firestore', 'error');
     } finally {
       setLoading(false);
+      console.timeEnd('Report_Data_Fetch');
     }
-  };
+  }, [type, dateFrom, dateTo, costCenter, status, addNotification]);
 
   useEffect(() => {
     loadReportData();
-  }, [type, dateFrom, dateTo, costCenter, status]);
+  }, [loadReportData]);
+
+  const handleExportExcel = useCallback(() => {
+    exportReportToExcel(reportData, type, addNotification);
+  }, [reportData, type, addNotification]);
+
+  const handleExportPDF = useCallback(() => {
+    exportReportToPDF(reportData, type, addNotification);
+  }, [reportData, type, addNotification]);
 
   return (
     <div className="min-h-screen bg-[#fcfdfe] space-y-10 animate-fadeIn p-4 md:p-8 pb-20">
-      {/* HEADER */}
       <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end gap-8 border-b border-slate-200 pb-10">
         <div className="flex items-center gap-6">
           <div className="p-5 bg-slate-950 text-white rounded-[2rem] shadow-2xl rotate-3">
@@ -116,14 +133,14 @@ export const ReportesExperimental: React.FC = () => {
         <div className="flex flex-wrap items-center gap-4 w-full xl:w-auto">
           <button 
             disabled={loading || reportData.length === 0}
-            onClick={() => exportReportToExcel(reportData, type, addNotification)}
+            onClick={handleExportExcel}
             className="bg-emerald-600 text-white px-8 py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl hover:bg-emerald-700 transition-all flex items-center gap-3 active:scale-95 disabled:opacity-50"
           >
             <LucideFileSpreadsheet size={18}/> Excel
           </button>
           <button 
             disabled={loading || reportData.length === 0}
-            onClick={() => exportReportToPDF(reportData, type, addNotification)}
+            onClick={handleExportPDF}
             className="bg-slate-900 text-white px-8 py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl hover:bg-indigo-600 transition-all flex items-center gap-3 active:scale-95 disabled:opacity-50"
           >
             <LucideFileText size={18}/> PDF
@@ -149,21 +166,20 @@ export const ReportesExperimental: React.FC = () => {
       />
 
       {loading ? (
-        <div className="py-40 flex flex-col items-center justify-center gap-4 animate-pulse">
-           <LucideLoader2 size={64} className="text-blue-600 animate-spin"/>
-           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Consultando Base de Datos...</p>
-        </div>
+        <ReportLoader />
       ) : (
         <div className="space-y-12 animate-fadeIn">
-          <GraficosReporte data={reportData} type={type} />
-          
-          <div className="space-y-6">
-            <div className="flex justify-between items-center px-4">
-              <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Vista Previa de Registros</h4>
-              <p className="text-[10px] font-bold text-slate-400 uppercase">{reportData.length} resultados encontrados</p>
+          <Suspense fallback={<div className="h-64 bg-slate-50 rounded-[3rem] animate-pulse"></div>}>
+            <GraficosReporte data={reportData} type={type} />
+            
+            <div className="space-y-6">
+              <div className="flex justify-between items-center px-4">
+                <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Vista Previa de Registros</h4>
+                <p className="text-[10px] font-bold text-slate-400 uppercase">{reportData.length} resultados encontrados</p>
+              </div>
+              <TablaReporte data={reportData} type={type} />
             </div>
-            <TablaReporte data={reportData} type={type} />
-          </div>
+          </Suspense>
         </div>
       )}
     </div>

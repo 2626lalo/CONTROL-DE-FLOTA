@@ -1,22 +1,31 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, Suspense, lazy, useCallback } from 'react';
 import { 
   LucideMap, LucideNavigation, LucideLayers, LucideMaximize, 
   LucideRefreshCw, LucideFilter, LucideActivity, LucideShield,
-  LucideSearch, LucideCar, LucideInfo, LucideHistory
+  LucideSearch, LucideCar, LucideInfo, LucideHistory, LucideLoader2
 } from 'lucide-react';
 import { useApp } from '../../../context/FleetContext';
 import { MapaVehiculo } from './MapaVehiculo';
 import { FiltrosMapa } from './FiltrosMapa';
 import { UltimaUbicacion } from './UltimaUbicacion';
 import { PanelControlMapa } from './PanelControlMapa';
-import { HistorialRutas } from './HistorialRutas';
-import { GeocercasExperimental } from './GeocercasExperimental';
-import { AlertasGeolocalizacion } from './AlertasGeolocalizacion';
-import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, limit } from 'firebase/firestore';
 import { db } from '../../../firebaseConfig';
 import { useLoadScript } from '@react-google-maps/api';
 
+// Optimización: Lazy loading de módulos secundarios pesados
+const HistorialRutas = lazy(() => import('./HistorialRutas').then(m => ({ default: m.HistorialRutas })));
+const GeocercasExperimental = lazy(() => import('./GeocercasExperimental').then(m => ({ default: m.GeocercasExperimental })));
+const AlertasGeolocalizacion = lazy(() => import('./AlertasGeolocalizacion').then(m => ({ default: m.AlertasGeolocalizacion })));
+
 type MapView = 'GLOBAL' | 'VEHICLE' | 'HISTORY' | 'GEOFENCES' | 'ALERTS';
+
+const SkeletonLoader = () => (
+  <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-50 gap-4 animate-pulse">
+    <LucideLoader2 size={48} className="text-blue-600 animate-spin"/>
+    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Cargando Módulo Satelital...</p>
+  </div>
+);
 
 export const MapaFlotaExperimental: React.FC = () => {
   const { vehicles, user, addNotification } = useApp();
@@ -35,9 +44,14 @@ export const MapaFlotaExperimental: React.FC = () => {
     libraries: ['drawing', 'geometry']
   });
 
-  // Suscripción en tiempo real a las últimas ubicaciones de todos los vehículos
+  // Suscripción en tiempo real optimizada
   useEffect(() => {
-    const q = query(collection(db, 'ubicaciones'), orderBy('timestamp', 'desc'));
+    console.time('Firestore_Locations_Snapshot');
+    const q = query(
+      collection(db, 'ubicaciones'), 
+      orderBy('timestamp', 'desc'),
+      limit(200) // Optimización: Solo traer las últimas 200 posiciones para rendimiento
+    );
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const nuevasUbicaciones: Record<string, any> = {};
       snapshot.docs.forEach(doc => {
@@ -50,12 +64,13 @@ export const MapaFlotaExperimental: React.FC = () => {
       });
       setUbicaciones(nuevasUbicaciones);
       setLoading(false);
+      console.timeEnd('Firestore_Locations_Snapshot');
     }, (error) => {
       console.error("Error listening to locations:", error);
       addNotification("Error al sincronizar rastreo satelital", "error");
     });
     return () => unsubscribe();
-  }, []);
+  }, [addNotification]);
 
   const filteredVehicles = useMemo(() => {
     return vehicles.filter(v => {
@@ -70,6 +85,12 @@ export const MapaFlotaExperimental: React.FC = () => {
   const allCostCenters = useMemo(() => {
     return Array.from(new Set(vehicles.map(v => v.costCenter).filter(Boolean))).sort();
   }, [vehicles]);
+
+  // FIX: Added missing useCallback to the import statement at line 1
+  const handleSelectVehicle = useCallback((plate: string) => {
+    setSelectedPlate(plate);
+    setActiveView('VEHICLE');
+  }, []);
 
   if (loadError) return <div className="p-20 text-center font-black uppercase text-rose-600">Error cargando motor de mapas</div>;
   if (!isLoaded) return <div className="p-20 text-center animate-pulse font-black uppercase text-slate-300">Inicializando Satélites...</div>;
@@ -137,7 +158,7 @@ export const MapaFlotaExperimental: React.FC = () => {
              <UltimaUbicacion 
                 vehicles={filteredVehicles} 
                 ubicaciones={Object.values(ubicaciones)} 
-                onSelect={(plate) => { setSelectedPlate(plate); setActiveView('VEHICLE'); }}
+                onSelect={handleSelectVehicle}
              />
           </div>
         </aside>
@@ -153,25 +174,27 @@ export const MapaFlotaExperimental: React.FC = () => {
              />
            )}
            
-           {activeView === 'HISTORY' && (
-             <div className="absolute inset-0 z-20 flex bg-slate-100">
-               <HistorialRutas />
-             </div>
-           )}
+           <Suspense fallback={<SkeletonLoader />}>
+              {activeView === 'HISTORY' && (
+                <div className="absolute inset-0 z-20 flex bg-slate-100">
+                  <HistorialRutas />
+                </div>
+              )}
 
-           {activeView === 'GEOFENCES' && (
-             <div className="absolute inset-0 z-20 flex bg-slate-100">
-               <GeocercasExperimental />
-             </div>
-           )}
+              {activeView === 'GEOFENCES' && (
+                <div className="absolute inset-0 z-20 flex bg-slate-100">
+                  <GeocercasExperimental />
+                </div>
+              )}
 
-           {activeView === 'ALERTS' && (
-             <div className="absolute inset-0 z-20 flex bg-slate-100 p-8 overflow-y-auto custom-scrollbar">
-               <div className="max-w-3xl mx-auto w-full">
-                  <AlertasGeolocalizacion />
-               </div>
-             </div>
-           )}
+              {activeView === 'ALERTS' && (
+                <div className="absolute inset-0 z-20 flex bg-slate-100 p-8 overflow-y-auto custom-scrollbar">
+                  <div className="max-w-3xl mx-auto w-full">
+                      <AlertasGeolocalizacion />
+                  </div>
+                </div>
+              )}
+           </Suspense>
            
            {(activeView === 'GLOBAL' || activeView === 'VEHICLE') && <PanelControlMapa activeView={activeView} />}
         </main>

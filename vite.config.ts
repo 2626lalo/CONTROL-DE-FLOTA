@@ -1,4 +1,3 @@
-
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
@@ -19,9 +18,12 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
-          vendor: ['react', 'react-dom', 'react-router-dom'],
-          charts: ['recharts'],
-          utils: ['jspdf']
+          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+          'tanstack-vendor': ['@tanstack/react-query'],
+          'charts-vendor': ['recharts'],
+          'maps-vendor': ['@react-google-maps/api'],
+          'pdf-vendor': ['jspdf', 'jspdf-autotable'],
+          'utils-vendor': ['date-fns', 'xlsx', 'axios']
         }
       }
     }
