@@ -28,42 +28,31 @@ export const LoginScreen = () => {
     setLoading(true);
     
     try {
-      console.log('1️⃣ Intentando login con:', email);
       const userCredential = await signIn(email, password);
-      console.log('2️⃣ Login exitoso, UID:', userCredential.user.uid);
-      
-      console.log('3️⃣ Buscando documento en Firestore...');
       const userDoc = await getDoc(doc(db, 'users', userCredential.user.uid));
       
       if (!userDoc.exists()) {
-        console.log('4️⃣ Usuario no existe en Firestore');
         await logout();
-        setError('Usuario no registrado en el sistema. Contacta al administrador.');
+        setError('❌ Usuario no registrado en el sistema.');
         setLoading(false);
         return;
       }
       
       const userData = userDoc.data();
-      console.log('5️⃣ Datos de usuario:', userData);
       
       if (!userData || !userData.approved) {
-        console.log('6️⃣ Usuario NO aprobado, cerrando sesión');
         await logout();
-        setError('⏳ Tu cuenta está pendiente de aprobación por el administrador.');
-        
-        setTimeout(() => {
-          window.location.reload();
-        }, 2000);
-        
+        setError('⏳ Tu cuenta está pendiente de aprobación por el administrador. Cuando sea habilitada, podrás ingresar.');
         setLoading(false);
-        return; // ← NO redirigir a ninguna parte
+        return; // ← IMPORTANTE: NO HACER NADA MÁS
       }
       
-      console.log('7️⃣ Usuario aprobado, redirigiendo...');
+      // Usuario aprobado: guardar en contexto y navegar
+      localStorage.setItem('fp_currentUser', JSON.stringify(userData));
       navigate('/');
       
     } catch (error: any) {
-      console.error('🔥 Error en login:', error.code, error.message);
+      console.error('Error:', error);
       setError(error.message || 'Credenciales incorrectas');
     } finally {
       setLoading(false);

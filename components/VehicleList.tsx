@@ -26,10 +26,6 @@ export const VehicleList = () => {
 
   useEffect(() => {
     const fetchVehicles = async () => {
-      if (!user) {
-        console.log('⏳ No hay usuario, no se cargan vehículos');
-        return;
-      }
       try {
         console.log('🔍 Intentando cargar vehículos desde Firestore...');
         const querySnapshot = await getDocs(collection(db, 'vehicles'));
@@ -46,6 +42,7 @@ export const VehicleList = () => {
       }
     };
     
+    if (!user) return; // Si no hay usuario, no cargar nada
     fetchVehicles();
   }, [user]);
 
