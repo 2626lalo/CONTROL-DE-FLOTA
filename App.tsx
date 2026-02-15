@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { FleetProvider } from './context/FleetContext';
@@ -15,6 +16,8 @@ import { LoginScreen } from './components/LoginScreen';
 import { TestSector } from './components/TestSector';
 import { UserManagement } from './components/UserManagement';
 import { BienesDeUso } from './components/BienesDeUso';
+import { DashboardAdmin } from './components/DashboardAdmin';
+import { MesaControlExperimental } from './components/experimental/MesaControlExperimental';
 import { LucideLoader } from 'lucide-react';
 
 const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -60,8 +63,10 @@ export default function App() {
               <Route path="/documentation" element={<DocumentationManager />} />
               <Route path="/users" element={<AdminUsers />} />
               <Route path="/users-management" element={<UserManagement />} />
+              <Route path="/admin/dashboard" element={<DashboardAdmin />} />
               <Route path="/reports" element={<Reports />} />
               <Route path="/test-sector" element={<TestSector />} />
+              <Route path="/mesa-experimental" element={<MesaControlExperimental />} />
               <Route path="*" element={<Navigate to="/" />}  />
             </Routes>
           </AuthGuard>

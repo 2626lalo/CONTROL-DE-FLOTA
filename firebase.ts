@@ -1,3 +1,2 @@
-// Firebase ha sido eliminado del proyecto.
-export const db = null as any;
-export const auth = null as any;
+// Firebase has been moved to firebaseConfig.ts. This file is kept empty to avoid conflicts.
+export {};

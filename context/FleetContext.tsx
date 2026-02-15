@@ -50,7 +50,8 @@ interface FleetContextType {
   logout: () => Promise<void>;
   register: (email: string, pass: string, name: string, lastName: string, phone: string) => Promise<{success: boolean, message?: string}>;
   requestPasswordReset: (email: string) => Promise<{success: boolean, message?: string}>;
-  addNotification: (message: string, type?: 'error' | 'success' | 'warning') => void;
+  // FIX: Updated type to include 'info' as a valid notification level
+  addNotification: (message: string, type?: 'error' | 'success' | 'warning' | 'info') => void;
   refreshData: () => Promise<void>;
   logAudit: (action: string, type: AuditLog['entityType'], id: string, details: string) => Promise<void>;
   impersonate: (userId: string | null) => void;

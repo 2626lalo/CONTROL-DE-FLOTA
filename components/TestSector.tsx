@@ -45,7 +45,7 @@ const StageRecordModal = ({
     request: ServiceRequest, 
     onClose: () => void 
 }) => {
-    const stage = item.toStage;
+    const stage = item.toStage || item.estado;
     
     const getStageContent = () => {
         switch(stage) {
@@ -116,7 +116,7 @@ const StageRecordModal = ({
                                 <LucideFileCheck className="text-blue-600" size={24}/>
                                 <h5 className="text-sm font-black text-blue-900 uppercase">Acta de Ingreso a Taller</h5>
                              </div>
-                             <p className="text-xs font-bold text-slate-600 leading-relaxed italic">{item.comment}</p>
+                             <p className="text-xs font-bold text-slate-600 leading-relaxed italic">{item.comment || item.comentario}</p>
                         </div>
                     </div>
                 );
@@ -137,7 +137,7 @@ const StageRecordModal = ({
                     </div>
                 ) : <p className="text-xs text-slate-400 italic">Detalle de presupuesto no disponible.</p>;
             default:
-                return <p className="text-xs font-bold text-slate-500 italic">"{item.comment}"</p>;
+                return <p className="text-xs font-bold text-slate-500 italic">"{item.comment || item.comentario}"</p>;
         }
     };
 
@@ -164,8 +164,8 @@ const StageRecordModal = ({
 
                 <div className="p-10 space-y-8 overflow-y-auto max-h-[50vh] custom-scrollbar">
                     <div className="flex justify-between items-center border-b pb-4">
-                        <div className="flex items-center gap-3"><div className="w-8 h-8 bg-slate-200 rounded-full flex items-center justify-center text-slate-500 font-black text-[10px] uppercase">{item.userName.charAt(0)}</div><p className="text-[10px] font-black text-slate-800 uppercase">{item.userName}</p></div>
-                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{format(parseISO(item.date), 'dd/MM/yyyy HH:mm')} HS</p>
+                        <div className="flex items-center gap-3"><div className="w-8 h-8 bg-slate-200 rounded-full flex items-center justify-center text-slate-500 font-black text-[10px] uppercase">{(item.userName || item.usuario || 'U').charAt(0)}</div><p className="text-[10px] font-black text-slate-800 uppercase">{item.userName || item.usuario}</p></div>
+                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{format(parseISO(item.date || item.fecha || new Date().toISOString()), 'dd/MM/yyyy HH:mm')} HS</p>
                     </div>
                     {getStageContent()}
                 </div>
@@ -962,7 +962,8 @@ export const TestSector = () => {
                              {isSupervisorOrAdmin && (<button onClick={toggleDialogueState} className={`flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all ${currentRequest.isDialogueOpen ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100'}`}>{currentRequest.isDialogueOpen ? <LucideUnlock size={14}/> : <LucideLock size={14}/>}<span className="text-[8px] font-black uppercase">{currentRequest.isDialogueOpen ? 'Abierta' : 'Cerrada'}</span></button>)}
                            </div>
                            <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar bg-[#fcfdfe]">
-                               {(!currentRequest.messages || currentRequest.messages.length === 0) ? (<div className="h-full flex flex-col items-center justify-center opacity-10 text-center grayscale"><LucideSend size={48} className="mb-4 animate-bounce"/><p className="text-[9px] font-black uppercase tracking-widest">Sin intercambio de mensajes</p></div>) : (currentRequest.messages?.map(m => (<div key={m.id} className={`flex ${m.userId === user?.id ? 'justify-end' : 'justify-start'} animate-fadeIn`}><div className={`max-w-[90%] p-4 rounded-[1.8rem] shadow-sm border ${m.userId === user?.id ? 'bg-indigo-600 text-white border-indigo-500 rounded-tr-none' : 'bg-slate-50 text-slate-700 border-slate-200 rounded-tl-none'}`}><p className="text-[7px] font-black uppercase opacity-60 mb-2">{m.userName} • {format(parseISO(m.timestamp), 'HH:mm')}</p><p className="text-[10px] font-bold italic leading-relaxed">"{m.text}"</p></div></div>)))}<div ref={chatEndRef}></div>
+                               {(!currentRequest.messages || currentRequest.messages.length === 0) ? (<div className="h-full flex flex-col items-center justify-center opacity-10 text-center grayscale"><LucideSend size={48} className="mb-4 animate-bounce"/><p className="text-[9px] font-black uppercase tracking-widest">Sin intercambio de mensajes</p></div>) : (currentRequest.messages?.map(m => (
+                                <div key={m.id} className={`flex ${m.userId === user?.id ? 'justify-end' : 'justify-start'} animate-fadeIn`}><div className={`max-w-[90%] p-4 rounded-[1.8rem] shadow-sm border ${m.userId === user?.id ? 'bg-indigo-600 text-white border-indigo-500 rounded-tr-none' : 'bg-slate-50 text-slate-700 border-slate-200 rounded-tl-none'}`}><p className="text-[7px] font-black uppercase opacity-60 mb-2">{m.userName} • {format(parseISO(m.timestamp), 'HH:mm')}</p><p className="text-[10px] font-bold italic leading-relaxed">"{m.text}"</p></div></div>)))}<div ref={chatEndRef}></div>
                            </div>
                            <div className="p-6 border-t bg-white shrink-0"><div className="relative"><textarea rows={2} className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-xs outline-none focus:ring-4 focus:ring-indigo-100 shadow-inner resize-none custom-scrollbar" placeholder="Escribir mensaje..." value={chatMessage} onChange={e => setChatMessage(e.target.value)} /><button onClick={handleSendMessage} disabled={!chatMessage.trim() || isReadOnly} className="absolute right-3 bottom-3 p-3 bg-indigo-600 text-white rounded-xl shadow-xl hover:bg-indigo-700 transition-all active:scale-90 disabled:opacity-30"><LucideSend size={16}/></button></div></div>
                         </div>
@@ -971,7 +972,7 @@ export const TestSector = () => {
                     <div className="bg-white p-10 rounded-[3.5rem] border border-slate-100 shadow-sm space-y-8">
                         <div className="flex items-center gap-3 border-b pb-4"><LucideHistory className="text-indigo-600" size={20}/><h4 className="text-sm font-black text-slate-800 uppercase italic leading-none">Trazabilidad Técnica</h4></div>
                         <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest italic px-2">Presione sobre una etapa para ver registro</p>
-                        <div className="space-y-6 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">{currentRequest.history.map((h, i) => (<div key={i} onClick={() => setViewingHistoryItem(h)} className="flex gap-4 group/item cursor-pointer hover:bg-slate-50 p-2 rounded-2xl transition-all"><div className="w-1 bg-slate-100 group-hover/item:bg-indigo-500 rounded-full transition-all"></div><div className="flex-1"><div className="flex justify-between items-start"><p className="text-[11px] font-black text-slate-800 uppercase italic leading-tight group-hover/item:text-indigo-600 transition-colors">{h.comment}</p><LucideEye className="text-slate-200 group-hover/item:text-indigo-400 opacity-0 group-hover/item:opacity-100 transition-all shrink-0" size={14}/></div><div className="flex justify-between items-center mt-2"><p className="text-[8px] font-black text-slate-400 uppercase">{h.userName}</p><p className="text-[8px] font-bold text-slate-300 uppercase">{format(parseISO(h.date), 'dd/MM HH:mm')} HS</p></div></div></div>))}</div>
+                        <div className="space-y-6 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">{currentRequest.history.map((h, i) => (<div key={i} onClick={() => setViewingHistoryItem(h)} className="flex gap-4 group/item cursor-pointer hover:bg-slate-50 p-2 rounded-2xl transition-all"><div className="w-1 bg-slate-100 group-hover/item:bg-indigo-500 rounded-full transition-all"></div><div className="flex-1"><div className="flex justify-between items-start"><p className="text-[11px] font-black text-slate-800 uppercase italic leading-tight group-hover/item:text-indigo-600 transition-colors">{h.comment || h.comentario}</p><LucideEye className="text-slate-200 group-hover/item:text-indigo-400 opacity-0 group-hover/item:opacity-100 transition-all shrink-0" size={14}/></div><div className="flex justify-between items-center mt-2"><p className="text-[8px] font-black text-slate-400 uppercase">{h.userName || h.usuario}</p><p className="text-[8px] font-bold text-slate-300 uppercase">{format(parseISO(h.date || h.fecha || new Date().toISOString()), 'dd/MM HH:mm')} HS</p></div></div></div>))}</div>
                     </div>
                  </div>
               </div>

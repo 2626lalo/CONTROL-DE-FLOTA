@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { 
@@ -5,7 +6,8 @@ import {
   LucideLogOut, LucideUsers, LucideWifiOff,
   LucideBarChart3, LucideSearch, LucideFileText,
   LucideShieldCheck, LucideGhost, LucideChevronDown, LucideXCircle, LucideUserCircle,
-  LucideWrench, LucideMenu, LucideX, LucideWarehouse
+  LucideWrench, LucideMenu, LucideX, LucideWarehouse, LucidePieChart, LucideFlaskConical,
+  LucideZap
 } from 'lucide-react';
 import { useApp } from '../context/FleetContext';
 import { useFirebase } from '../context/FirebaseContext';
@@ -69,8 +71,12 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
                        user?.role === UserRole.USER ? 'Mis Servicios' : 'Gestión de Servicios';
   
   navItems.push({ to: '/test-sector', icon: LucideWrench, label: serviceLabel });
+  
+  // NUEVA MESA EXPERIMENTAL (Priorizada)
+  navItems.push({ to: '/mesa-experimental', icon: LucideZap, label: 'Mesa Experimental' });
 
   if (user?.role === UserRole.ADMIN) {
+    navItems.push({ to: '/admin/dashboard', icon: LucideBarChart3, label: 'Panel Ejecutivo' });
     navItems.push({ to: '/users-management', icon: LucideShieldCheck, label: 'Usuarios' });
     navItems.push({ to: '/users', icon: LucideUsers, label: 'Administración' });
   }

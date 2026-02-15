@@ -1,12 +1,13 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+// FIX: Updated imports to use @firebase/auth and marked User as a type-only import to resolve reported missing member errors
 import { 
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword, 
   signOut, 
   onAuthStateChanged,
   sendPasswordResetEmail,
-  User as FirebaseUser
-} from 'firebase/auth';
+  type User as FirebaseUser
+} from '@firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { auth, db, storage } from '../firebaseConfig';
@@ -21,6 +22,8 @@ interface FirebaseContextType {
   logout: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   uploadImage: (file: File, path: string) => Promise<string>;
+  // FIX: Added isOnline property to the context type
+  isOnline: boolean;
   db: any;
   storage: any;
 }
@@ -37,8 +40,15 @@ export const FirebaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [userData, setUserData] = useState<any>(null);
+  // FIX: Implemented real-time online status detection
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
 
   useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
       if (firebaseUser) {
@@ -50,7 +60,11 @@ export const FirebaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       }
       setLoading(false);
     });
-    return unsubscribe;
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      unsubscribe();
+    };
   }, []);
 
   const signUp = async (email: string, password: string, additionalData: any) => {
@@ -101,6 +115,7 @@ export const FirebaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     logout,
     resetPassword,
     uploadImage,
+    isOnline,
     db,
     storage
   };

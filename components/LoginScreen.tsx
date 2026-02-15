@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getAuth, signInWithEmailAndPassword, signOut, sendPasswordResetEmail } from 'firebase/auth';
+// FIX: Updated imports to @firebase/auth to resolve reported member existence errors
+import { getAuth, signInWithEmailAndPassword, signOut, sendPasswordResetEmail } from '@firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { useFirebase } from '../context/FirebaseContext';

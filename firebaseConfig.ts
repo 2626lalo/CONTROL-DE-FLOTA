@@ -1,6 +1,6 @@
-
 import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
+// FIX: Using @firebase/auth directly to resolve export detection issues with the main firebase package
+import { getAuth } from "@firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 

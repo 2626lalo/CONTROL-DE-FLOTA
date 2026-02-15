@@ -1,10 +1,8 @@
-
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/FleetContext';
 import { 
   ServiceRequest, ServiceStage, ServiceCategory, 
-  // FIX: Removed Provider from types import as it is not defined
   UserRole, ServiceMessage, Estimate, Invoice
 } from '../types';
 import { 
@@ -15,11 +13,9 @@ import {
   LucideSend, LucideFileText, LucideInfo, LucideAlertTriangle,
   LucideHistory, LucideLock, LucideUnlock, LucideDatabase, LucideBuilding2,
   LucideSignature, LucideEye, LucideRefreshCcw, LucideCheck,
-  // FIX: Added missing icons
   LucideMapPin, LucideTimer
 } from 'lucide-react';
 import { format, parseISO, differenceInHours } from 'date-fns';
-// FIX: Correctly import 'es' locale from date-fns
 import { es } from 'date-fns/locale/es';
 
 export const ServiceManager = () => {
@@ -29,7 +25,6 @@ export const ServiceManager = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [chatMessage, setChatMessage] = useState('');
 
-  // FIX: Replaced non-existent UserRole property MANAGER with SUPERVISOR
   const isAdmin = user?.role === UserRole.ADMIN || user?.role === UserRole.SUPERVISOR;
   const isAuditor = user?.role === UserRole.AUDITOR;
   const isProvider = user?.role === UserRole.PROVIDER;
@@ -58,7 +53,7 @@ export const ServiceManager = () => {
     const newMsg: ServiceMessage = {
       id: Date.now().toString(),
       userId: user?.id || 'admin',
-      userName: user?.name || 'Administrador',
+      userName: user?.nombre || 'Administrador',
       text: chatMessage,
       timestamp: new Date().toISOString(),
       role: user?.role || UserRole.ADMIN
@@ -232,7 +227,7 @@ export const ServiceManager = () => {
                  <div className="space-y-6">
                     {selectedRequest.budgets.length > 0 ? (
                        <div className="grid grid-cols-1 gap-6">
-                          {selectedRequest.budgets.map(est => (
+                          {selectedRequest.budgets.map((est: any) => (
                             <div key={est.id} className="p-8 rounded-[2.5rem] border-2 border-slate-100 hover:border-emerald-400 transition-all flex flex-col md:flex-row justify-between items-center gap-8">
                                <div className="flex items-center gap-6">
                                   <div className="p-4 bg-emerald-50 text-emerald-600 rounded-2xl"><LucideBuilding2 size={24}/></div>
@@ -279,7 +274,7 @@ export const ServiceManager = () => {
                           <LucideSend size={64} className="mb-4 animate-pulse"/><p className="text-[10px] font-black uppercase">Sin mensajes</p>
                         </div>
                       ) : (
-                        selectedRequest.messages?.map(m => (
+                        selectedRequest.messages?.map((m: any) => (
                           <div key={m.id} className={`flex ${m.userId === user?.id ? 'justify-end' : 'justify-start'} animate-fadeIn`}>
                             <div className={`max-w-[85%] p-5 rounded-[2rem] shadow-sm border ${m.userId === user?.id ? 'bg-indigo-600 text-white border-indigo-500 rounded-tr-none' : 'bg-white text-slate-700 border-slate-200 rounded-tl-none'}`}>
                               <p className="text-[7px] font-black uppercase opacity-60 mb-2">{m.userName} • {format(parseISO(m.timestamp), 'HH:mm')}</p>
@@ -302,12 +297,12 @@ export const ServiceManager = () => {
                <div className="bg-slate-50 p-10 rounded-[3rem] border border-slate-200 space-y-8">
                   <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] flex items-center gap-3 border-b pb-4"><LucideHistory size={16}/> Logs de Sistema</h5>
                   <div className="space-y-6 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
-                     {selectedRequest.history?.map(h => (
+                     {selectedRequest.history?.map((h: any) => (
                        <div key={h.id} className="flex gap-4 group">
                           <div className="w-1 bg-indigo-200 group-hover:bg-indigo-500 transition-all rounded-full"></div>
                           <div>
-                            <p className="text-[10px] font-black text-slate-800 uppercase italic">{h.comment}</p>
-                            <p className="text-[8px] font-bold text-slate-400 uppercase mt-1">{h.userName} • {format(parseISO(h.date), 'dd/MM HH:mm')}</p>
+                            <p className="text-[10px] font-black text-slate-800 uppercase italic">{h.comment || h.comentario}</p>
+                            <p className="text-[8px] font-bold text-slate-400 uppercase mt-1">{h.userName || h.usuario} • {format(parseISO(h.date || h.fecha || new Date().toISOString()), 'dd/MM HH:mm')}</p>
                           </div>
                        </div>
                      ))}

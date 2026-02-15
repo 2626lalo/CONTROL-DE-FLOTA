@@ -94,7 +94,7 @@ export const Dashboard = () => {
             </span>
           </div>
           <h1 className="text-3xl md:text-5xl font-black text-slate-900 tracking-tighter uppercase italic leading-none">Fleet Manager Pro</h1>
-          <p className="text-slate-500 font-bold mt-2 text-xs">Bienvenido al núcleo operativo, <span className="text-blue-600 font-black">{user?.name}</span></p>
+          <p className="text-slate-500 font-bold mt-2 text-xs">Bienvenido al núcleo operativo, <span className="text-blue-600 font-black">{user?.name || user?.nombre}</span></p>
         </div>
         
         <div className="flex items-center gap-3 w-full md:w-auto">

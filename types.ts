@@ -1,4 +1,3 @@
-
 export enum UserRole {
   ADMIN = 'ADMIN',
   USER = 'USER',
@@ -120,16 +119,38 @@ export interface ServiceMessage {
   role: UserRole;
 }
 
+// FIX: Added missing Spanish property aliases used in various components to avoid TypeScript errors
 export interface ServiceHistoryItem {
-  id: string;
-  date: string;
-  userId: string;
-  userName: string;
+  id?: string;
+  date?: string;
+  userId?: string;
+  userName?: string;
   fromStage?: ServiceStage;
-  toStage: ServiceStage;
-  comment: string;
+  toStage?: ServiceStage;
+  comment?: string;
   status?: ServiceStage;
   note?: string;
+  // Aliases en español
+  estado?: ServiceStage | string;
+  fecha?: string;
+  usuario?: string;
+  comentario?: string;
+}
+
+// FIX: Exported missing Budget and BudgetItem interfaces
+export interface BudgetItem {
+  descripcion: string;
+  cantidad: number;
+  precioUnitario: number;
+  total: number;
+}
+
+export interface Budget {
+  items: BudgetItem[];
+  total: number;
+  estado: 'pendiente' | 'aprobado' | 'rechazado' | string;
+  creadoPor: string;
+  fecha: string;
 }
 
 export interface ServiceRequest {
@@ -154,6 +175,11 @@ export interface ServiceRequest {
   isDialogueOpen: boolean;
   messages: ServiceMessage[];
   budgets: any[];
+  // FIX: Added missing budget and auditStatus properties
+  budget?: Budget;
+  auditStatus?: 'pending' | 'approved' | 'rejected' | string;
+  // FIX: Added missing turnDate property
+  turnDate?: string;
   history: ServiceHistoryItem[];
   createdAt: string;
   updatedAt: string;
