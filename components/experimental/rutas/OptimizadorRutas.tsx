@@ -18,7 +18,7 @@ export const OptimizadorRutas: React.FC = () => {
   const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
   const [isMapsLoaded, setIsMapsLoaded] = useState(false);
 
-  // Carga dinámica del SDK de Google Maps
+  // Carga dinámica del SDK de Google Maps con Places y Directions
   useEffect(() => {
     if (window.google) {
       setIsMapsLoaded(true);
@@ -34,9 +34,12 @@ export const OptimizadorRutas: React.FC = () => {
 
   if (!isMapsLoaded) {
     return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center space-y-4">
-        <LucideRefreshCw className="animate-spin text-blue-500" size={48}/>
-        <p className="text-blue-500 font-black uppercase text-[10px] tracking-[0.3em]">Cargando Motor de Mapas...</p>
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center space-y-6">
+        <div className="relative">
+            <LucideRefreshCw className="animate-spin text-blue-500" size={64}/>
+            <LucideRoute className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-white" size={24}/>
+        </div>
+        <p className="text-blue-500 font-black uppercase text-[11px] tracking-[0.4em] animate-pulse">Sincronizando con Satélites...</p>
       </div>
     );
   }
@@ -53,17 +56,17 @@ export const OptimizadorRutas: React.FC = () => {
             <div>
               <div className="flex items-center gap-3 mb-1">
                 <LucideShieldCheck size={16} className="text-emerald-600"/>
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Logistics Intelligence Engine v1.0</span>
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Logistics Intelligence Engine v1.5</span>
               </div>
-              <h1 className="text-4xl font-black text-slate-900 tracking-tighter uppercase italic leading-none">Optimización de Rutas</h1>
+              <h1 className="text-4xl font-black text-slate-900 tracking-tighter uppercase italic leading-none">Despacho Logístico</h1>
             </div>
           </div>
 
           <div className="flex flex-wrap gap-3 w-full md:w-auto">
             <div className="bg-slate-100 p-1.5 rounded-2xl flex gap-1 shadow-inner">
                {[
-                 { id: 'LIST', label: 'Historial', icon: LucideList },
-                 { id: 'ANALYTICS', label: 'Métricas', icon: LucideActivity }
+                 { id: 'LIST', label: 'Bitácora', icon: LucideList },
+                 { id: 'ANALYTICS', label: 'Eficiencia', icon: LucideActivity }
                ].map(v => (
                  <button 
                   key={v.id}
@@ -74,17 +77,19 @@ export const OptimizadorRutas: React.FC = () => {
                  </button>
                ))}
             </div>
-            <button 
-              onClick={() => setActiveView('PLANNER')}
-              className="px-8 py-4 bg-blue-600 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl hover:bg-blue-700 transition-all flex items-center gap-3 active:scale-95"
-            >
-              <LucidePlus size={20}/> Nueva Planificación
-            </button>
+            {activeView !== 'PLANNER' && (
+                <button 
+                onClick={() => setActiveView('PLANNER')}
+                className="px-10 py-4 bg-blue-600 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl hover:bg-blue-700 transition-all flex items-center gap-3 active:scale-95 shadow-blue-200"
+                >
+                <LucidePlus size={20}/> Nueva Planificación
+                </button>
+            )}
           </div>
         </div>
       </div>
 
-      <main className="flex-1 overflow-y-auto custom-scrollbar p-6">
+      <main className="flex-1 overflow-y-auto custom-scrollbar p-6 md:p-10">
         <div className="max-w-7xl mx-auto h-full">
            {activeView === 'LIST' && <ListaRutas onSelect={(id) => { setSelectedRouteId(id); setActiveView('DETAIL'); }} />}
            {activeView === 'PLANNER' && <PlanificadorRutas onCancel={() => setActiveView('LIST')} />}
