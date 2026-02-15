@@ -7,7 +7,7 @@ import {
   LucideBarChart3, LucideSearch, LucideFileText,
   LucideShieldCheck, LucideGhost, LucideChevronDown, LucideXCircle, LucideUserCircle,
   LucideWrench, LucideMenu, LucideX, LucideWarehouse, LucidePieChart, LucideFlaskConical,
-  LucideZap, LucideActivity, LucideUserCheck, LucideMap
+  LucideZap, LucideActivity, LucideUserCheck, LucideMap, LucideRoute
 } from 'lucide-react';
 import { useApp } from '../context/FleetContext';
 import { useFirebase } from '../context/FirebaseContext';
@@ -40,6 +40,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   };
 
   const handleGlobalSearch = (e: React.FormEvent) => {
+    // FIX: Access preventDefault on the event object 'e' to avoid reference error
     e.preventDefault();
     if (!globalSearch) return;
     const found = vehicles.find(v => v.plate.toLowerCase().includes(globalSearch.toLowerCase()));
@@ -56,6 +57,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
     { to: '/', icon: LucideLayoutDashboard, label: 'Dashboard' },
     { to: '/vehicles', icon: LucideCar, label: 'Flota' },
     { to: '/mapa-flota', icon: LucideMap, label: 'Geolocalización' },
+    { to: '/optimizador-rutas', icon: LucideRoute, label: 'Optimización de Rutas' },
   ];
 
   if (canSeeBienes) {

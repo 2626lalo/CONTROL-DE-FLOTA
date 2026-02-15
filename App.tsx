@@ -22,6 +22,7 @@ import { ReportesExperimental } from './components/experimental/reportes/Reporte
 import { MantenimientoPredictivo } from './components/experimental/mantenimiento/MantenimientoPredictivo';
 import { ConductoresExperimental } from './components/experimental/conductores/ConductoresExperimental';
 import { MapaFlotaExperimental } from './components/experimental/geolocalizacion/MapaFlotaExperimental';
+import { OptimizadorRutas } from './components/experimental/rutas/OptimizadorRutas';
 import { LucideLoader } from 'lucide-react';
 
 const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -73,6 +74,7 @@ export default function App() {
               <Route path="/mantenimiento-predictivo" element={<MantenimientoPredictivo />} />
               <Route path="/conductores" element={<ConductoresExperimental />} />
               <Route path="/mapa-flota" element={<MapaFlotaExperimental />} />
+              <Route path="/optimizador-rutas" element={<OptimizadorRutas />} />
               <Route path="/test-sector" element={<TestSector />} />
               <Route path="/mesa-experimental" element={<MesaControlExperimental />} />
               <Route path="*" element={<Navigate to="/" />}  />
