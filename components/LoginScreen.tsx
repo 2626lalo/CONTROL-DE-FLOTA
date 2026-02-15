@@ -49,9 +49,14 @@ export const LoginScreen = () => {
       if (!userData || !userData.approved) {
         console.log('6️⃣ Usuario NO aprobado, cerrando sesión');
         await logout();
-        setError('⏳ Tu cuenta está pendiente de aprobación por el administrador. Recibirás un email cuando sea habilitada.');
+        setError('⏳ Tu cuenta está pendiente de aprobación por el administrador.');
+        
+        setTimeout(() => {
+          window.location.reload();
+        }, 2000);
+        
         setLoading(false);
-        return; // ← DETIENE TODO, NO REDIRIGE
+        return; // ← NO redirigir a ninguna parte
       }
       
       console.log('7️⃣ Usuario aprobado, redirigiendo...');

@@ -26,6 +26,10 @@ export const VehicleList = () => {
 
   useEffect(() => {
     const fetchVehicles = async () => {
+      if (!user) {
+        console.log('⏳ No hay usuario, no se cargan vehículos');
+        return;
+      }
       try {
         console.log('🔍 Intentando cargar vehículos desde Firestore...');
         const querySnapshot = await getDocs(collection(db, 'vehicles'));
@@ -41,11 +45,6 @@ export const VehicleList = () => {
         setLoading(false);
       }
     };
-
-    if (!user) {
-      console.log('⏳ No hay usuario autenticado, no se cargan vehículos');
-      return;
-    }
     
     fetchVehicles();
   }, [user]);
