@@ -28,12 +28,11 @@ const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     </div>
   );
 
-  // 1. Sin sesión Firebase
   if (!firebaseUser) return <LoginScreen />;
 
   const isMaster = firebaseUser.email === MASTER_ADMIN;
   
-  // 2. Validación de Estado Cloud (Solo permite ACTIVO y APPROVED, excepto al Master)
+  // Validación de Estado Cloud (Solo permite ACTIVO y APPROVED, excepto al Master)
   const isApproved = userData?.approved === true;
   const isActive = userData?.estado === 'activo';
 

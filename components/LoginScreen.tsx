@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getAuth, signInWithEmailAndPassword, signOut, sendPasswordResetEmail } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { useFirebase } from '../context/FirebaseContext';
 import { 
   LucideLock, LucideMail, LucideShieldAlert, LucideLoader2, 
   LucideChevronRight, LucideInfo, LucideArrowLeft, LucideKeyRound,
-  LucideUserPlus, LucideUser, LucideSmartphone, LucideArrowRight
+  LucideUserPlus, LucideUser, LucideSmartphone, LucideArrowRight,
+  LucideRefreshCcw
 } from 'lucide-react';
 
 export const LoginScreen = () => {
@@ -15,7 +16,6 @@ export const LoginScreen = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   
-  // Estados para Registro
   const [regNombre, setRegNombre] = useState('');
   const [regApellido, setRegApellido] = useState('');
   const [regPhone, setRegPhone] = useState('');
@@ -29,7 +29,6 @@ export const LoginScreen = () => {
   const { signUp, user: firebaseUser } = useFirebase();
   const MASTER_ADMIN = 'alewilczek@gmail.com';
 
-  // Verificación reactiva si el AuthGuard detecta un estatus no autorizado
   useEffect(() => {
     if (firebaseUser && mode === 'LOGIN' && !loading) {
       const checkStatus = async () => {
@@ -42,10 +41,10 @@ export const LoginScreen = () => {
         } else {
             const data = docSnap.data();
             if (data.estado === 'bloqueado' || data.estado === 'inactivo' || data.estado === 'suspendido') {
-                setError(`Su estatus de acceso ha cambiado a [${data.estado.toUpperCase()}]. Por favor, comuníquese con un administrador.`);
+                setError('Su estatus de acceso ha cambiado. Por favor, comuníquese con un administrador para regularizar su situación.');
                 await signOut(auth);
             } else if (data.approved !== true) {
-                setError('Su solicitud aún se encuentra pendiente de revisión por el administrador.');
+                setError('Su solicitud de acceso se encuentra pendiente de revisión.');
                 await signOut(auth);
             }
         }
@@ -65,10 +64,28 @@ export const LoginScreen = () => {
       const uid = userCredential.user.uid;
       const isMaster = email.toLowerCase() === MASTER_ADMIN.toLowerCase();
 
-      const userDoc = await getDoc(doc(db, 'users', uid));
+      const userDocRef = doc(db, 'users', uid);
+      const userDoc = await getDoc(userDocRef);
       
       if (!userDoc.exists() && !isMaster) {
-        setError('Acceso Denegado: Su usuario no se encuentra registrado.');
+        const recoverData = {
+            id: uid,
+            email: email.toLowerCase().trim(),
+            nombre: "USUARIO",
+            apellido: "RESTABLECIDO",
+            name: "USUARIO RESTABLECIDO",
+            role: 'USER',
+            approved: false, 
+            estado: 'pendiente',
+            fechaRegistro: new Date().toISOString(),
+            createdAt: new Date().toISOString(),
+            centroCosto: { id: "0", nombre: "RECUPERADO", codigo: "000" },
+            costCenter: "RECUPERADO",
+            level: 1,
+            eliminado: false
+        };
+        await setDoc(userDocRef, recoverData);
+        setInfo('Su acceso de seguridad era válido pero su ficha no fue encontrada. Se ha regenerado su perfil y enviado a aprobación.');
         await signOut(auth);
         setLoading(false);
         return;
@@ -77,9 +94,9 @@ export const LoginScreen = () => {
       if (!isMaster) {
           const data = userDoc.data();
           if (data?.estado !== 'activo' || data?.approved !== true) {
-             const statusMsg = data?.estado === 'bloqueado' || data?.estado === 'inactivo' 
-                ? `Su estatus de acceso ha cambiado a [${data.estado.toUpperCase()}]. Por favor, comuníquese con un administrador.`
-                : 'Su solicitud aún se encuentra pendiente de revisión.';
+             const statusMsg = (data?.estado === 'bloqueado' || data?.estado === 'inactivo' || data?.estado === 'suspendido')
+                ? 'Su estatus de acceso ha cambiado. Por favor, comuníquese con un administrador para regularizar su situación.'
+                : 'Su solicitud de acceso aún se encuentra pendiente de revisión.';
              setError(statusMsg);
              await signOut(auth);
              setLoading(false);
@@ -90,7 +107,6 @@ export const LoginScreen = () => {
       navigate('/');
       
     } catch (error: any) {
-      console.error('🔥 Login Error:', error.code);
       if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
         setError('Credenciales incorrectas o el usuario no existe.');
       } else {
@@ -118,7 +134,7 @@ export const LoginScreen = () => {
         setMode('LOGIN');
     } catch (error: any) {
         if (error.code === 'auth/email-already-in-use') {
-            setError('Este correo ya está registrado.');
+            setError('Este correo ya cuenta con credenciales de acceso. Intente ingresar directamente.');
         } else {
             setError('Error al procesar el registro. Intente nuevamente.');
         }
@@ -157,8 +173,8 @@ export const LoginScreen = () => {
 
         <div className="p-10 space-y-8 flex-1">
           {error && (
-            <div className="bg-rose-50 border border-rose-100 p-5 rounded-2xl flex items-start gap-3 animate-fadeIn">
-              <LucideShieldAlert className="text-rose-600 shrink-0 mt-0.5" size={20}/>
+            <div className="bg-rose-50 border border-rose-100 p-6 rounded-2xl flex items-start gap-4 animate-fadeIn">
+              <LucideShieldAlert className="text-rose-600 shrink-0 mt-0.5" size={24}/>
               <p className="text-[11px] font-bold text-rose-700 leading-relaxed uppercase">{error}</p>
             </div>
           )}
@@ -255,7 +271,7 @@ export const LoginScreen = () => {
              </button>
            )}
            <p className="text-[9px] font-bold text-slate-400 uppercase text-center tracking-widest opacity-60">
-             Cloud Enterprise FleetPro v37.6
+             Cloud Enterprise FleetPro v37.8
            </p>
         </div>
       </div>

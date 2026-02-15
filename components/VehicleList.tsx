@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import * as XLSX from 'xlsx';
 import { useApp } from '../context/FleetContext';
 import { Link, useNavigate } from 'react-router-dom';
 import { 
@@ -6,15 +7,20 @@ import {
   LucideCar, LucideChevronRight, 
   LucideDatabase, LucideFuel,
   LucideTrash2, LucideBox,
-  LucideLoader2
+  LucideLoader2,
+  LucideFileSpreadsheet,
+  LucideDownload
 } from 'lucide-react';
-import { VehicleStatus, UserRole, Vehicle } from '../types';
+import { VehicleStatus, UserRole, Vehicle, OwnershipType } from '../types';
 import { ConfirmationModal } from './ConfirmationModal';
 import { db } from '../firebaseConfig';
 import { collection, getDocs } from 'firebase/firestore';
+import { format } from 'date-fns';
+
+const MASTER_ADMIN = 'alewilczek@gmail.com';
 
 export const VehicleList = () => {
-  const { user, deleteVehicle } = useApp();
+  const { user, authenticatedUser, deleteVehicle, addNotification } = useApp();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -24,25 +30,28 @@ export const VehicleList = () => {
   const [plateToDelete, setPlateToDelete] = useState<string | null>(null);
   const navigate = useNavigate();
 
+  // VALIDACIÓN DE PERMISO DE EXPORTACIÓN
+  const canExport = useMemo(() => {
+    if (authenticatedUser?.email === MASTER_ADMIN) return true;
+    return authenticatedUser?.permissions?.some(p => p.seccion === 'flota' && p.ver) || false;
+  }, [authenticatedUser]);
+
   useEffect(() => {
     const fetchVehicles = async () => {
       try {
-        console.log('🔍 Intentando cargar vehículos desde Firestore...');
         const querySnapshot = await getDocs(collection(db, 'vehicles'));
-        console.log('✅ Vehículos encontrados:', querySnapshot.size);
         const vehiclesList = querySnapshot.docs.map(doc => {
-          console.log('   - Documento:', doc.id, doc.data());
           return { ...doc.data() };
         }) as Vehicle[];
         setVehicles(vehiclesList);
       } catch (error: any) {
-        console.error('🔥 ERROR cargando vehículos:', error.code, error.message);
+        console.error('Error cargando vehículos:', error);
       } finally {
         setLoading(false);
       }
     };
     
-    if (!user) return; // Si no hay usuario, no cargar nada
+    if (!user) return;
     fetchVehicles();
   }, [user]);
 
@@ -64,6 +73,49 @@ export const VehicleList = () => {
         await deleteVehicle(plateToDelete);
         setVehicles(prev => prev.filter(v => v.plate !== plateToDelete));
         setPlateToDelete(null);
+    }
+  };
+
+  const exportFleetToExcel = () => {
+    try {
+      addNotification("Generando reporte de flota...", "warning");
+      
+      const dataToExport = vehicles.map(v => ({
+        'TIPO': v.type || '',
+        'DOMINIO': v.plate || '',
+        'MARCA': v.make || '',
+        'MODELO': v.model || '',
+        'VERCION': v.version || '',
+        'AÑO': v.adminData?.anio || v.year || '',
+        'OPERANDO P': v.costCenter || v.adminData?.operandoPara || '',
+        'ZONA': v.adminData?.zona || '',
+        'PROVINCIA': v.province || v.adminData?.provincia || '',
+        'SITIO': v.adminData?.sitio || '',
+        'USO': v.adminData?.uso || '',
+        'DIRECTOR': v.adminData?.directorResponsable || '',
+        'CONDUCTOR': v.adminData?.conductorPrincipal || '',
+        'ESTADO': v.status || '',
+        'PROPIETARIO': v.adminData?.propietario || '',
+        'VALOR LEASING': v.adminData?.leasing_cuotaMensual || 0,
+        'FECHA ACTIVACION': v.adminData?.fechaInicioContrato || '',
+        'FECHA VENCIMIENTO': v.adminData?.fechaFinContrato || '',
+        'TARJETA COMBUSTIBLE': v.adminData?.tarjetaCombustible?.numero || '',
+        'PIN': v.adminData?.tarjetaCombustible?.pin || '',
+        'LIMITE': v.adminData?.tarjetaCombustible?.limiteMensual || 0,
+        'UNIDAD ACTIVA': v.adminData?.unidadActiva ? 'SI' : 'NO'
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(dataToExport);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Flota_Corporativa");
+      
+      const fileName = `Reporte_Flota_Full_${format(new Date(), 'yyyyMMdd_HHmm')}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+      
+      addNotification("Inventario exportado con éxito", "success");
+    } catch (error) {
+      console.error("Export error:", error);
+      addNotification("Error al procesar el archivo Excel", "error");
     }
   };
 
@@ -97,6 +149,14 @@ export const VehicleList = () => {
         </div>
         
         <div className="flex items-center gap-3 w-full md:w-auto">
+          {canExport && (
+            <button 
+              onClick={exportFleetToExcel}
+              className="bg-emerald-600 text-white px-6 md:px-8 py-3.5 md:py-4 rounded-xl md:rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg flex items-center justify-center gap-2 active:scale-95 transition-all hover:bg-emerald-700"
+            >
+              <LucideFileSpreadsheet size={18}/> Exportar XLSX
+            </button>
+          )}
           <div className="bg-white p-1.5 rounded-xl shadow-sm border border-slate-100 flex gap-1">
              <button onClick={() => setViewMode('GRID')} className={`p-2 rounded-lg transition-all ${viewMode === 'GRID' ? 'bg-slate-900 text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}>
                 <LucideLayoutGrid size={18}/>
@@ -147,7 +207,7 @@ export const VehicleList = () => {
               {filtered.map(v => (
                 <div key={v.plate} onClick={() => navigate(`/vehicles/detail/${v.plate}`)} className="bg-white rounded-[2rem] md:rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden cursor-pointer hover:shadow-xl transition-all group relative">
                    <div className="h-40 md:h-48 bg-slate-100 relative overflow-hidden">
-                      {v.images.front ? <img src={v.images.front} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" alt={v.plate} /> : <div className="w-full h-full flex items-center justify-center text-slate-300 bg-slate-200"><LucideCar size={40} className="opacity-20"/></div>}
+                      {v.images?.front ? <img src={v.images.front} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" alt={v.plate} /> : <div className="w-full h-full flex items-center justify-center text-slate-300 bg-slate-200"><LucideCar size={40} className="opacity-20"/></div>}
                       
                       {isAdmin && (
                         <button 
