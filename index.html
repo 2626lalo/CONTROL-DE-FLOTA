@@ -4,6 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gestión de Flota Corporativa Pro | Control Total</title>
+    
+    <!-- PWA Meta Tags -->
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#3b82f6" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="FlotaPro" />
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/192/192162.png" />
+
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&display=swap" rel="stylesheet">
     <script type="importmap">
@@ -58,5 +67,20 @@
 <body class="bg-slate-50 text-slate-900 antialiased selection:bg-blue-100 selection:text-blue-900 overflow-x-hidden">
     <div id="root"></div>
     <script type="module" src="./index.tsx"></script>
+    
+    <!-- PWA Service Worker Registration -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js')
+            .then(registration => {
+              console.log('Service Worker registrado:', registration);
+            })
+            .catch(error => {
+              console.log('Error registrando Service Worker:', error);
+            });
+        });
+      }
+    </script>
 </body>
 </html>
