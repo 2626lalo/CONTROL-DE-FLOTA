@@ -1,4 +1,4 @@
-const CACHE_NAME = 'flota-v1';
+const CACHE_NAME = 'flota-v2';
 const urlsToCache = [
   '/',
   '/index.html',
@@ -7,6 +7,7 @@ const urlsToCache = [
 ];
 
 self.addEventListener('install', (event) => {
+  self.skipWaiting(); // Forzar activación inmediata
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
@@ -30,4 +31,27 @@ self.addEventListener('fetch', (event) => {
         });
       })
   );
+});
+
+self.addEventListener('activate', (event) => {
+  // Eliminar caches viejos
+  event.waitUntil(
+    caches.keys().then((cacheNames) => {
+      return Promise.all(
+        cacheNames.map((cacheName) => {
+          if (cacheName !== CACHE_NAME) {
+            console.log('Borrando cache antiguo:', cacheName);
+            return caches.delete(cacheName);
+          }
+        })
+      );
+    })
+  );
+});
+
+// Escuchar mensajes para saltar espera
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });

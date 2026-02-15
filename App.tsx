@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { FleetProvider } from './context/FleetContext';
@@ -24,6 +23,7 @@ import { ConductoresExperimental } from './components/experimental/conductores/C
 import { MapaFlotaExperimental } from './components/experimental/geolocalizacion/MapaFlotaExperimental';
 import { OptimizadorRutas } from './components/experimental/rutas/OptimizadorRutas';
 import { DashboardExperimental } from './components/experimental/DashboardExperimental';
+import { UpdateNotification } from './components/UpdateNotification';
 import { LucideLoader } from 'lucide-react';
 
 const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -82,6 +82,7 @@ export default function App() {
               <Route path="*" element={<Navigate to="/" />}  />
             </Routes>
           </AuthGuard>
+          <UpdateNotification />
         </HashRouter>
       </FleetProvider>
     </FirebaseProvider>
