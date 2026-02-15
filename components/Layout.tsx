@@ -55,6 +55,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
 
   const navItems = [
     { to: '/', icon: LucideLayoutDashboard, label: 'Dashboard' },
+    { to: '/dashboard-pro', icon: LucideZap, label: 'Dashboard Pro' },
     { to: '/vehicles', icon: LucideCar, label: 'Flota' },
     { to: '/mapa-flota', icon: LucideMap, label: 'Geolocalización' },
     { to: '/optimizador-rutas', icon: LucideRoute, label: 'Optimización de Rutas' },

@@ -23,6 +23,7 @@ import { MantenimientoPredictivo } from './components/experimental/mantenimiento
 import { ConductoresExperimental } from './components/experimental/conductores/ConductoresExperimental';
 import { MapaFlotaExperimental } from './components/experimental/geolocalizacion/MapaFlotaExperimental';
 import { OptimizadorRutas } from './components/experimental/rutas/OptimizadorRutas';
+import { DashboardExperimental } from './components/experimental/DashboardExperimental';
 import { LucideLoader } from 'lucide-react';
 
 const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -59,6 +60,7 @@ export default function App() {
           <AuthGuard>
             <Routes>
               <Route path="/" element={<Dashboard />} />
+              <Route path="/dashboard-pro" element={<DashboardExperimental />} />
               <Route path="/vehicles" element={<VehicleList />} />
               <Route path="/vehicles/new" element={<VehicleForm />} />
               <Route path="/vehicles/detail/:plate" element={<VehicleDetail />} />
