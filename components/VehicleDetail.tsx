@@ -12,7 +12,7 @@ import {
   LucideFileText, LucideMapPin, LucideTruck, LucidePlus, LucideTrash2,
   LucideNavigation, LucideCrown, LucideAlertTriangle, LucideShieldAlert, LucideShield,
   LucideGauge, LucideHistory, LucideCheckCircle2, LucideZap, LucideAlertCircle, LucideHeartPulse,
-  LucideSettings, LucideInfo
+  LucideSettings, LucideInfo, LucideCheck, LucideX
 } from 'lucide-react';
 import { VehicleStatus, UserRole, OwnershipType } from '../types';
 import { 
@@ -24,17 +24,46 @@ import { DocumentationManager } from './DocumentationManager';
 import { RegimenPropiedadAdmin } from './RegimenPropiedadAdmin';
 import { FichaTecnica } from './FichaTecnica';
 
+const MASTER_ADMIN = 'alewilczek@gmail.com';
+
 export const VehicleDetail = () => {
   const { plate } = useParams();
   const navigate = useNavigate();
-  const { vehicles, updateVehicle, deleteVehicle, user, addNotification } = useApp();
+  const { vehicles, updateVehicle, deleteVehicle, user, authenticatedUser, addNotification, logAudit } = useApp();
   
   const [activeTab, setActiveTab] = useState<'DASH' | 'TECH' | 'ADMON' | 'DOCS' | 'RENTAL' | 'GALLERY' | 'LEASING'>('DASH');
   const [zoomedImage, setZoomedImage] = useState<{url: string, label: string} | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
+  // Estados para informe de KM de Service desde Dashboard
+  const [isUpdatingServiceKm, setIsUpdatingServiceKm] = useState(false);
+  const [newServiceKm, setNewServiceKm] = useState<number>(0);
+
   const vehicle = useMemo(() => vehicles.find(v => v.plate === plate), [vehicles, plate]);
-  const isAdmin = user?.role === UserRole.ADMIN;
+  
+  // --- LÓGICA DE PERMISOS (KERNEL) ---
+  const isMainAdmin = authenticatedUser?.email === MASTER_ADMIN;
+  
+  const isAdmin = user?.role === UserRole.ADMIN || user?.role === UserRole.SUPERVISOR;
+
+  // Permiso para ver datos administrativos (ADMON, RENTAL, LEASING)
+  const canSeeAdminData = useMemo(() => {
+    if (isMainAdmin) return true;
+    return user?.role === UserRole.ADMIN && user?.permissions?.some(p => p.seccion === 'flota' && p.ver);
+  }, [isMainAdmin, user]);
+
+  // Permiso para editar la unidad (Incluye informar KM de service)
+  const canEdit = useMemo(() => {
+    if (isMainAdmin) return true;
+    return user?.role === UserRole.ADMIN && user?.permissions?.some(p => p.seccion === 'flota' && p.editar);
+  }, [isMainAdmin, user]);
+
+  // Permiso para eliminar la unidad
+  const canDelete = useMemo(() => {
+    if (isMainAdmin) return true;
+    return user?.role === UserRole.ADMIN && user?.permissions?.some(p => p.seccion === 'flota' && p.eliminar);
+  }, [isMainAdmin, user]);
+
   const currentDate = format(new Date(), "eeee, d 'de' MMMM", { locale: es });
 
   const dashMetrics = useMemo(() => {
@@ -44,16 +73,26 @@ export const VehicleDetail = () => {
         if (!d.expirationDate) return false;
         return differenceInDays(parseISO(d.expirationDate), new Date()) < 0;
     }).length || 0;
+    
+    // Cálculos de Mantenimiento
     const kmParaService = Math.max(0, vehicle.nextServiceKm - vehicle.currentKm);
-    const percMantenimiento = Math.max(0, Math.min(100, (1 - (kmParaService / 10000)) * 100));
+    const interval = vehicle.serviceIntervalKm || 10000;
+    const percMantenimiento = Math.max(0, Math.min(100, (1 - (kmParaService / interval)) * 100));
+    
+    // Cálculos de Incidentes
     const totalIncidents = vehicle.images?.list?.filter(img => img.category === 'incident').length || 0;
     const criticalIncidents = vehicle.images?.list?.filter(img => img.category === 'incident' && img.incident?.severity === 'critical').length || 0;
+    
     let score = 100;
     if (expiredDocs > 0) score -= 25;
     if (kmParaService < 1000) score -= 20;
     if (criticalIncidents > 0) score -= 40;
     if (totalIncidents > 3) score -= 15;
-    return { totalDocs, expiredDocs, kmParaService, percMantenimiento, totalIncidents, criticalIncidents, healthScore: Math.max(0, score) };
+    
+    return { 
+      totalDocs, expiredDocs, kmParaService, percMantenimiento, 
+      totalIncidents, criticalIncidents, healthScore: Math.max(0, score) 
+    };
   }, [vehicle]);
 
   const handleDeleteVehicle = () => {
@@ -64,17 +103,69 @@ export const VehicleDetail = () => {
     }
   };
 
+  const handleUpdateServiceKm = async () => {
+    if (!vehicle) return;
+    
+    // Validación de integridad: el nuevo service debe ser mayor al anterior
+    const lastKm = vehicle.fichaTecnica?.ultimoServicio?.kilometraje || 0;
+    
+    if (newServiceKm <= lastKm) {
+        addNotification(`Validación fallida: El kilometraje informado (${newServiceKm.toLocaleString()}) debe ser estrictamente superior al último registrado (${lastKm.toLocaleString()})`, "error");
+        return;
+    }
+
+    const interval = vehicle.serviceIntervalKm || 10000;
+    const updateTimestamp = new Date().toISOString();
+
+    // Estructuramos la Ficha Técnica para asegurar que los campos existan
+    const updatedFicha = {
+        ...(vehicle.fichaTecnica || {}),
+        kilometrajeActual: Math.max(vehicle.currentKm, newServiceKm),
+        ultimoServicio: {
+            kilometraje: newServiceKm,
+            fecha: updateTimestamp.split('T')[0],
+            tipoServicio: 'Mantenimiento Programado',
+            observaciones: 'Sincronizado vía Dashboard Resumen'
+        },
+        fechaActualizacion: updateTimestamp,
+        actualizadoPor: user?.email || 'admin'
+    };
+
+    try {
+        await updateVehicle({
+            ...vehicle,
+            currentKm: Math.max(vehicle.currentKm, newServiceKm),
+            nextServiceKm: newServiceKm + interval,
+            fichaTecnica: updatedFicha as any
+        });
+
+        logAudit('UPDATE_SERVICE_KM', 'VEHICLE', vehicle.plate, `Informado mantenimiento realizado a los ${newServiceKm} KM. Próximo hito: ${newServiceKm + interval} KM`);
+        addNotification("Kilometraje de mantenimiento actualizado y sincronizado.", "success");
+        setIsUpdatingServiceKm(false);
+    } catch (error) {
+        console.error("Error al actualizar KM de service:", error);
+        addNotification("Error al procesar la actualización en la nube.", "error");
+    }
+  };
+
   if (!vehicle) return <div className="p-20 text-center font-black uppercase text-slate-300">Unidad no encontrada</div>;
 
-  const tabs = [
-    { id: 'DASH', label: 'Resumen', icon: LucideActivity },
-    { id: 'TECH', label: 'Técnica', icon: LucideWrench },
-    { id: 'ADMON', label: 'Admin', icon: LucideBuilding2 },
-    { id: 'DOCS', label: 'Legajos', icon: LucideShieldCheck },
-    ...(vehicle.ownership === OwnershipType.RENTED ? [{ id: 'RENTAL', label: 'Renting', icon: LucideHandshake }] : []),
-    ...(vehicle.ownership === OwnershipType.LEASING ? [{ id: 'LEASING', label: 'Leasing', icon: LucideFileText }] : []),
-    { id: 'GALLERY', label: 'Daños', icon: LucideImage },
-  ];
+  const tabs = useMemo(() => {
+    const availableTabs = [
+      { id: 'DASH', label: 'Resumen', icon: LucideActivity },
+      { id: 'TECH', label: 'Técnica', icon: LucideWrench },
+      { id: 'DOCS', label: 'Legajos', icon: LucideShieldCheck },
+      { id: 'GALLERY', label: 'Daños', icon: LucideImage },
+    ];
+
+    if (canSeeAdminData) {
+      availableTabs.splice(2, 0, { id: 'ADMON', label: 'Admin', icon: LucideBuilding2 });
+      if (vehicle.ownership === OwnershipType.RENTED) availableTabs.push({ id: 'RENTAL', label: 'Renting', icon: LucideHandshake });
+      if (vehicle.ownership === OwnershipType.LEASING) availableTabs.push({ id: 'LEASING', label: 'Leasing', icon: LucideFileText });
+    }
+
+    return availableTabs;
+  }, [canSeeAdminData, vehicle.ownership]);
 
   return (
     <div className="space-y-6 md:space-y-10 animate-fadeIn pb-24 max-w-full">
@@ -100,8 +191,12 @@ export const VehicleDetail = () => {
         </div>
         <div className="flex flex-wrap gap-2 w-full md:w-auto">
           <Link to={`/checklist?plate=${vehicle.plate}`} className="flex-1 md:flex-none justify-center bg-white text-slate-700 px-4 py-4 rounded-2xl text-[9px] font-black uppercase border border-slate-200 flex items-center gap-2 shadow-sm active:scale-95 transition-all"><LucideClipboardCheck size={16}/> Auditoría</Link>
-          <Link to={`/vehicles/${vehicle.plate}/edit`} className="flex-1 md:flex-none justify-center bg-slate-900 text-white px-6 py-4 rounded-2xl text-[9px] font-black uppercase flex items-center gap-2 shadow-2xl active:scale-95 transition-all"><LucideSettings size={16}/> Editar</Link>
-          {isAdmin && (
+          
+          {canEdit && (
+            <Link to={`/vehicles/${vehicle.plate}/edit`} className="flex-1 md:flex-none justify-center bg-slate-900 text-white px-6 py-4 rounded-2xl text-[9px] font-black uppercase flex items-center gap-2 shadow-2xl active:scale-95 transition-all"><LucideSettings size={16}/> Editar</Link>
+          )}
+          
+          {canDelete && (
             <button 
               onClick={() => setShowDeleteConfirm(true)} 
               className="flex-1 md:flex-none justify-center bg-rose-50 text-rose-600 px-6 py-4 rounded-2xl text-[9px] font-black uppercase border border-rose-100 flex items-center gap-2 hover:bg-rose-600 hover:text-white transition-all shadow-sm active:scale-95"
@@ -126,7 +221,7 @@ export const VehicleDetail = () => {
             <p className="text-slate-400 font-black uppercase tracking-widest text-[8px] md:text-[9px] mt-2 md:mt-4">{vehicle.make} {vehicle.model}</p>
             
             <div className="mt-6 md:mt-8 w-full p-4 md:p-6 bg-slate-50 rounded-2xl md:rounded-[2.5rem] border border-slate-100 shadow-inner group">
-               <p className="text-[7px] md:text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Kilometraje</p>
+               <p className="text-[7px] md:text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Odómetro Actual</p>
                <h3 className="text-2xl md:text-3xl font-black italic text-slate-800 tracking-tighter group-hover:text-blue-600 transition-colors">{(vehicle.currentKm || 0).toLocaleString()} <span className="text-[10px] uppercase not-italic text-slate-400">KM</span></h3>
             </div>
 
@@ -181,6 +276,7 @@ export const VehicleDetail = () => {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-10">
+                     {/* SECCIÓN MANTENIMIENTO CON ACTUALIZACIÓN DE SERVICE */}
                      <div className="bg-white p-6 md:p-10 rounded-[2.5rem] md:rounded-[3.5rem] border border-slate-100 shadow-sm space-y-6 relative overflow-hidden group">
                         <div className="flex justify-between items-center border-b border-slate-50 pb-4 md:pb-6">
                            <h4 className="font-black text-slate-800 uppercase italic text-sm md:text-lg flex items-center gap-2"><LucideWrench className="text-indigo-600" size={18}/> Mantenimiento</h4>
@@ -188,10 +284,61 @@ export const VehicleDetail = () => {
                               {dashMetrics.kmParaService < 1500 ? 'URGENTE' : 'OK'}
                            </span>
                         </div>
-                        <div>
-                            <p className="text-3xl md:text-4xl font-black italic text-slate-800">{dashMetrics.kmParaService.toLocaleString()}</p>
-                            <p className="text-[8px] md:text-[9px] font-black text-slate-400 uppercase tracking-widest">KMs para el próximo Service</p>
-                        </div>
+
+                        {!isUpdatingServiceKm ? (
+                          <div className="flex justify-between items-start animate-fadeIn">
+                            <div>
+                                <p className="text-3xl md:text-4xl font-black italic text-slate-800">{dashMetrics.kmParaService.toLocaleString()}</p>
+                                <p className="text-[8px] md:text-[9px] font-black text-slate-400 uppercase tracking-widest">KMs para el próximo Service</p>
+                                <div className="mt-4 p-3 bg-slate-50 rounded-xl border border-slate-100">
+                                   <p className="text-[7px] font-black text-slate-400 uppercase">Último Service Realizado:</p>
+                                   <p className="text-[11px] font-black text-slate-700">{vehicle.fichaTecnica?.ultimoServicio?.kilometraje?.toLocaleString() || 0} KM</p>
+                                </div>
+                            </div>
+                            {canEdit && (
+                              <button 
+                                onClick={() => {
+                                  setNewServiceKm((vehicle.fichaTecnica?.ultimoServicio?.kilometraje || 0) + 1);
+                                  setIsUpdatingServiceKm(true);
+                                }}
+                                className="group/btn p-4 bg-indigo-50 text-indigo-600 rounded-2xl hover:bg-indigo-600 hover:text-white transition-all shadow-sm active:scale-95 flex flex-col items-center gap-2"
+                                title="Informar Service Realizado"
+                              >
+                                <LucideRefreshCw size={24} className="group-hover/btn:rotate-180 transition-transform duration-500"/>
+                                <span className="text-[8px] font-black uppercase">Informar</span>
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="space-y-5 animate-fadeIn bg-indigo-50/50 p-6 rounded-[2.5rem] border-2 border-indigo-100 shadow-inner">
+                            <div className="space-y-2">
+                              <div className="flex justify-between items-center ml-2">
+                                <label className="text-[9px] font-black text-indigo-600 uppercase tracking-widest">Kilometraje de Service</label>
+                                <span className="text-[8px] font-bold text-slate-400 uppercase italic">Anterior: {vehicle.fichaTecnica?.ultimoServicio?.kilometraje?.toLocaleString() || 0} KM</span>
+                              </div>
+                              <div className="relative">
+                                <LucideGauge className="absolute left-4 top-1/2 -translate-y-1/2 text-indigo-400" size={20}/>
+                                <input 
+                                  type="number"
+                                  autoFocus
+                                  onFocus={(e) => e.target.select()}
+                                  className="w-full pl-12 pr-6 py-4 bg-white border-2 border-indigo-200 rounded-2xl font-black text-3xl text-indigo-600 outline-none shadow-md focus:ring-8 focus:ring-indigo-100 transition-all"
+                                  value={newServiceKm}
+                                  onChange={e => setNewServiceKm(Number(e.target.value))}
+                                />
+                              </div>
+                            </div>
+                            <div className="flex gap-2">
+                              <button onClick={handleUpdateServiceKm} className="flex-1 py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl hover:bg-indigo-700 transition-all active:scale-95 flex items-center justify-center gap-3">
+                                <LucideCheckCircle2 size={18}/> Confirmar Registro
+                              </button>
+                              <button onClick={() => setIsUpdatingServiceKm(false)} className="px-6 py-4 bg-white text-slate-400 border-2 border-slate-100 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-slate-100 transition-all">
+                                <LucideX size={18}/>
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
                         <div className="h-2 md:h-3 bg-slate-100 rounded-full overflow-hidden">
                            <div className={`h-full transition-all duration-1000 ${dashMetrics.percMantenimiento > 85 ? 'bg-rose-500' : 'bg-indigo-500'}`} style={{width: `${dashMetrics.percMantenimiento}%`}}></div>
                         </div>
@@ -220,7 +367,14 @@ export const VehicleDetail = () => {
              {activeTab === 'DOCS' && <DocumentationManager vehiclePlate={vehicle.plate} />}
              {activeTab === 'GALLERY' && <VehicleImageManager vehicle={vehicle} onUpdate={updateVehicle} />}
              {activeTab === 'TECH' && <FichaTecnica vehicle={vehicle} onSave={updateVehicle} />}
-             {activeTab === 'ADMON' && <RegimenPropiedadAdmin vehicle={vehicle} onUpdate={updateVehicle} isAdmin={isAdmin} />}
+             {activeTab === 'ADMON' && canSeeAdminData && <RegimenPropiedadAdmin vehicle={vehicle} onUpdate={updateVehicle} isAdmin={isAdmin} />}
+             {activeTab === 'RENTAL' && canSeeAdminData && vehicle.adminData && (
+                <div className="animate-fadeIn">
+                  <div className="bg-white p-10 rounded-[3.5rem] border border-slate-100 shadow-sm">
+                    <DocumentationManager vehiclePlate={vehicle.plate} />
+                  </div>
+                </div>
+             )}
            </div>
         </div>
       </div>

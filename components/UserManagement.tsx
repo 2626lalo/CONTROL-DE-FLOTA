@@ -12,10 +12,9 @@ import {
   LucideChevronDown, LucideSave, LucideCrown, LucideLayers, LucideVerified, 
   LucideUser, LucideFingerprint, LucideUserCog, LucideCar, 
   LucideClipboardCheck, LucideLockKeyhole, LucideTrash2, LucideCheck, LucideAlertCircle,
-  LucideActivity, LucideFileSpreadsheet, LucideDownload
+  LucideActivity, LucideFileSpreadsheet, LucideDownload, LucideMapPin
 } from 'lucide-react';
 import { User, UserRole, UserStatus, Permission } from '../types';
-// FIX: Import missing date-fns utilities used in exportToExcel to resolve 'Cannot find name' errors on lines 363 and 369.
 import { format, parseISO } from 'date-fns';
 
 type UserTab = 'DASHBOARD' | 'DIRECTORY' | 'PENDING' | 'PERMISSIONS';
@@ -153,7 +152,6 @@ const MasterListView = ({
   </div>
 );
 
-// --- COMPONENTE DE PERMISOS GRANULARES ---
 const PermissionsManager: React.FC<{ user: User, onUpdate: (u: User) => void }> = ({ user, onUpdate }) => {
   const [localUser, setLocalUser] = useState<User>(user);
   const [isModified, setIsModified] = useState(false);
@@ -277,19 +275,28 @@ export const UserManagement = () => {
   const [phoneError, setPhoneError] = useState('');
   const [selectedUserIdForPerms, setSelectedUserIdForPerms] = useState<string>('');
   const [showCCDropdown, setShowCCDropdown] = useState(false);
+  const [blacklistedCCs, setBlacklistedCCs] = useState<string[]>(() => {
+    const saved = localStorage.getItem('fp_blacklisted_ccs');
+    return saved ? JSON.parse(saved) : [];
+  });
 
   const isMainAdmin = authenticatedUser?.email === MASTER_EMAIL;
 
-  // VERIFICACIÓN DE AUTORIZACIÓN PARA EXPORTACIÓN:
-  // Se autoriza si es el Admin Principal o si en el Kernel se le otorgó permiso 'ver' en la sección 'usuarios'.
   const canExport = useMemo(() => {
     if (isMainAdmin) return true;
     return authenticatedUser?.permissions?.some(p => p.seccion === 'usuarios' && p.ver) || false;
   }, [isMainAdmin, authenticatedUser]);
 
+  // POOL DINÁMICO DE CENTROS DE COSTO (Vehículos + Usuarios)
   const costCenters = useMemo(() => {
-    return Array.from(new Set(vehicles.map(v => v.costCenter).filter(Boolean))).sort();
-  }, [vehicles]);
+    const fromVehicles = vehicles.map(v => v.costCenter);
+    const fromUsers = registeredUsers.map(u => u.costCenter || u.centroCosto?.nombre);
+    const all = [...fromVehicles, ...fromUsers]
+      .filter(Boolean)
+      .map(c => c!.toUpperCase().trim())
+      .filter(c => !blacklistedCCs.includes(c));
+    return Array.from(new Set(all)).sort();
+  }, [vehicles, registeredUsers, blacklistedCCs]);
 
   const stats = useMemo(() => {
     const visibleUsers = registeredUsers.filter(u => u.email !== MASTER_EMAIL);
@@ -342,6 +349,14 @@ Esta acción borrará el perfil de ${draftUser.nombre} de Firestore. Sus credenc
         setShowDetailModal(false);
         addNotification("Usuario removido del sistema", "warning");
     }
+  };
+
+  const removeFromSuggestions = (e: React.MouseEvent, cc: string) => {
+    e.stopPropagation();
+    const newBlacklist = [...blacklistedCCs, cc];
+    setBlacklistedCCs(newBlacklist);
+    localStorage.setItem('fp_blacklisted_ccs', JSON.stringify(newBlacklist));
+    addNotification(`Sugerencia '${cc}' ocultada del sistema`, "info");
   };
 
   const exportToExcel = () => {
@@ -499,6 +514,20 @@ Esta acción borrará el perfil de ${draftUser.nombre} de Firestore. Sus credenc
                                         {Object.values(UserRole).map(r => <option key={r} value={r}>{r}</option>)}
                                     </select>
                                 </div>
+                                {draftUser.role === UserRole.REGIONAL_MANAGER && (
+                                  <div className="space-y-1 animate-fadeIn">
+                                      <label className="text-[8px] font-black text-slate-400 uppercase ml-2">Zona Operativa</label>
+                                      <div className="relative">
+                                          <LucideMapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={14}/>
+                                          <input 
+                                              className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-xl font-bold uppercase text-xs outline-none focus:ring-4 focus:ring-blue-100"
+                                              value={draftUser.regionalZone || ''}
+                                              placeholder="INGRESAR ZONA OPERATIVA..."
+                                              onChange={e => setDraftUser({...draftUser, regionalZone: e.target.value.toUpperCase()})}
+                                          />
+                                      </div>
+                                  </div>
+                                )}
                                 <div className="space-y-1 relative">
                                     <label className="text-[8px] font-black text-slate-400 uppercase ml-2">Centro de Costo</label>
                                     <div className="relative">
@@ -511,9 +540,25 @@ Esta acción borrará el perfil de ${draftUser.nombre} de Firestore. Sus credenc
                                             onBlur={() => setTimeout(() => setShowCCDropdown(false), 200)}
                                         />
                                         {showCCDropdown && costCenters.length > 0 && (
-                                            <div className="absolute z-[100] w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-2xl max-h-40 overflow-y-auto custom-scrollbar">
+                                            <div className="absolute z-[100] w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-2xl max-h-48 overflow-y-auto custom-scrollbar animate-fadeIn">
+                                                <div className="p-2 border-b border-slate-50 bg-slate-50/50">
+                                                    <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest px-2">Sugerencias (Flota + Usuarios)</p>
+                                                </div>
                                                 {costCenters.map(cc => (
-                                                    <div key={cc} onClick={() => setDraftUser({...draftUser, costCenter: cc})} className="p-3 hover:bg-blue-50 cursor-pointer text-[10px] font-bold uppercase border-b border-slate-50">{cc}</div>
+                                                    <div 
+                                                        key={cc} 
+                                                        onClick={() => setDraftUser({...draftUser, costCenter: cc})} 
+                                                        className="flex items-center justify-between p-3 hover:bg-blue-50 cursor-pointer border-b border-slate-50 group/item"
+                                                    >
+                                                        <span className="text-[10px] font-bold uppercase text-slate-700">{cc}</span>
+                                                        <button 
+                                                            onClick={(e) => removeFromSuggestions(e, cc)}
+                                                            className="p-1.5 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all opacity-0 group-hover/item:opacity-100"
+                                                            title="Eliminar sugerencia"
+                                                        >
+                                                            <LucideX size={12}/>
+                                                        </button>
+                                                    </div>
                                                 ))}
                                             </div>
                                         )}

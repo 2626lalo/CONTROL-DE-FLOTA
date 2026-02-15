@@ -4,7 +4,8 @@ export enum UserRole {
   USER = 'USER',
   PROVIDER = 'PROVEEDOR',
   AUDITOR = 'AUDITOR',
-  SUPERVISOR = 'SUPERVISOR'
+  SUPERVISOR = 'SUPERVISOR',
+  REGIONAL_MANAGER = 'JEFE DE FLOTA REGIONAL'
 }
 
 export type UserStatus = 'activo' | 'inactivo' | 'pendiente' | 'suspendido' | 'bloqueado';
@@ -40,6 +41,7 @@ export interface User {
     codigo: string;
   };
   costCenter?: string;
+  regionalZone?: string;
   role: UserRole;
   level: 1 | 2 | 3; 
   rolesSecundarios: string[];
@@ -438,6 +440,7 @@ export interface AdministrativeData {
     leasing_pagos?: LeasingPago[];
 }
 
+// Added missing StandardAccessory interface for FichaTecnica
 export interface StandardAccessory {
   name: string;
   isEquipped: boolean;

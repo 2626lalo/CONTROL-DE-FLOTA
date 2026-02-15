@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useApp } from '../context/FleetContext';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { CHECKLIST_SECTIONS } from '../constants';
-import { Checklist as ChecklistType, ChecklistItem, AccessoryItem, Vehicle, VehicleStatus, FindingMarker } from '../types';
+import { Checklist as ChecklistType, ChecklistItem, AccessoryItem, Vehicle, VehicleStatus, FindingMarker, UserRole } from '../types';
 import { 
   ArrowLeft, Eraser, ChevronDown, ChevronUp, FileText, Plus, Save, 
   Search, Cpu, Check, MapPin, Eye, Lightbulb, Zap, 
@@ -17,6 +17,8 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { compressImage } from '../utils/imageCompressor';
 import { ImageZoomModal } from './ImageZoomModal';
+
+const MASTER_ADMIN = 'alewilczek@gmail.com';
 
 const SignaturePad = ({ onEnd, label, error, id }: { onEnd: (base64: string) => void, label: string, error?: boolean, id?: string }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -158,7 +160,7 @@ const PreviewItem: React.FC<{ item: any }> = ({ item }) => (
 );
 
 export const Checklist = () => {
-    const { vehicles, addChecklist, user, checklists, addNotification, masterFindingsImage } = useApp();
+    const { vehicles, addChecklist, updateVehicle, user, authenticatedUser, checklists, addNotification, masterFindingsImage } = useApp();
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     
@@ -203,9 +205,21 @@ export const Checklist = () => {
       motor: true, lights: false, general: true, bodywork: false, accessories: true, findings: true 
     });
 
-    const filteredVehicles = useMemo(() => 
-        vehicles.filter(v => v.plate.toUpperCase().includes(plateSearch.toUpperCase()))
-    , [plateSearch, vehicles]);
+    // --- LÓGICA DE SEGURIDAD PARA FILTRADO DE VEHÍCULOS ---
+    const isMainAdmin = authenticatedUser?.email === MASTER_ADMIN;
+    
+    const hasFullFleetAccess = useMemo(() => {
+        if (isMainAdmin) return true;
+        return user?.role === UserRole.ADMIN && user?.permissions?.some(p => p.seccion === 'flota' && p.ver);
+    }, [isMainAdmin, user]);
+
+    const filteredVehicles = useMemo(() => {
+        const pool = hasFullFleetAccess 
+            ? vehicles 
+            : vehicles.filter(v => (v.costCenter || '').toUpperCase() === (user?.costCenter || user?.centroCosto?.nombre || '').toUpperCase());
+
+        return pool.filter(v => v.plate.toUpperCase().includes(plateSearch.toUpperCase()));
+    }, [plateSearch, vehicles, hasFullFleetAccess, user]);
 
     const selectedVehicle = useMemo(() => vehicles.find(v => v.plate === plateSearch), [plateSearch, vehicles]);
 
@@ -290,7 +304,6 @@ export const Checklist = () => {
         setEmailRecipients(emailRecipients.filter(e => e !== email));
     };
 
-    // Función de limpieza recursiva para reemplazar undefined por null (requerido por Firestore)
     const cleanData = (obj: any): any => {
         if (Array.isArray(obj)) {
             return obj.map(item => cleanData(item));
@@ -304,7 +317,7 @@ export const Checklist = () => {
         return obj === undefined ? null : obj;
     };
 
-    const handleSave = () => {
+    const handleSave = async () => {
         if (!validateForm()) return;
         
         const rawChecklist = {
@@ -318,11 +331,22 @@ export const Checklist = () => {
             emailRecipients: sendEmail ? emailRecipients : []
         };
 
-        // Limpiar datos antes de enviar al contexto (que usa setDoc de Firestore)
         const cleanChecklist = cleanData(rawChecklist);
         
-        addChecklist(cleanChecklist);
-        addNotification("Reporte generado y guardado.", "success");
+        // --- ACTUALIZACIÓN AUTOMÁTICA DE KILOMETRAJE EN FLOTA ---
+        if (selectedVehicle) {
+            try {
+                await updateVehicle({
+                    ...selectedVehicle,
+                    currentKm: km // Sincroniza con el valor auditado
+                });
+            } catch (error) {
+                console.error("Error al sincronizar KM en flota:", error);
+            }
+        }
+
+        await addChecklist(cleanChecklist);
+        addNotification("Reporte generado y guardado. Kilometraje actualizado en flota.", "success");
         setViewMode('LIST');
     };
 

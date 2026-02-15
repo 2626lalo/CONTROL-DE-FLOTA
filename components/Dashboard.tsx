@@ -7,36 +7,64 @@ import {
 import { 
   LucideCar, LucideTrendingUp, LucideShieldCheck, 
   LucideRefreshCw, LucideAlertTriangle, LucideHistory,
-  LucideChevronRight, LucideBriefcase, LucideShield,
-  LucideSparkles, LucideLoader2, LucideX, LucideLayoutDashboard
+  LucideShield, LucideSparkles, LucideLoader2, LucideX, 
+  LucideLayoutDashboard, LucideBriefcase, LucideHeartPulse
 } from 'lucide-react';
 import { VehicleStatus, ServiceStage, UserRole } from '../types';
 import { getFleetHealthReport, isAiAvailable } from '../services/geminiService';
 
+const MASTER_ADMIN = 'alewilczek@gmail.com';
+
 export const Dashboard = () => {
-  const { vehicles, serviceRequests, isDataLoading, refreshData, auditLogs, user } = useApp();
+  const { vehicles, serviceRequests, isDataLoading, refreshData, auditLogs, user, authenticatedUser } = useApp();
   const navigate = useNavigate();
   const [aiReport, setAiReport] = useState<string | null>(null);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
 
-  const isAdmin = user?.role === UserRole.ADMIN || user?.role === UserRole.SUPERVISOR;
+  // --- LÓGICA DE SEGURIDAD Y FILTRADO (KERNEL) ---
+  const isMainAdmin = authenticatedUser?.email === MASTER_ADMIN;
+  const userCC = (user?.costCenter || user?.centroCosto?.nombre || '').toUpperCase();
+  
+  // Verificación de autorización otorgada por el Administrador Principal via Kernel
+  const hasFullAccess = useMemo(() => {
+    if (isMainAdmin) return true;
+    return user?.role === UserRole.ADMIN && user?.permissions?.some(p => p.seccion === 'dashboard' && p.ver);
+  }, [isMainAdmin, user]);
+
+  // Pool de datos filtrado por Centro de Costo o Global según autorización
+  const dashboardVehicles = useMemo(() => {
+    if (hasFullAccess) return vehicles;
+    return vehicles.filter(v => (v.costCenter || '').toUpperCase() === userCC);
+  }, [vehicles, hasFullAccess, userCC]);
+
+  const dashboardRequests = useMemo(() => {
+    const plates = new Set(dashboardVehicles.map(v => v.plate));
+    return serviceRequests.filter(r => plates.has(r.vehiclePlate));
+  }, [serviceRequests, dashboardVehicles]);
+
+  const dashboardLogs = useMemo(() => {
+    if (hasFullAccess) return auditLogs;
+    const plates = new Set(dashboardVehicles.map(v => v.plate));
+    return auditLogs.filter(log => log.entityType === 'VEHICLE' && plates.has(log.entityId));
+  }, [auditLogs, hasFullAccess, dashboardVehicles]);
 
   const metrics = useMemo(() => {
-    const totalInvestment = vehicles.reduce((acc, v) => acc + (v.purchaseValue || 0), 0);
-    const totalOpEx = serviceRequests
+    const totalInvestment = dashboardVehicles.reduce((acc, v) => acc + (v.purchaseValue || 0), 0);
+    const totalOpEx = dashboardRequests
       .filter(r => r.stage === ServiceStage.FINISHED || r.stage === ServiceStage.DELIVERY)
       .reduce((acc, r) => acc + (r.totalCost || 0), 0);
-    const availability = vehicles.length > 0 
-      ? Math.round((vehicles.filter(v => v.status === VehicleStatus.ACTIVE).length / vehicles.length) * 100) 
+    const availability = dashboardVehicles.length > 0 
+      ? Math.round((dashboardVehicles.filter(v => v.status === VehicleStatus.ACTIVE).length / dashboardVehicles.length) * 100) 
       : 0;
 
     return { totalInvestment, totalOpEx, availability };
-  }, [vehicles, serviceRequests]);
+  }, [dashboardVehicles, dashboardRequests]);
 
   const handleAiHealthReport = async () => {
+    if (!isMainAdmin) return;
     setIsGeneratingReport(true);
     try {
-      const fleetSummary = vehicles.map(v => 
+      const fleetSummary = dashboardVehicles.map(v => 
         `Unidad ${v.plate}: ${v.status}, KM ${v.currentKm}`
       ).join('; ');
       const report = await getFleetHealthReport(fleetSummary);
@@ -49,9 +77,9 @@ export const Dashboard = () => {
   };
 
   const stats = [
-    { label: 'Unidades', val: vehicles.length, icon: LucideCar, color: 'blue', path: '/vehicles' },
-    { label: 'CapEx Total', val: `$${metrics.totalInvestment.toLocaleString()}`, icon: LucideBriefcase, color: 'indigo', path: '/reports' },
-    { label: 'Alertas', val: vehicles.filter(v => (v.nextServiceKm - v.currentKm) < 1500).length, icon: LucideAlertTriangle, color: 'rose', path: '/vehicles' },
+    { label: 'Unidades', val: dashboardVehicles.length, icon: LucideCar, color: 'blue', path: '/vehicles' },
+    { label: 'CapEx Invertido', val: `$${metrics.totalInvestment.toLocaleString()}`, icon: LucideBriefcase, color: 'indigo', path: '/reports' },
+    { label: 'Alertas Mantenimiento', val: dashboardVehicles.filter(v => (v.nextServiceKm - v.currentKm) < 1500).length, icon: LucideAlertTriangle, color: 'rose', path: '/vehicles' },
     { label: 'Operatividad', val: `${metrics.availability}%`, icon: LucideShieldCheck, color: 'emerald', path: '/reports' },
   ];
 
@@ -61,27 +89,30 @@ export const Dashboard = () => {
         <div>
           <div className="flex items-center gap-3 mb-2">
             <LucideLayoutDashboard className="text-blue-600" size={20}/>
-            <span className="text-[8px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest">OPERATIONS HUB</span>
+            <span className="text-[8px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest">
+              {hasFullAccess ? 'OPERATIONS WORLDWIDE HUB' : `FILTRADO POR: ${userCC}`}
+            </span>
           </div>
           <h1 className="text-3xl md:text-5xl font-black text-slate-900 tracking-tighter uppercase italic leading-none">Fleet Manager Pro</h1>
-          <p className="text-slate-500 font-bold mt-2 text-xs">Bienvenido, <span className="text-blue-600 font-black">{user?.name}</span></p>
+          <p className="text-slate-500 font-bold mt-2 text-xs">Bienvenido al núcleo operativo, <span className="text-blue-600 font-black">{user?.name}</span></p>
         </div>
         
         <div className="flex items-center gap-3 w-full md:w-auto">
-          {isAdmin && isAiAvailable() && (
+          {/* BOTÓN RESTRINGIDO SOLO AL ADMINISTRADOR PRINCIPAL */}
+          {isMainAdmin && isAiAvailable() && (
              <button 
               onClick={handleAiHealthReport} 
               disabled={isGeneratingReport}
               className="flex-1 md:flex-none px-6 py-4 bg-indigo-600 text-white rounded-2xl shadow-lg hover:bg-indigo-700 transition-all font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
             >
               {isGeneratingReport ? <LucideLoader2 className="animate-spin" size={16}/> : <LucideSparkles size={16}/>}
-              Auditoría IA
+              Auditoría IA (Master)
             </button>
           )}
           <button 
             onClick={() => refreshData()} 
             disabled={isDataLoading} 
-            className="p-4 bg-white border border-slate-200 rounded-2xl shadow-sm text-slate-400"
+            className="p-4 bg-white border border-slate-200 rounded-2xl shadow-sm text-slate-400 hover:text-blue-600 transition-colors"
           >
             <LucideRefreshCw size={20} className={isDataLoading ? "animate-spin" : ""}/>
           </button>
@@ -95,7 +126,7 @@ export const Dashboard = () => {
                  <div className="p-3 bg-indigo-600 text-white rounded-xl shadow-lg"><LucideSparkles size={24}/></div>
                  <h3 className="text-lg md:text-2xl font-black text-indigo-950 uppercase italic tracking-tighter leading-tight">Reporte Estratégico IA</h3>
               </div>
-              <button onClick={() => setAiReport(null)} className="p-2 bg-white text-indigo-400 rounded-lg shadow-md"><LucideX size={16}/></button>
+              <button onClick={() => setAiReport(null)} className="p-2 bg-white text-indigo-400 rounded-lg shadow-md hover:bg-rose-50 hover:text-rose-600 transition-all"><LucideX size={16}/></button>
            </div>
            <div className="bg-white/80 backdrop-blur-md p-6 rounded-[2rem] border border-indigo-100 shadow-inner relative z-10">
                 <p className="text-indigo-900 font-bold text-xs md:text-sm leading-relaxed whitespace-pre-wrap italic">{aiReport}</p>
@@ -128,7 +159,7 @@ export const Dashboard = () => {
         <div className="lg:col-span-2 bg-white p-6 md:p-12 rounded-[2.5rem] md:rounded-[4rem] shadow-sm border border-slate-100">
            <div className="flex justify-between items-center mb-8 md:mb-12">
               <h3 className="text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                 <LucideTrendingUp className="text-blue-600" size={16}/> Evolución de Gastos
+                 <LucideTrendingUp className="text-blue-600" size={16}/> Evolución de Gastos (OpEx)
               </h3>
               <p className="text-lg md:text-2xl font-black text-slate-800 italic">${metrics.totalOpEx.toLocaleString()}</p>
            </div>
@@ -159,15 +190,23 @@ export const Dashboard = () => {
             <LucideHistory className="text-blue-500" size={16}/> Logs de Auditoría
           </h3>
           <div className="space-y-6 max-h-[350px] md:h-[420px] overflow-y-auto pr-2 custom-scrollbar relative z-10">
-            {auditLogs.slice(0, 10).map((log) => (
-              <div key={log.id} className="flex gap-4">
-                <div className="w-0.5 bg-blue-600/30 rounded-full"></div>
+            {dashboardLogs.slice(0, 15).map((log) => (
+              <div key={log.id} className="flex gap-4 group/log transition-all">
+                <div className="w-0.5 bg-blue-600/30 group-hover/log:bg-blue-500 rounded-full transition-colors"></div>
                 <div className="flex-1">
-                  <p className="text-[9px] font-black text-white uppercase italic truncate">{log.action}</p>
-                  <p className="text-[7px] text-slate-600 font-black uppercase mt-1">{log.userName.split(' ')[0]} • {new Date(log.timestamp).toLocaleTimeString()}</p>
+                  <p className="text-[9px] font-black text-white uppercase italic truncate group-hover/log:text-blue-400 transition-colors">{log.action}</p>
+                  <p className="text-[7px] text-slate-600 font-black uppercase mt-1">
+                    {log.userName.split(' ')[0]} • {log.entityId} • {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </p>
                 </div>
               </div>
             ))}
+            {dashboardLogs.length === 0 && (
+                <div className="h-full flex flex-col items-center justify-center opacity-20 text-center py-20">
+                   <LucideShield size={48} className="mb-4"/>
+                   <p className="text-[10px] font-black uppercase">Sin actividad relevante</p>
+                </div>
+            )}
           </div>
         </div>
       </div>

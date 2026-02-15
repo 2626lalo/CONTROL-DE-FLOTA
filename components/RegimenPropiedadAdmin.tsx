@@ -1,11 +1,17 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
-import { LucideBriefcase, LucideCheck, LucideWrench, LucideLayers, LucideHandshake, LucideFileCheck2, LucideRefreshCw, LucideClock, LucideSettings2, LucideDollarSign, LucidePlus, LucideTrash2, LucideCreditCard, LucideMapPin, LucideUser, LucideTarget, LucideCpu, LucideBox, LucideNavigation, LucideX, LucideArchive, LucideShoppingBag, LucideAlertTriangle, LucideCalendarClock, LucideTimer, LucideShield } from 'lucide-react';
+import { LucideBriefcase, LucideCheck, LucideWrench, LucideLayers, LucideHandshake, LucideFileCheck2, LucideRefreshCw, LucideClock, LucideSettings2, LucideDollarSign, LucidePlus, LucideTrash2, LucideCreditCard, LucideMapPin, LucideUser, LucideTarget, LucideCpu, LucideBox, LucideNavigation, LucideX, LucideArchive, LucideShoppingBag, LucideAlertTriangle, LucideCalendarClock, LucideTimer, LucideShield, LucideMap, LucideChevronDown } from 'lucide-react';
 import { Vehicle, AdministrativeData, OwnershipType, ManagedLists, VehicleStatus } from '../types';
 import { GestionAlquiler } from './GestionAlquiler';
 import { GestionLeasing } from './GestionLeasing';
 import { useApp } from '../context/FleetContext';
 import { startOfYear, endOfYear, differenceInDays, format } from 'date-fns';
+
+const PROVINCIAS_ARGENTINA = [
+  "BUENOS AIRES", "CIUDAD AUTÓNOMA DE BUENOS AIRES", "CATAMARCA", "CHACO", "CHUBUT", 
+  "CÓRDOBA", "CORRIENTES", "ENTRE RÍOS", "FORMOSA", "JUJUY", "LA PAMPA", "LA RIOJA", 
+  "MENDOZA", "MISIONES", "NEUQUÉN", "RÍO NEGRO", "SALTA", "SAN JUAN", "SAN LUIS", 
+  "SANTA CRUZ", "SANTA FE", "SANTIAGO DEL ESTERO", "TIERRA DEL FUEGO", "TUCUMÁN"
+];
 
 interface DynamicSelectorProps {
     label: string;
@@ -78,6 +84,7 @@ export const RegimenPropiedadAdmin: React.FC<{ vehicle: Vehicle; onUpdate: (v: V
   const { addNotification, logAudit } = useApp();
   const [activeSubTab, setActiveSubTab] = useState<'GENERAL' | 'ALQUILER' | 'LEASING' | 'LEASING_HISTORY'>('GENERAL');
   const [editMode, setEditMode] = useState(false);
+  const [showProvinceList, setShowProvinceList] = useState(false);
   const currentYear = new Date().getFullYear();
 
   const [rootFields, setRootFields] = useState({
@@ -85,7 +92,8 @@ export const RegimenPropiedadAdmin: React.FC<{ vehicle: Vehicle; onUpdate: (v: V
     make: vehicle.make || '',
     model: vehicle.model || '',
     version: vehicle.version || '',
-    status: vehicle.status || VehicleStatus.ACTIVE
+    status: vehicle.status || VehicleStatus.ACTIVE,
+    costCenter: vehicle.costCenter || ''
   });
 
   const [adminData, setAdminData] = useState<AdministrativeData>(vehicle.adminData || {
@@ -118,9 +126,16 @@ export const RegimenPropiedadAdmin: React.FC<{ vehicle: Vehicle; onUpdate: (v: V
         make: vehicle.make || '',
         model: vehicle.model || '',
         version: vehicle.version || '',
-        status: vehicle.status || VehicleStatus.ACTIVE
+        status: vehicle.status || VehicleStatus.ACTIVE,
+        costCenter: vehicle.costCenter || ''
     });
   }, [vehicle]);
+
+  const filteredProvincias = useMemo(() => {
+    const query = (adminData.provincia || '').toUpperCase();
+    if (!query) return PROVINCIAS_ARGENTINA;
+    return PROVINCIAS_ARGENTINA.filter(p => p.includes(query));
+  }, [adminData.provincia]);
 
   const cicloCalculado = useMemo(() => {
     const hoy = new Date();
@@ -315,7 +330,56 @@ export const RegimenPropiedadAdmin: React.FC<{ vehicle: Vehicle; onUpdate: (v: V
              <section className={`bg-white p-10 rounded-[3.5rem] border transition-all ${editMode ? 'border-indigo-200 bg-indigo-50/30' : 'border-slate-100 shadow-sm'} space-y-6`}>
                 <h4 className="text-sm font-black text-slate-800 uppercase italic flex items-center gap-3 border-b pb-4"><LucideNavigation className="text-indigo-500"/> Asignación y Destino</h4>
                 <div className="grid grid-cols-2 gap-4">
+                   <div className="space-y-1">
+                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-2 flex items-center gap-1"><LucideBox size={10}/> Centro de Costo</p>
+                        <input 
+                            disabled={!editMode}
+                            className={`w-full px-4 py-3 rounded-xl font-black text-xs uppercase outline-none border transition-all ${editMode ? 'bg-white border-indigo-200 focus:border-indigo-600 shadow-sm' : 'bg-slate-50 border-transparent text-indigo-600'}`}
+                            value={rootFields.costCenter}
+                            onChange={e => setRootFields({...rootFields, costCenter: e.target.value.toUpperCase()})}
+                        />
+                   </div>
                    <DynamicSelector label="Operando Para" icon={LucideTarget} value={adminData.operandoPara} listName="operandoPara" fieldPath="operandoPara" editMode={editMode} options={adminData.opcionesListas?.operandoPara || []} onUpdateField={handleUpdateField} onManageList={manageList} />
+                   
+                   {/* NUEVO CAMPO: PROVINCIA CON BÚSQUEDA PREDICTIVA */}
+                   <div className="space-y-1 relative">
+                        <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-2 flex items-center gap-1">
+                            <LucideMap size={10}/> Provincia
+                        </label>
+                        <div className="relative">
+                            <input 
+                                disabled={!editMode}
+                                type="text"
+                                className={`w-full px-4 py-3 rounded-xl font-bold outline-none border transition-all ${editMode ? 'bg-white border-indigo-200 focus:border-indigo-600 shadow-sm' : 'bg-slate-50 border-transparent text-slate-500'}`}
+                                value={adminData.provincia || ''}
+                                onChange={e => handleUpdateField('provincia', e.target.value.toUpperCase())}
+                                onFocus={() => editMode && setShowProvinceList(true)}
+                                onBlur={() => setTimeout(() => setShowProvinceList(false), 200)}
+                                placeholder="ELEGIR PROVINCIA..."
+                            />
+                            {editMode && <LucideChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />}
+                            
+                            {editMode && showProvinceList && (
+                                <div className="absolute z-[100] w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-2xl max-h-48 overflow-y-auto custom-scrollbar animate-fadeIn">
+                                    {filteredProvincias.length > 0 ? filteredProvincias.map((p, idx) => (
+                                        <div 
+                                            key={`${p}-${idx}`} 
+                                            className="p-3 hover:bg-indigo-50 transition-colors cursor-pointer border-b border-slate-50 last:border-0"
+                                            onClick={() => {
+                                                handleUpdateField('provincia', p);
+                                                setShowProvinceList(false);
+                                            }}
+                                        >
+                                            <span className="text-[10px] font-bold text-slate-700 uppercase">{p}</span>
+                                        </div>
+                                    )) : (
+                                        <div className="p-3 text-[10px] font-bold text-slate-400 italic uppercase">Sin resultados</div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                   </div>
+
                    <DynamicSelector label="Zona Operativa" icon={LucideMapPin} value={adminData.zona} listName="zona" fieldPath="zona" editMode={editMode} options={adminData.opcionesListas?.zona || []} onUpdateField={handleUpdateField} onManageList={manageList} />
                    <div className="space-y-1">
                         <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-2">Estado Operativo</p>
