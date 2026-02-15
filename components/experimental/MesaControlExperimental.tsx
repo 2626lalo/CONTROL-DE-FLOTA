@@ -16,6 +16,7 @@ import { format, parseISO, isWithinInterval, startOfDay, endOfDay, subDays } fro
 import { db } from '../../firebaseConfig';
 import { collection, query, onSnapshot, doc, updateDoc, arrayUnion, orderBy, setDoc, limit } from 'firebase/firestore';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { guardarPendiente } from '../../utils/offlineStorage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -165,6 +166,14 @@ const MesaControlContent: React.FC = () => {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
+
+      if (!navigator.onLine) {
+        await guardarPendiente('CREATE_REQUEST', requestData);
+        addNotification("Sin conexión. La solicitud se envió a la cola de sincronización.", "warning");
+        setActiveView('BOARD');
+        setNewReq({ vehicle: null, category: 'MANTENIMIENTO', type: '', description: '', km: 0, location: '', priority: 'MEDIA' });
+        return;
+      }
 
       await setDoc(doc(db, 'requests', id), requestData);
       addNotification(`Evento ${code} aperturado con éxito`, "success");

@@ -24,6 +24,7 @@ import { MapaFlotaExperimental } from './components/experimental/geolocalizacion
 import { OptimizadorRutas } from './components/experimental/rutas/OptimizadorRutas';
 import { DashboardExperimental } from './components/experimental/DashboardExperimental';
 import { UpdateNotification } from './components/UpdateNotification';
+import { SyncStatus } from './components/SyncStatus';
 import { LucideLoader } from 'lucide-react';
 
 const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -83,6 +84,7 @@ export default function App() {
             </Routes>
           </AuthGuard>
           <UpdateNotification />
+          <SyncStatus />
         </HashRouter>
       </FleetProvider>
     </FirebaseProvider>

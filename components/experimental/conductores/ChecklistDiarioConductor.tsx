@@ -3,6 +3,7 @@ import { LucideClipboardCheck, LucideCheck, LucideAlertTriangle, LucideCamera, L
 import { useApp } from '../../../context/FleetContext';
 import { db } from '../../../firebaseConfig';
 import { collection, addDoc, updateDoc, doc } from 'firebase/firestore';
+import { guardarPendiente } from '../../../utils/offlineStorage';
 
 const SignaturePad = ({ onEnd, label }: { onEnd: (base64: string) => void, label: string }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -82,17 +83,25 @@ export const ChecklistDiarioConductor: React.FC = () => {
 
     const watchId = navigator.geolocation.watchPosition(
       async (pos) => {
+        const data = {
+          vehiclePlate: plate,
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          velocidad: Math.round((pos.coords.speed || 0) * 3.6), // Convertir a km/h
+          direccion: pos.coords.heading || 0,
+          timestamp: new Date().toISOString(),
+          precision: pos.coords.accuracy,
+          conductorId: user?.id
+        };
+
+        if (!navigator.onLine) {
+            await guardarPendiente('LOCATION_UPDATE', data);
+            setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+            return;
+        }
+
         try {
-          await addDoc(collection(db, 'ubicaciones'), {
-            vehiclePlate: plate,
-            lat: pos.coords.latitude,
-            lng: pos.coords.longitude,
-            velocidad: Math.round((pos.coords.speed || 0) * 3.6), // Convertir a km/h
-            direccion: pos.coords.heading || 0,
-            timestamp: new Date().toISOString(),
-            precision: pos.coords.accuracy,
-            conductorId: user?.id
-          });
+          await addDoc(collection(db, 'ubicaciones'), data);
           setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
         } catch (error) {
           console.error('Telemetría Error:', error);
@@ -115,20 +124,29 @@ export const ChecklistDiarioConductor: React.FC = () => {
         return;
     }
 
+    const checklistData = {
+      conductorId: user?.id,
+      userName: user?.nombre,
+      vehiclePlate: plate,
+      kilometraje: km,
+      items,
+      signature,
+      ubicacion: location,
+      fecha: new Date().toISOString(),
+      novedades: items.some(i => i.status === 'NOVEDAD')
+    };
+
+    if (!navigator.onLine) {
+        await guardarPendiente('CHECKLIST_DIARIO', checklistData);
+        addNotification("Sin conexión. El reporte se guardó localmente y se sincronizará automáticamente.", "warning");
+        setPlate(''); setKm(0); setSignature('');
+        return;
+    }
+
     setIsSubmitting(true);
     try {
       // 1. Guardar Checklist
-      await addDoc(collection(db, 'checklistsConductores'), {
-        conductorId: user?.id,
-        userName: user?.nombre,
-        vehiclePlate: plate,
-        kilometraje: km,
-        items,
-        signature,
-        ubicacion: location,
-        fecha: new Date().toISOString(),
-        novedades: items.some(i => i.status === 'NOVEDAD')
-      });
+      await addDoc(collection(db, 'checklistsConductores'), checklistData);
 
       // 2. Sincronizar KM con Vehículo si es mayor
       const v = vehicles.find(v => v.plate === plate);

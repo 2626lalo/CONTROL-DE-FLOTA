@@ -39,7 +39,8 @@
     "@firebase/auth": "https://esm.sh/@firebase/auth@^1.12.0",
     "@react-google-maps/api": "https://esm.sh/@react-google-maps/api@2.20.3?external=react,react-dom",
     "point-in-polygon": "https://esm.sh/point-in-polygon@1.1.0",
-    "@tanstack/react-query": "https://esm.sh/@tanstack/react-query@5.62.7?external=react"
+    "@tanstack/react-query": "https://esm.sh/@tanstack/react-query@5.62.7?external=react",
+    "idb": "https://esm.sh/idb@8.0.2"
   }
 }
 </script>
@@ -72,7 +73,7 @@
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js')
+          navigator.serviceWorker.register('/sw.js', { type: 'module' })
             .then(registration => {
               console.log('Service Worker registrado:', registration);
             })
