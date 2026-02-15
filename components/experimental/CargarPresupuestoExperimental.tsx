@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { LucideDollarSign, LucidePlus, LucideTrash2, LucideCheck, LucideX, LucideFileText } from 'lucide-react';
 import { BudgetItem } from '../../types';
 
@@ -13,12 +14,24 @@ export const CargarPresupuestoExperimental: React.FC<Props> = ({ onSave, onCance
     { descripcion: '', cantidad: 1, precioUnitario: defaultAmount || 0, total: defaultAmount || 0 }
   ]);
 
-  const addItem = () => setItems([...items, { descripcion: '', cantidad: 1, precioUnitario: 0, total: 0 }]);
-  const removeItem = (idx: number) => items.length > 1 && setItems(items.filter((_, i) => i !== idx));
+  const addItem = () => {
+    setItems([...items, { descripcion: '', cantidad: 1, precioUnitario: 0, total: 0 }]);
+  };
+
+  const removeItem = (idx: number) => {
+    if (items.length > 1) {
+      setItems(items.filter((_, i) => i !== idx));
+    }
+  };
 
   const updateItem = (idx: number, field: keyof BudgetItem, val: any) => {
     const newList = [...items];
-    const item = { ...newList[idx], [field]: val };
+    const item = { ...newList[idx] };
+    
+    if (field === 'cantidad') item.cantidad = Number(val);
+    if (field === 'precioUnitario') item.precioUnitario = Number(val);
+    if (field === 'descripcion') item.descripcion = String(val).toUpperCase();
+    
     item.total = item.cantidad * item.precioUnitario;
     newList[idx] = item;
     setItems(newList);
@@ -49,7 +62,7 @@ export const CargarPresupuestoExperimental: React.FC<Props> = ({ onSave, onCance
               <input 
                 className="w-full px-6 py-4 rounded-2xl border-2 border-slate-100 bg-white font-black uppercase text-xs outline-none focus:border-purple-400 transition-all"
                 value={it.descripcion}
-                onChange={e => updateItem(idx, 'descripcion', e.target.value.toUpperCase())}
+                onChange={e => updateItem(idx, 'descripcion', e.target.value)}
                 placeholder="DETALLE TÉCNICO..."
               />
             </div>
@@ -60,7 +73,7 @@ export const CargarPresupuestoExperimental: React.FC<Props> = ({ onSave, onCance
                 onFocus={e => e.target.select()}
                 className="w-full px-6 py-4 rounded-2xl border-2 border-slate-100 bg-white font-black text-center text-lg outline-none focus:border-purple-400 transition-all"
                 value={it.cantidad}
-                onChange={e => updateItem(idx, 'cantidad', Number(e.target.value))}
+                onChange={e => updateItem(idx, 'cantidad', e.target.value)}
               />
             </div>
             <div className="w-full md:w-48 space-y-2">
@@ -72,7 +85,7 @@ export const CargarPresupuestoExperimental: React.FC<Props> = ({ onSave, onCance
                   onFocus={e => e.target.select()}
                   className="w-full pl-10 pr-4 py-4 rounded-2xl border-2 border-slate-100 bg-white font-black text-right text-lg outline-none focus:border-purple-400 transition-all"
                   value={it.precioUnitario}
-                  onChange={e => updateItem(idx, 'precioUnitario', Number(e.target.value))}
+                  onChange={e => updateItem(idx, 'precioUnitario', e.target.value)}
                 />
               </div>
             </div>

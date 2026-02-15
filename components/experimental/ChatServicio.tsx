@@ -1,5 +1,6 @@
+
 import React, { useState, useRef, useEffect } from 'react';
-import { LucideSend, LucideMessageCircle, LucideUser, LucideSmile, LucidePaperclip } from 'lucide-react';
+import { LucideSend, LucideMessageCircle, LucideUser, LucidePaperclip, LucideClock } from 'lucide-react';
 import { ServiceMessage, UserRole, User } from '../../types';
 import { format, parseISO } from 'date-fns';
 
@@ -33,7 +34,7 @@ export const ChatServicio: React.FC<Props> = ({ messages, currentUser, onSendMes
           </div>
           <div>
             <h5 className="text-[11px] font-black text-slate-800 uppercase italic tracking-widest leading-none">Mesa de Diálogo</h5>
-            <p className="text-[7px] font-black text-slate-400 uppercase mt-1">Conexión Segura v3.0</p>
+            <p className="text-[7px] font-black text-slate-400 uppercase mt-1">Conexión Segura Real-time</p>
           </div>
         </div>
       </div>
@@ -42,7 +43,7 @@ export const ChatServicio: React.FC<Props> = ({ messages, currentUser, onSendMes
         {(!messages || messages.length === 0) ? (
           <div className="h-full flex flex-col items-center justify-center opacity-10 text-center grayscale py-20">
             <LucideSend size={64} className="mb-6 animate-bounce text-slate-300"/>
-            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Sin intercambio de mensajes aún</p>
+            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Sin mensajes en el historial</p>
           </div>
         ) : (
           messages.map(m => {
@@ -52,9 +53,11 @@ export const ChatServicio: React.FC<Props> = ({ messages, currentUser, onSendMes
                 <div className={`max-w-[85%] space-y-2`}>
                   <div className={`flex items-center gap-2 mb-1 px-2 ${isMe ? 'flex-row-reverse' : ''}`}>
                     <div className="w-5 h-5 rounded-lg bg-slate-900 text-white flex items-center justify-center text-[7px] font-black uppercase">
-                      {m.userName.charAt(0)}
+                      {m.userName?.charAt(0) || 'U'}
                     </div>
-                    <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest">{m.userName} • {format(parseISO(m.timestamp), 'HH:mm')} HS</span>
+                    <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest">
+                        {m.userName} • {m.timestamp ? format(parseISO(m.timestamp), 'HH:mm') : '--:--'} HS
+                    </span>
                   </div>
                   <div className={`p-5 rounded-[2rem] shadow-sm border text-[11px] font-medium leading-relaxed italic ${
                     isMe ? 'bg-indigo-600 text-white border-indigo-500 rounded-tr-none' : 'bg-white text-slate-700 border-slate-200 rounded-tl-none'
