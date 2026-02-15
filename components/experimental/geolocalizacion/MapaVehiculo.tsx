@@ -1,8 +1,11 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { GoogleMap, Marker, InfoWindow } from '@react-google-maps/api';
 import { LucideCar, LucideNavigation2, LucideX, LucideClock, LucideGauge, LucideActivity } from 'lucide-react';
 import { Vehicle } from '../../../types';
 import { format, parseISO } from 'date-fns';
+import { db } from '../../../firebaseConfig';
+import { collection, addDoc } from 'firebase/firestore';
+import { guardarPendiente } from '../../../utils/offlineStorage';
 
 // FIX: Declare google global variable to avoid TypeScript errors when using Google Maps SDK members
 declare const google: any;
@@ -38,6 +41,48 @@ const mapOptions = {
 
 export const MapaVehiculo: React.FC<Props> = ({ activeView, selectedPlate, vehicles, ubicaciones, onClose }) => {
   const [selectedMarker, setSelectedMarker] = useState<any | null>(null);
+
+  // EFECTO: RASTREO SATELITAL SI HAY UNIDAD SELECCIONADA (MESA DE CONTROL O VISTA DETALLE)
+  useEffect(() => {
+    if (!selectedPlate || activeView !== 'VEHICLE') return;
+    
+    const enviarUbicacion = async (position: GeolocationPosition) => {
+      const ubicacionData = {
+        vehiclePlate: selectedPlate,
+        lat: position.coords.latitude,
+        lng: position.coords.longitude,
+        velocidad: Math.round((position.coords.speed || 0) * 3.6),
+        direccion: position.coords.heading || 0,
+        timestamp: new Date().toISOString(),
+        precision: position.coords.accuracy
+      };
+      
+      if (navigator.onLine) {
+        try {
+          await addDoc(collection(db, 'ubicaciones'), ubicacionData);
+        } catch (error) {
+          console.error('Error enviando ubicación:', error);
+          await guardarPendiente('ubicacion', ubicacionData);
+        }
+      } else {
+        await guardarPendiente('ubicacion', ubicacionData);
+      }
+    };
+    
+    const watchId = navigator.geolocation.watchPosition(
+      enviarUbicacion,
+      (error) => {
+        console.error('Error de GPS:', error);
+      },
+      {
+        enableHighAccuracy: true,
+        maximumAge: 10000,
+        timeout: 5000
+      }
+    );
+    
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, [selectedPlate, activeView]);
 
   const markers = useMemo(() => {
     const unitsToRender = activeView === 'VEHICLE' && selectedPlate

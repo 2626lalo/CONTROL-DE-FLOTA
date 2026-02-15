@@ -1,9 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { LucideClipboardCheck, LucideCheck, LucideAlertTriangle, LucideCamera, LucideSave, LucideTruck, LucideGauge, LucideLocate, LucideX, LucideEraser, LucideShieldCheck, LucideRefreshCw } from 'lucide-react';
 import { useApp } from '../../../context/FleetContext';
-import { db } from '../../../firebaseConfig';
+import { db, storage } from '../../../firebaseConfig';
 import { collection, addDoc, updateDoc, doc } from 'firebase/firestore';
-import { guardarPendiente } from '../../../utils/offlineStorage';
+import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { guardarPendiente, obtenerPendientes } from '../../../utils/offlineStorage';
+import { SyncStatus } from '../../SyncStatus';
 
 const SignaturePad = ({ onEnd, label }: { onEnd: (base64: string) => void, label: string }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -67,6 +69,7 @@ export const ChecklistDiarioConductor: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [location, setLocation] = useState<any>(null);
   const [signature, setSignature] = useState('');
+  const [fotos, setFotos] = useState<File[]>([]);
   
   const [items, setItems] = useState([
     { id: 'neumaticos', label: 'Estado y Presión de Neumáticos', status: 'OK' },
@@ -95,7 +98,7 @@ export const ChecklistDiarioConductor: React.FC = () => {
         };
 
         if (!navigator.onLine) {
-            await guardarPendiente('LOCATION_UPDATE', data);
+            await guardarPendiente('ubicacion', data);
             setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
             return;
         }
@@ -105,6 +108,7 @@ export const ChecklistDiarioConductor: React.FC = () => {
           setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
         } catch (error) {
           console.error('Telemetría Error:', error);
+          await guardarPendiente('ubicacion', data);
         }
       },
       (err) => console.error("GPS Signal Loss:", err),
@@ -118,48 +122,84 @@ export const ChecklistDiarioConductor: React.FC = () => {
     setItems(items.map(it => it.id === id ? { ...it, status: it.status === 'OK' ? 'NOVEDAD' : 'OK' } : it));
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      setFotos(prev => [...prev, ...Array.from(e.target.files!)]);
+    }
+  };
+
   const handleSave = async () => {
     if (!plate || !km || !signature) {
         addNotification("Complete todos los campos y firme el reporte", "error");
         return;
     }
 
-    const checklistData = {
-      conductorId: user?.id,
-      userName: user?.nombre,
-      vehiclePlate: plate,
-      kilometraje: km,
-      items,
-      signature,
-      ubicacion: location,
-      fecha: new Date().toISOString(),
-      novedades: items.some(i => i.status === 'NOVEDAD')
-    };
-
-    if (!navigator.onLine) {
-        await guardarPendiente('CHECKLIST_DIARIO', checklistData);
-        addNotification("Sin conexión. El reporte se guardó localmente y se sincronizará automáticamente.", "warning");
-        setPlate(''); setKm(0); setSignature('');
-        return;
-    }
-
-    setIsSubmitting(true);
     try {
-      // 1. Guardar Checklist
-      await addDoc(collection(db, 'checklistsConductores'), checklistData);
-
-      // 2. Sincronizar KM con Vehículo si es mayor
-      const v = vehicles.find(v => v.plate === plate);
-      if (v && km > v.currentKm) {
-        await updateDoc(doc(db, 'vehicles', plate), {
-            currentKm: km,
-            updatedAt: new Date().toISOString()
+      if (navigator.onLine) {
+        setIsSubmitting(true);
+        // Obtener ubicación actual para el registro final
+        const pos: any = await new Promise((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject);
         });
-      }
 
-      addNotification("Inspección diaria sincronizada con éxito", "success");
-      setPlate(''); setKm(0); setSignature('');
-    } catch (err) {
+        // Subir fotos
+        const fotosUrls = await Promise.all(
+          fotos.map(async (foto) => {
+            const fileRef = storageRef(storage, `checklists/${user?.id}/${Date.now()}_${foto.name}`);
+            await uploadBytes(fileRef, foto);
+            return getDownloadURL(fileRef);
+          })
+        );
+
+        const checklistData = {
+          conductorId: user?.id,
+          userName: user?.nombre,
+          vehiclePlate: plate,
+          kilometraje: km,
+          items,
+          signature,
+          fotos: fotosUrls,
+          ubicacion: {
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude
+          },
+          fecha: new Date().toISOString(),
+          novedades: items.some(i => i.status === 'NOVEDAD')
+        };
+
+        // 1. Guardar Checklist
+        await addDoc(collection(db, 'checklistsConductores'), checklistData);
+
+        // 2. Sincronizar KM con Vehículo si es mayor
+        const v = vehicles.find(v => v.plate === plate);
+        if (v && km > v.currentKm) {
+          await updateDoc(doc(db, 'vehicles', plate), {
+              currentKm: km,
+              updatedAt: new Date().toISOString()
+          });
+        }
+
+        addNotification("Inspección diaria sincronizada con éxito", "success");
+        setPlate(''); setKm(0); setSignature(''); setFotos([]);
+      } else {
+        // Si no hay conexión, guardar offline
+        await guardarPendiente('checklist', {
+          conductorId: user?.id,
+          userName: user?.nombre,
+          vehiclePlate: plate,
+          kilometraje: km,
+          items,
+          signature,
+          fotos, // Guardar las fotos como File/Blob
+          fecha: new Date().toISOString(),
+          novedades: items.some(i => i.status === 'NOVEDAD')
+        });
+        
+        addNotification("Sin conexión. El reporte se guardó localmente y se sincronizará automáticamente.", "warning");
+        setPlate(''); setKm(0); setSignature(''); setFotos([]);
+      }
+    } catch (error) {
+      console.error('Error guardando checklist:', error);
       addNotification("Error al guardar inspección técnica", "error");
     } finally {
       setIsSubmitting(false);
@@ -204,12 +244,31 @@ export const ChecklistDiarioConductor: React.FC = () => {
                     }`}
                   >
                     <span className={`font-black uppercase text-xs italic tracking-tight ${it.status === 'OK' ? 'text-slate-600' : 'text-rose-700'}`}>{it.label}</span>
-                    <div className={`px-4 py-2 rounded-2xl flex items-center gap-3 transition-all ${it.status === 'OK' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-600 text-white shadow-lg'}`}>
+                    <div className={`px-4 py-2 rounded-2xl flex items-center gap-3 transition-all ${it.status === 'OK' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-rose-600 text-white shadow-lg'}`}>
                        {it.status === 'OK' ? <LucideCheck size={18}/> : <LucideAlertTriangle size={18}/>}
                        <span className="text-[9px] font-black">{it.status}</span>
                     </div>
                   </button>
                 ))}
+            </div>
+         </div>
+
+         <div className="space-y-6">
+            <h4 className="text-[11px] font-black text-slate-800 uppercase tracking-widest border-b pb-4 flex items-center gap-2"><LucideCamera size={16} className="text-blue-600"/> Evidencia Fotográfica</h4>
+            <div className="grid grid-cols-2 gap-4">
+               <label className="w-full py-10 bg-slate-50 border-2 border-dashed border-slate-200 rounded-3xl flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-white transition-all text-slate-400 group">
+                  <LucideCamera size={32} className="group-hover:scale-110 transition-transform"/>
+                  <span className="text-[8px] font-black uppercase tracking-widest">Añadir Fotos</span>
+                  <input type="file" accept="image/*" multiple className="hidden" onChange={handleFileChange} />
+               </label>
+               <div className="bg-slate-50 p-4 rounded-3xl border border-slate-100 flex flex-wrap gap-2">
+                  {fotos.map((f, i) => (
+                    <div key={i} className="w-10 h-10 bg-blue-600 text-white rounded-lg flex items-center justify-center font-black text-[10px] uppercase shadow-lg animate-fadeIn">
+                       {f.name.charAt(0)}
+                    </div>
+                  ))}
+                  {fotos.length === 0 && <p className="text-[8px] font-black text-slate-300 uppercase italic m-auto">Sin fotos</p>}
+               </div>
             </div>
          </div>
 
@@ -242,6 +301,7 @@ export const ChecklistDiarioConductor: React.FC = () => {
             <p className="text-[9px] font-black text-slate-300 uppercase text-center tracking-[0.4em] italic">Rastreo Satelital Sincronizado</p>
          </div>
       </div>
+      <SyncStatus />
     </div>
   );
 };
