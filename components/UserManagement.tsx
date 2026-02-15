@@ -97,13 +97,13 @@ const MasterListView = ({
 }) => (
   <div className="space-y-8 animate-fadeIn">
     <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden">
-      <div className="p-8 border-b border-slate-50 flex flex-col md:flex-row justify-between items-center gap-6">
+      <div className="p-8 border-b border-slate-50 flex flex-col md:flex-row justify-between items-center gap-6 bg-slate-50/50">
         <div className="relative w-full max-w-lg">
           <LucideSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18}/>
           <input 
             type="text" 
             placeholder="Buscar por Nombre, Email o Centro de Costo..." 
-            className="w-full pl-12 pr-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:ring-4 focus:ring-blue-100 font-bold text-sm"
+            className="w-full pl-12 pr-6 py-4 bg-white border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-blue-100 font-bold text-sm uppercase"
             value={query}
             onChange={e => onQueryChange(e.target.value)}
           />
@@ -112,13 +112,13 @@ const MasterListView = ({
 
       <div className="overflow-x-auto">
         <table className="w-full text-left">
-          <thead className="bg-slate-50/50 text-[9px] font-black uppercase text-slate-400 tracking-[0.2em] border-b">
+          <thead className="bg-slate-50 text-[9px] font-black uppercase text-slate-400 tracking-[0.2em] border-b">
             <tr>
               <th className="px-8 py-5">Identidad / Perfil</th>
               <th className="px-8 py-5">Centro de Costo</th>
               <th className="px-8 py-5">Rol Principal</th>
-              <th className="px-8 py-5 text-center">Estado</th>
-              <th className="px-8 py-5">Acciones</th>
+              <th className="px-8 py-5 text-center">Estado de Acceso</th>
+              <th className="px-8 py-5 text-right">Acciones</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50">
@@ -128,11 +128,6 @@ const MasterListView = ({
                   <div className="flex items-center gap-4">
                     <div className="w-10 h-10 bg-slate-900 text-white rounded-xl flex items-center justify-center font-black text-sm uppercase relative">
                       {u.nombre.charAt(0)}
-                      {u.resetRequested && (
-                        <div className="absolute -top-1 -right-1 bg-rose-600 text-white p-0.5 rounded-full border-2 border-white animate-bounce">
-                          <LucideAlertTriangle size={8}/>
-                        </div>
-                      )}
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
@@ -144,18 +139,17 @@ const MasterListView = ({
                   </div>
                 </td>
                 <td className="px-8 py-6">
-                  <span className="px-3 py-1 bg-white border border-slate-200 text-[10px] font-black uppercase text-slate-600 rounded-lg">{u.costCenter || u.centroCosto?.nombre || 'S/A'}</span>
+                  <span className="px-3 py-1 bg-white border border-slate-200 text-[10px] font-black uppercase text-slate-600 rounded-lg">{u.costCenter || 'PENDIENTE'}</span>
                 </td>
                 <td className="px-8 py-6">
                   <span className="text-[10px] font-black uppercase text-slate-500">{u.role}</span>
                 </td>
                 <td className="px-8 py-6 text-center">
-                  <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border ${
-                    u.estado === 'activo' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 
-                    u.estado === 'bloqueado' ? 'bg-rose-50 text-rose-700 border-rose-100' :
-                    'bg-slate-50 text-slate-600 border-slate-200'
+                   <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border ${
+                    u.approved && u.estado === 'activo' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 
+                    !u.approved ? 'bg-amber-50 text-amber-700 border-amber-100 animate-pulse' : 'bg-rose-50 text-rose-700 border-rose-100'
                   }`}>
-                    {u.estado || 'activo'}
+                    {u.approved && u.estado === 'activo' ? 'Autorizado' : !u.approved ? 'Pendiente' : u.estado}
                   </span>
                 </td>
                 <td className="px-8 py-6 text-right">
@@ -184,7 +178,7 @@ const PermissionsManager: React.FC<{ user: User, onUpdate: (u: User) => void }> 
     { id: 'dashboard', label: 'Dashboard Operativo', icon: LucideLayoutDashboard },
     { id: 'flota', label: 'Gestión de Activos', icon: LucideCar },
     { id: 'inspecciones', label: 'Auditoría de Campo', icon: LucideClipboardCheck },
-    { id: 'documentacion', label: 'Dossier Legal', icon: LucideFileText },
+    { id: 'documentacion', label: 'Legajos Corporativos', icon: LucideFileText },
     { id: 'reportes', label: 'Business Intelligence', icon: LucideZap },
     { id: 'servicios', label: 'Mesa de Servicios', icon: LucideWrench },
     { id: 'usuarios', label: 'Control de Accesos', icon: LucideShield },
@@ -237,7 +231,7 @@ const PermissionsManager: React.FC<{ user: User, onUpdate: (u: User) => void }> 
                 <div className="p-3 bg-blue-600 text-white rounded-xl shadow-lg"><LucideLayers size={20}/></div>
                 <div>
                     <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Configuración Rápida</p>
-                    <h4 className="text-sm font-black text-slate-800 uppercase italic">Aplicar Plantillas de Nivel</h4>
+                    <h4 className="text-sm font-black text-slate-800 uppercase italic">Aplicar Nivel de Seguridad</h4>
                 </div>
             </div>
             <div className="flex gap-3">
@@ -261,11 +255,11 @@ const PermissionsManager: React.FC<{ user: User, onUpdate: (u: User) => void }> 
             <div className="p-8 border-b bg-slate-50 flex items-center justify-between">
                 <div className="flex items-center gap-4">
                     <LucideShieldCheck className="text-blue-600" size={24}/>
-                    <h4 className="text-sm font-black text-slate-800 uppercase italic">Matriz de Acceso Personalizada</h4>
+                    <h4 className="text-sm font-black text-slate-800 uppercase italic">Matriz de Acceso de Kernel</h4>
                 </div>
                 <div className="flex items-center gap-2 px-4 py-1.5 bg-emerald-50 text-emerald-700 rounded-full border border-emerald-100">
                     <LucideVerified size={12}/>
-                    <span className="text-[8px] font-black uppercase tracking-widest">Nivel de Acceso {localUser.level} Activo</span>
+                    <span className="text-[8px] font-black uppercase tracking-widest">Estado Sincronizado</span>
                 </div>
             </div>
             <div className="overflow-x-auto">
@@ -313,7 +307,7 @@ const PermissionsManager: React.FC<{ user: User, onUpdate: (u: User) => void }> 
                     disabled={!isModified}
                     className={`px-12 py-5 rounded-[1.8rem] font-black uppercase text-xs tracking-widest shadow-2xl transition-all transform active:scale-95 flex items-center gap-3 ${isModified ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-slate-200 text-slate-400 cursor-not-allowed grayscale opacity-50'}`}
                 >
-                    <LucideSave size={20}/> Confirmar y Sincronizar Permisos de Kernel
+                    <LucideSave size={20}/> Confirmar Protocolo de Kernel
                 </button>
             </div>
         </div>
@@ -322,7 +316,7 @@ const PermissionsManager: React.FC<{ user: User, onUpdate: (u: User) => void }> 
 };
 
 export const UserManagement = () => {
-  const { registeredUsers, updateUser, deleteUser, addNotification, logAudit, user, impersonate, costCenters, addCostCenter, removeCostCenter } = useApp();
+  const { registeredUsers, updateUser, deleteUser, addNotification, user, impersonate, costCenters } = useApp();
   const [activeTab, setActiveTab] = useState<UserTab>('DASHBOARD');
   const [searchQuery, setSearchQuery] = useState('');
   const [draftUser, setDraftUser] = useState<User | null>(null);
@@ -339,10 +333,9 @@ export const UserManagement = () => {
     const visibleUsers = registeredUsers.filter(u => u.email !== MASTER_EMAIL);
     return {
       total: visibleUsers.length,
-      activos: visibleUsers.filter(u => u.estado === 'activo').length,
-      pendientes: visibleUsers.filter(u => u.estado === 'pendiente' || !u.approved).length,
+      activos: visibleUsers.filter(u => u.estado === 'activo' && u.approved).length,
+      pendientes: visibleUsers.filter(u => !u.approved).length,
       resetRequests: visibleUsers.filter(u => u.resetRequested).length,
-      suspendidos: visibleUsers.filter(u => u.estado === 'suspendido').length,
     };
   }, [registeredUsers]);
 
@@ -350,11 +343,7 @@ export const UserManagement = () => {
     const term = searchQuery.toLowerCase();
     return registeredUsers
       .filter(u => u.email !== MASTER_EMAIL)
-      .filter(u => 
-        u.nombre.toLowerCase().includes(term) || 
-        u.apellido?.toLowerCase().includes(term) ||
-        u.email.toLowerCase().includes(term)
-      );
+      .filter(u => u.nombre.toLowerCase().includes(term) || u.apellido?.toLowerCase().includes(term) || u.email.toLowerCase().includes(term));
   }, [registeredUsers, searchQuery]);
 
   const selectedUserForPerms = useMemo(() => {
@@ -362,8 +351,9 @@ export const UserManagement = () => {
   }, [registeredUsers, selectedUserIdForPerms]);
 
   const handleApproveUser = (target: User) => {
+    // Sincronización forzada para acceso inmediato
     updateUser({ ...target, approved: true, estado: 'activo', resetRequested: false });
-    addNotification(`Usuario ${target.nombre} habilitado`, "success");
+    addNotification(`Usuario ${target.nombre} autorizado con éxito`, "success");
   };
 
   const handleSaveDraft = () => {
@@ -378,38 +368,31 @@ export const UserManagement = () => {
     }
     setPhoneError('');
 
-    const finalUser = { 
+    // Lógica de aprobación forzada al activar
+    const isNowActive = draftUser.estado === 'activo';
+    
+    const finalUser: User = { 
         ...draftUser, 
-        resetRequested: false, 
-        costCenter: draftUser.costCenter,
-        centroCosto: { ...draftUser.centroCosto, nombre: draftUser.costCenter || 'S/A' }
+        approved: isNowActive ? true : draftUser.approved,
+        resetRequested: false,
+        centroCosto: { 
+            id: draftUser.centroCosto?.id || '0', 
+            codigo: draftUser.centroCosto?.codigo || '0', 
+            nombre: draftUser.costCenter || 'PENDIENTE' 
+        }
     };
+    
     updateUser(finalUser);
-    if (draftUser.costCenter) addCostCenter(draftUser.costCenter);
     setShowDetailModal(false);
-    addNotification("Ficha de usuario sincronizada y actualizada", "success");
+    addNotification("Ficha de usuario sincronizada con la nube", "success");
   };
 
-  const handleManualReset = () => {
-    if (!draftUser || !tempPass) return;
-    updateUser({ 
-        ...draftUser, 
-        password: tempPass, 
-        resetRequested: false, 
-        estado: 'activo', 
-        approved: true 
-    });
-    setTempPass('');
-    setShowDetailModal(false);
-    addNotification(`Contraseña de ${draftUser.nombre} blanqueada a: ${tempPass}`, "success");
-  };
-
-  const handleDeleteUser = () => {
+  const handleConfirmDelete = () => {
     if (!draftUser) return;
-    if (confirm(`¿Está seguro de eliminar permanentemente el acceso de ${draftUser.nombre}? Esta acción es irreversible.`)) {
+    if (confirm(`¿ELIMINAR ACCESO DEFINITIVO? Esta acción borrará la identidad de ${draftUser.nombre} de la base de datos Firestore.`)) {
         deleteUser(draftUser.id);
         setShowDetailModal(false);
-        addNotification("Usuario eliminado del sistema", "warning");
+        addNotification("Usuario eliminado de la nube", "warning");
     }
   };
 
@@ -418,22 +401,18 @@ export const UserManagement = () => {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
         <div>
           <h1 className="text-5xl font-black text-slate-900 tracking-tighter uppercase italic leading-none">Gestión de Usuarios</h1>
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-2">Control de Accesos Corporativo</p>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-2">Centro de Control de Identidades Corporativas</p>
         </div>
       </div>
 
       <div className="flex gap-6 border-b border-slate-100 pb-1 overflow-x-auto scrollbar-hide">
          {[
            { id: 'DASHBOARD', label: 'Dashboard', icon: LucideLayoutDashboard },
-           { id: 'DIRECTORY', label: 'Directorio', icon: LucideUsers },
-           { id: 'PENDING', label: 'Pendientes / Alertas', icon: LucideSmartphone, count: stats.pendientes + stats.resetRequests },
+           { id: 'DIRECTORY', label: 'Directorio Maestro', icon: LucideUsers },
+           { id: 'PENDING', label: 'Pendientes', icon: LucideSmartphone, count: stats.pendientes },
            { id: 'PERMISSIONS', label: 'Kernel de Permisos', icon: LucideLockKeyhole },
          ].map(tab => (
-           <button 
-            key={tab.id} 
-            onClick={() => setActiveTab(tab.id as any)}
-            className={`pb-5 px-6 text-[10px] font-black uppercase tracking-widest shrink-0 flex items-center gap-3 border-b-4 transition-all relative ${activeTab === tab.id ? 'border-blue-600 text-slate-800' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
-           >
+           <button key={tab.id} onClick={() => setActiveTab(tab.id as any)} className={`pb-5 px-6 text-[10px] font-black uppercase tracking-widest shrink-0 flex items-center gap-3 border-b-4 transition-all relative ${activeTab === tab.id ? 'border-blue-600 text-slate-800' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>
             <tab.icon size={18}/> {tab.label}
            </button>
          ))}
@@ -441,47 +420,27 @@ export const UserManagement = () => {
 
       <div className="animate-fadeIn">
         {activeTab === 'DASHBOARD' && <DashboardView stats={stats} />}
-        {activeTab === 'DIRECTORY' && (
-            <MasterListView 
-                users={filteredUsers} 
-                query={searchQuery} 
-                onQueryChange={setSearchQuery} 
-                onSelectUser={(u) => { setDraftUser(u); setShowDetailModal(true); setTempPass(''); setPhoneError(''); }} 
-                isMainAdmin={isMainAdmin}
-                onImpersonate={impersonate}
-            />
-        )}
+        {activeTab === 'DIRECTORY' && <MasterListView users={filteredUsers} query={searchQuery} onQueryChange={setSearchQuery} onSelectUser={(u) => { setDraftUser(u); setShowDetailModal(true); setTempPass(''); setPhoneError(''); }} isMainAdmin={isMainAdmin} onImpersonate={impersonate} />}
         {activeTab === 'PENDING' && (
             <div className="space-y-10">
                 <section>
-                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 ml-2">Solicitudes de Alta</h4>
-                    <PendingView 
-                        users={registeredUsers.filter(u => (!u.approved || u.estado === 'pendiente') && !u.resetRequested)} 
-                        onApprove={handleApproveUser} 
-                        onReject={deleteUser} 
-                    />
+                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 ml-2">Solicitudes de Acceso en Espera</h4>
+                    <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden divide-y divide-slate-50">
+                        {registeredUsers.filter(u => !u.approved && u.email !== MASTER_EMAIL).map(u => (
+                          <div key={u.id} className="p-8 flex justify-between items-center hover:bg-slate-50 transition-all">
+                            <div className="flex items-center gap-5">
+                                <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center font-black">{u.nombre.charAt(0)}</div>
+                                <div><p className="font-black text-slate-800 uppercase italic leading-none">{u.nombre} {u.apellido}</p><p className="text-[10px] text-slate-400 font-bold mt-1">{u.email}</p></div>
+                            </div>
+                            <div className="flex gap-2">
+                              <button onClick={() => handleApproveUser(u)} className="p-4 bg-emerald-50 text-emerald-600 rounded-2xl hover:bg-emerald-600 hover:text-white transition-all shadow-sm"><LucideCheck size={20}/></button>
+                              <button onClick={() => { setDraftUser(u); setShowDetailModal(true); }} className="p-4 bg-slate-50 text-slate-400 rounded-2xl hover:bg-slate-900 hover:text-white transition-all"><LucideEye size={20}/></button>
+                            </div>
+                          </div>
+                        ))}
+                        {registeredUsers.filter(u => !u.approved && u.email !== MASTER_EMAIL).length === 0 && <div className="p-20 text-center text-slate-200 font-black uppercase text-[10px] italic tracking-[0.3em]">Bandeja de entrada vacía</div>}
+                    </div>
                 </section>
-                {stats.resetRequests > 0 && (
-                    <section>
-                        <h4 className="text-[10px] font-black text-rose-500 uppercase tracking-widest mb-4 ml-2">⚠️ Solicitudes de Reseteo Crítico</h4>
-                        <div className="bg-rose-50 border border-rose-200 rounded-[2.5rem] divide-y divide-rose-100 overflow-hidden">
-                            {registeredUsers.filter(u => u.resetRequested).map(u => (
-                                <div key={u.id} className="p-8 flex justify-between items-center">
-                                    <div className="flex items-center gap-6">
-                                        <div className="p-4 bg-rose-600 text-white rounded-2xl animate-pulse"><LucideKey size={24}/></div>
-                                        <div>
-                                            <p className="font-black text-rose-900 uppercase italic leading-none">{u.nombre}</p>
-                                            <p className="text-[10px] text-rose-600 font-bold mt-1.5">{u.email}</p>
-                                        </div>
-                                    </div>
-                                    <button onClick={() => { setDraftUser(u); setShowDetailModal(true); setTempPass('Reset2025!'); }} className="px-8 py-3 bg-rose-600 text-white rounded-xl font-black uppercase text-[10px] shadow-lg hover:bg-rose-700 transition-all flex items-center justify-center gap-2">
-                                        <LucideRotateCcw size={14}/> Blanquear Clave
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
-                    </section>
-                )}
             </div>
         )}
         {activeTab === 'PERMISSIONS' && (
@@ -516,8 +475,8 @@ export const UserManagement = () => {
                         ) : (
                             <div className="py-32 text-center bg-white rounded-[4rem] border-2 border-dashed border-slate-100">
                                 <LucideUserCog size={64} className="mx-auto text-slate-100 mb-8"/>
-                                <h4 className="font-black text-slate-300 uppercase italic tracking-tighter text-xl">Ningún Usuario Seleccionado</h4>
-                                <p className="text-slate-200 font-black uppercase text-[9px] tracking-[0.4em] mt-2">Elija una identidad arriba para desplegar su matriz de kernel</p>
+                                <h4 className="font-black text-slate-300 uppercase italic tracking-tighter text-xl">Elija un Usuario</h4>
+                                <p className="text-slate-200 font-black uppercase text-[9px] tracking-[0.4em] mt-2">Seleccione una identidad para desplegar su matriz de kernel</p>
                             </div>
                         )}
                     </div>
@@ -525,7 +484,7 @@ export const UserManagement = () => {
                     <div className="p-32 text-center bg-white rounded-[4rem] border-2 border-dashed border-slate-100 animate-pulse">
                         <LucideLock size={64} className="mx-auto text-slate-100 mb-8"/>
                         <h4 className="font-black text-slate-300 uppercase italic tracking-tighter text-xl">Módulo de Kernel Restringido</h4>
-                        <p className="text-slate-200 font-black uppercase text-[9px] tracking-[0.4em] mt-2">Sólo el administrador principal posee privilegios de nivel 1</p>
+                        <p className="text-slate-200 font-black uppercase text-[9px] tracking-[0.4em] mt-2">Acceso exclusivo para administradores de Nivel 1</p>
                     </div>
                 )}
             </div>
@@ -534,114 +493,73 @@ export const UserManagement = () => {
 
       {showDetailModal && draftUser && (
         <div className="fixed inset-0 z-[2000] bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4">
-            <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-2xl overflow-hidden animate-fadeIn flex flex-col border-t-[12px] border-blue-600">
+            <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-2xl overflow-hidden animate-fadeIn border-t-[12px] border-blue-600 flex flex-col max-h-[90vh]">
                 <div className="bg-slate-950 p-8 text-white flex justify-between items-center shrink-0">
                     <div className="flex items-center gap-5">
-                        <div className="w-16 h-16 bg-blue-600 rounded-[1.5rem] flex items-center justify-center shadow-xl"><LucideUserCog size={32}/></div>
+                        <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center shadow-xl"><LucideUserCog size={32}/></div>
                         <div>
                             <h3 className="text-xl font-black uppercase italic tracking-tighter leading-none">{draftUser.nombre} {draftUser.apellido}</h3>
                             <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mt-2">{draftUser.email}</p>
                         </div>
                     </div>
-                    <button onClick={() => setShowDetailModal(false)} className="text-white hover:text-rose-500 transition-colors p-2"><LucideX/></button>
+                    <button onClick={() => setShowDetailModal(false)} className="text-white hover:text-rose-500 transition-colors p-2"><LucideX size={24}/></button>
                 </div>
                 
-                <div className="p-10 space-y-8 overflow-y-auto max-h-[70vh] custom-scrollbar">
-                    {draftUser.resetRequested ? (
-                        <div className="bg-rose-50 p-8 rounded-[2.5rem] border border-rose-200 space-y-6">
-                            <div className="flex items-center gap-4 text-rose-700">
-                                <LucideShieldAlert size={40}/>
-                                <div><p className="font-black uppercase text-sm">Protocolo de Reseteo Activo</p><p className="text-[10px] font-bold opacity-70 leading-relaxed">El usuario declaró pérdida de credenciales. Se requiere asignación de clave temporal.</p></div>
+                <div className="p-10 space-y-8 overflow-y-auto custom-scrollbar">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div className="space-y-4">
+                            <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-2 flex items-center gap-2"><LucideFingerprint size={14} className="text-blue-500"/> Identidad Maestro</h5>
+                            <div className="space-y-4">
+                                <input className="w-full p-4 bg-slate-50 border rounded-xl font-bold text-xs uppercase" value={draftUser.nombre} onChange={e => setDraftUser({...draftUser, nombre: e.target.value.toUpperCase()})} placeholder="Nombre" />
+                                <input className="w-full p-4 bg-slate-50 border rounded-xl font-bold text-xs uppercase" value={draftUser.apellido || ''} onChange={e => setDraftUser({...draftUser, apellido: e.target.value.toUpperCase()})} placeholder="Apellido" />
+                                <div className="space-y-1">
+                                    <input className={`w-full p-4 border rounded-xl font-bold text-xs ${phoneError ? 'bg-rose-50 border-rose-500' : 'bg-slate-50 border-slate-100'}`} value={draftUser.telefono || ''} onChange={e => setDraftUser({...draftUser, telefono: e.target.value})} placeholder="Teléfono" />
+                                    {phoneError && <p className="text-[8px] font-black text-rose-500 ml-4 uppercase">{phoneError}</p>}
+                                </div>
                             </div>
-                            <div className="space-y-2">
-                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-4">Nueva Clave Temporal</label>
-                                <input 
-                                    className="w-full px-6 py-4 bg-white border-2 border-rose-200 rounded-2xl font-black text-xl text-rose-600 outline-none shadow-inner"
-                                    value={tempPass}
-                                    onChange={e => setTempPass(e.target.value)}
-                                    placeholder="ClaveTemporal123!"
-                                />
-                            </div>
-                            <button onClick={handleManualReset} disabled={!tempPass} className="w-full py-5 bg-rose-600 text-white rounded-2xl font-black uppercase text-xs shadow-xl hover:bg-rose-700 disabled:opacity-30 flex items-center justify-center gap-3">
-                                <LucideRotateCcw size={18}/> Blanquear y Habilitar Acceso
-                            </button>
                         </div>
-                    ) : (
-                        <>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                <div className="space-y-6">
-                                    <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 border-b pb-2"><LucideFingerprint size={14} className="text-blue-600"/> Identidad Maestro</h5>
-                                    <div className="space-y-4">
-                                        <div className="space-y-1">
-                                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-4">Nombre</p>
-                                            <input className="w-full p-4 bg-slate-50 border border-slate-100 rounded-xl font-bold text-xs outline-none focus:bg-white focus:border-blue-500 uppercase" value={draftUser.nombre} onChange={e => setDraftUser({...draftUser, nombre: e.target.value.toUpperCase()})} />
+                        <div className="space-y-4">
+                            <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-2 flex items-center gap-2"><LucideActivity size={14} className="text-emerald-500"/> Estatus Cloud</h5>
+                            <div className="space-y-4">
+                                <select className={`w-full p-4 rounded-xl font-black uppercase text-xs border transition-all ${draftUser.estado === 'activo' ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`} value={draftUser.estado} onChange={e => setDraftUser({...draftUser, estado: e.target.value as UserStatus})}>
+                                    <option value="activo">ACTIVO (HABILITAR)</option>
+                                    <option value="inactivo">INACTIVO</option>
+                                    <option value="bloqueado">BLOQUEADO</option>
+                                    <option value="pendiente">PENDIENTE</option>
+                                </select>
+                                <select className="w-full p-4 bg-slate-50 border rounded-xl font-black uppercase text-xs" value={draftUser.role} onChange={e => setDraftUser({...draftUser, role: e.target.value as UserRole})}>
+                                    {Object.values(UserRole).map(r => <option key={r} value={r}>{r}</option>)}
+                                </select>
+                                <div className="relative">
+                                    <input 
+                                        className="w-full p-4 bg-slate-50 border border-slate-100 rounded-xl font-bold uppercase text-xs outline-none focus:bg-white focus:border-blue-500"
+                                        value={draftUser.costCenter || ''}
+                                        placeholder="Centro de Costo"
+                                        onChange={e => setDraftUser({...draftUser, costCenter: e.target.value.toUpperCase()})}
+                                        onFocus={() => setShowCCDropdown(true)}
+                                        onBlur={() => setTimeout(() => setShowCCDropdown(false), 200)}
+                                    />
+                                    {showCCDropdown && costCenters.length > 0 && (
+                                        <div className="absolute z-[2100] w-full mt-2 bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden animate-fadeIn max-h-40 overflow-y-auto">
+                                            {costCenters.map((cc) => (
+                                                <div key={cc} className="p-3 hover:bg-blue-50 cursor-pointer text-[9px] font-black uppercase text-slate-700" onClick={() => setDraftUser({...draftUser, costCenter: cc})}>
+                                                    {cc}
+                                                </div>
+                                            ))}
                                         </div>
-                                        <div className="space-y-1">
-                                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-4">Apellido</p>
-                                            <input className="w-full p-4 bg-slate-50 border border-slate-100 rounded-xl font-bold text-xs outline-none focus:bg-white focus:border-blue-500 uppercase" value={draftUser.apellido || ''} onChange={e => setDraftUser({...draftUser, apellido: e.target.value.toUpperCase()})} />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-4">Teléfono de Contacto</p>
-                                            <input className={`w-full p-4 border rounded-xl font-bold text-xs outline-none transition-all ${phoneError ? 'bg-rose-50 border-rose-500' : 'bg-slate-50 border-slate-100 focus:bg-white focus:border-blue-500'}`} value={draftUser.telefono || ''} onChange={e => setDraftUser({...draftUser, telefono: e.target.value})} />
-                                            {phoneError && <p className="text-[8px] font-black text-rose-500 ml-4 uppercase">{phoneError}</p>}
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="space-y-6">
-                                    <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 border-b pb-2"><LucideActivity size={14} className="text-emerald-500"/> Estatus y Rol</h5>
-                                    <div className="space-y-4">
-                                        <div className="space-y-1">
-                                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-4">Estado Operativo</p>
-                                            <select className={`w-full p-4 rounded-xl font-black uppercase text-xs outline-none border transition-all ${draftUser.estado === 'activo' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-rose-50 border-rose-200 text-rose-700'}`} value={draftUser.estado} onChange={e => setDraftUser({...draftUser, estado: e.target.value as UserStatus})}>
-                                                <option value="activo">ACTIVO (ACCESO TOTAL)</option>
-                                                <option value="inactivo">INACTIVO</option>
-                                                <option value="bloqueado">BLOQUEADO (INCUMPLIMIENTO)</option>
-                                                <option value="suspendido">SUSPENDIDO TEMPORAL</option>
-                                            </select>
-                                        </div>
-                                        <div className="space-y-1">
-                                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-4">Rol Asignado</p>
-                                            <select className="w-full p-4 bg-slate-50 border border-slate-100 rounded-xl font-black uppercase text-xs outline-none focus:bg-white focus:border-blue-500" value={draftUser.role} onChange={e => setDraftUser({...draftUser, role: e.target.value as UserRole})}>
-                                                {Object.values(UserRole).map(r => <option key={r} value={r}>{r}</option>)}
-                                            </select>
-                                        </div>
-                                        <div className="space-y-1 relative">
-                                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-4">Centro de Costo</p>
-                                            <div className="relative">
-                                                <input 
-                                                    type="text"
-                                                    className="w-full p-4 bg-slate-50 border border-slate-100 rounded-xl font-bold uppercase text-xs outline-none focus:bg-white focus:border-blue-500"
-                                                    value={draftUser.costCenter || ''}
-                                                    placeholder="Escribir o seleccionar..."
-                                                    onChange={e => setDraftUser({...draftUser, costCenter: e.target.value.toUpperCase()})}
-                                                    onFocus={() => setShowCCDropdown(true)}
-                                                    onBlur={() => setTimeout(() => setShowCCDropdown(false), 200)}
-                                                />
-                                                {showCCDropdown && costCenters.length > 0 && (
-                                                    <div className="absolute z-[2100] w-full mt-2 bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden animate-fadeIn max-h-40 overflow-y-auto">
-                                                        {costCenters.map((cc) => (
-                                                            <div key={cc} className="flex items-center justify-between p-3 hover:bg-blue-50 cursor-pointer" onClick={() => setDraftUser({...draftUser, costCenter: cc})}>
-                                                                <span className="text-[9px] font-black uppercase text-slate-700">{cc}</span>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
+                                    )}
                                 </div>
                             </div>
+                        </div>
+                    </div>
+                </div>
 
-                            <div className="pt-8 border-t border-slate-100 flex flex-col gap-4">
-                                <button onClick={handleSaveDraft} className="w-full py-5 bg-slate-900 text-white rounded-[1.8rem] font-black uppercase text-xs shadow-2xl hover:bg-blue-600 transition-all flex items-center justify-center gap-3">
-                                    <LucideSave size={20}/> Sincronizar Ficha Maestro
-                                </button>
-                                <button onClick={handleDeleteUser} className="w-full py-4 text-rose-600 font-black uppercase text-[10px] flex items-center justify-center gap-2 hover:bg-rose-50 rounded-xl transition-all border border-transparent hover:border-rose-100">
-                                    <LucideTrash2 size={16}/> Eliminar Acceso Permanentemente
-                                </button>
-                            </div>
-                        </>
+                <div className="p-8 bg-slate-50 border-t flex flex-col gap-4 shrink-0">
+                    <button onClick={handleSaveDraft} className="w-full py-5 bg-slate-900 text-white rounded-[1.8rem] font-black uppercase text-xs shadow-2xl hover:bg-blue-600 transition-all flex items-center justify-center gap-3 active:scale-95"><LucideSave size={20}/> Sincronizar Ficha Maestro</button>
+                    {isMainAdmin && (
+                        <button onClick={handleConfirmDelete} className="w-full py-4 text-rose-600 font-black uppercase text-[10px] flex items-center justify-center gap-2 hover:bg-rose-50 rounded-xl transition-all border border-transparent hover:border-rose-100">
+                            <LucideTrash2 size={16}/> Eliminar Acceso Permanentemente
+                        </button>
                     )}
                 </div>
             </div>
@@ -650,32 +568,3 @@ export const UserManagement = () => {
     </div>
   );
 };
-
-const PendingView = ({ users, onApprove, onReject }: { users: User[], onApprove: (u: User) => void, onReject: (id: string) => void }) => (
-  <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden divide-y divide-slate-50">
-    {users.map(u => (
-      <div key={u.id} className="p-8 flex justify-between items-center group hover:bg-slate-50 transition-all">
-        <div className="flex items-center gap-5">
-            <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center font-black">{u.nombre.charAt(0)}</div>
-            <div>
-                <p className="font-black text-slate-800 uppercase italic leading-none">{u.nombre} {u.apellido}</p>
-                <p className="text-[10px] text-slate-400 font-bold mt-1">{u.email}</p>
-            </div>
-        </div>
-        <div className="flex gap-2">
-          <button onClick={() => onApprove(u)} className="p-4 bg-emerald-50 text-emerald-600 rounded-2xl hover:bg-emerald-600 hover:text-white transition-all shadow-sm"><LucideCheck size={20}/></button>
-          <button onClick={() => onReject(u.id)} className="p-4 bg-rose-50 text-rose-600 rounded-2xl hover:bg-rose-600 hover:text-white transition-all shadow-sm"><LucideTrash2 size={20}/></button>
-        </div>
-      </div>
-    ))}
-    {users.length === 0 && <div className="p-20 text-center text-slate-200 font-black uppercase text-[10px] italic tracking-[0.3em] flex flex-col items-center gap-4"><LucideCheckCircle size={40} className="opacity-20"/> Sin solicitudes pendientes</div>}
-  </div>
-);
-
-const PermissionsView = () => (
-    <div className="p-32 text-center bg-white rounded-[4rem] border-2 border-dashed border-slate-100 animate-pulse">
-        <LucideLock size={64} className="mx-auto text-slate-100 mb-8"/>
-        <h4 className="font-black text-slate-300 uppercase italic tracking-tighter text-xl">Módulo de Kernel Restringido</h4>
-        <p className="text-slate-200 font-black uppercase text-[9px] tracking-[0.4em] mt-2">Permisos de grano fino disponibles en la próxima versión</p>
-    </div>
-);

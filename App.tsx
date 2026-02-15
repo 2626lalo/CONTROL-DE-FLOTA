@@ -1,7 +1,6 @@
-
 import React from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { FleetProvider, useApp } from './context/FleetContext';
+import { FleetProvider } from './context/FleetContext';
 import { FirebaseProvider, useFirebase } from './context/FirebaseContext';
 import { Layout } from './components/Layout';
 import { Dashboard } from './components/Dashboard';
@@ -19,18 +18,29 @@ import { BienesDeUso } from './components/BienesDeUso';
 import { LucideLoader } from 'lucide-react';
 
 const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user: fleetUser, isDataLoading } = useApp();
-  const { user: firebaseUser, loading: firebaseLoading } = useFirebase();
+  const { user: firebaseUser, userData, loading: firebaseLoading } = useFirebase();
+  const MASTER_ADMIN = 'alewilczek@gmail.com';
 
-  if (isDataLoading || firebaseLoading) return (
+  if (firebaseLoading) return (
     <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center gap-4">
       <LucideLoader className="text-blue-500 animate-spin" size={40}/>
-      <p className="text-blue-500 text-[10px] font-black uppercase tracking-widest">Sincronizando con la Nube...</p>
+      <p className="text-blue-500 text-[10px] font-black uppercase tracking-widest italic">Protocolos de Seguridad...</p>
     </div>
   );
 
-  // Consider authenticated if either mocked user or firebase user exists
-  if (!fleetUser && !firebaseUser) return <LoginScreen />;
+  // 1. Sin sesión Firebase
+  if (!firebaseUser) return <LoginScreen />;
+
+  const isMaster = firebaseUser.email === MASTER_ADMIN;
+  
+  // 2. Validación de Estado Cloud (Solo permite ACTIVO y APPROVED, excepto al Master)
+  const isApproved = userData?.approved === true;
+  const isActive = userData?.estado === 'activo';
+
+  if (!isMaster && (!isApproved || !isActive)) {
+    return <LoginScreen />;
+  }
+
   return <Layout>{children}</Layout>;
 };
 
