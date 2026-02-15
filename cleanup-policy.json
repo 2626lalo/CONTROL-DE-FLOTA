@@ -1,0 +1,11 @@
+[
+  {
+    "name": "keep-recent",
+    "action": "KEEP",
+    "condition": {
+      "olderThan": "30d",
+      "tagState": "ANY"
+    },
+    "keepMostRecentVersions": 3
+  }
+]
