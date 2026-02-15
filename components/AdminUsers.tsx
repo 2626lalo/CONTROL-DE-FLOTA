@@ -15,7 +15,7 @@ import { databaseService } from '../services/databaseService';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale/es';
 import { db, storage } from '../firebaseConfig';
-import { collection, getDocs, doc, updateDoc, writeBatch, setDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, updateDoc, writeBatch, setDoc, getDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 export const AdminUsers = () => {
@@ -42,6 +42,20 @@ export const AdminUsers = () => {
             }
         };
         fetchUsers();
+    }, []);
+
+    useEffect(() => {
+        const fetchMasterImage = async () => {
+          try {
+            const configDoc = await getDoc(doc(db, 'config', 'app'));
+            if (configDoc.exists()) {
+              setMasterFindingsImage(configDoc.data().masterFindingsImage);
+            }
+          } catch (e) {
+            console.error("Error al cargar imagen maestra desde config:", e);
+          }
+        };
+        fetchMasterImage();
     }, []);
 
     const handleApproval = async (userId: string, approved: boolean) => {

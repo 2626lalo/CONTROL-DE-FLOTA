@@ -25,9 +25,8 @@ export const LoginScreen = () => {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setIsPendingLogin(false);
     setLoading(true);
-
+    
     try {
       console.log('1️⃣ Intentando login con:', email);
       const userCredential = await signIn(email, password);
@@ -39,7 +38,7 @@ export const LoginScreen = () => {
       if (!userDoc.exists()) {
         console.log('4️⃣ Usuario no existe en Firestore');
         await logout();
-        setError('Usuario no registrado en el sistema');
+        setError('Usuario no registrado en el sistema. Contacta al administrador.');
         setLoading(false);
         return;
       }
@@ -50,21 +49,17 @@ export const LoginScreen = () => {
       if (!userData || !userData.approved) {
         console.log('6️⃣ Usuario NO aprobado, cerrando sesión');
         await logout();
-        setError('Tu cuenta está pendiente de aprobación por el administrador.');
+        setError('⏳ Tu cuenta está pendiente de aprobación por el administrador. Recibirás un email cuando sea habilitada.');
         setLoading(false);
-        throw new Error('Usuario no aprobado'); // ← Forzar detener ejecución
+        return; // ← DETIENE TODO, NO REDIRIGE
       }
       
       console.log('7️⃣ Usuario aprobado, redirigiendo...');
-      // Redirigimos al root ya que App.tsx maneja el dashboard ahí
       navigate('/');
       
     } catch (error: any) {
       console.error('🔥 Error en login:', error.code, error.message);
-      // No sobrescribimos el error si ya fue seteado por el flujo de aprobación
-      if (!error.message?.includes('aprobación')) {
-        setError(error.message || 'Credenciales incorrectas');
-      }
+      setError(error.message || 'Credenciales incorrectas');
     } finally {
       setLoading(false);
     }

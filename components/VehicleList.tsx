@@ -43,7 +43,7 @@ export const VehicleList = () => {
     };
 
     if (!user) {
-      console.log('⏳ No hay usuario, no se cargan vehículos');
+      console.log('⏳ No hay usuario autenticado, no se cargan vehículos');
       return;
     }
     
@@ -85,7 +85,7 @@ export const VehicleList = () => {
       <ConfirmationModal 
         isOpen={!!plateToDelete}
         title="Confirmar Eliminación"
-        message={`¿Está seguro de que desea eliminar permanentemente la unidad ${plateToDelete}? Esta acción borrará todos sus documentos, historial y fotos.`}
+        message={`¿Está seguro de que desea eliminar permanentemente la unidad ${plateToDelete}? Esta acción borrara todos sus documentos, historial y fotos.`}
         onConfirm={handleDeleteConfirm}
         onClose={() => setPlateToDelete(null)}
         isDanger={true}
