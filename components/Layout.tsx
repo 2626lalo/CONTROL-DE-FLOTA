@@ -7,7 +7,7 @@ import {
   LucideBarChart3, LucideSearch, LucideFileText,
   LucideShieldCheck, LucideGhost, LucideChevronDown, LucideXCircle, LucideUserCircle,
   LucideWrench, LucideMenu, LucideX, LucideWarehouse, LucidePieChart, LucideFlaskConical,
-  LucideZap, LucideActivity
+  LucideZap, LucideActivity, LucideUserCheck
 } from 'lucide-react';
 import { useApp } from '../context/FleetContext';
 import { useFirebase } from '../context/FirebaseContext';
@@ -59,6 +59,16 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
 
   if (canSeeBienes) {
     navItems.push({ to: '/bienes-de-uso', icon: LucideWarehouse, label: 'Bienes de Uso' });
+  }
+
+  // CONDUCTORES Y CHECKLISTS (Control de Roles)
+  const isAdmin = user?.role === UserRole.ADMIN || user?.role === UserRole.SUPERVISOR;
+  const isConductor = (user as any)?.role === 'CONDUCTOR' || user?.role === UserRole.USER;
+
+  if (isAdmin) {
+    navItems.push({ to: '/conductores', icon: LucideUserCheck, label: 'Conductores' });
+  } else if (isConductor) {
+    navItems.push({ to: '/conductores', icon: LucideClipboardCheck, label: 'Mi Checklist' });
   }
 
   navItems.push(
