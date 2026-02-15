@@ -21,6 +21,7 @@ import { MesaControlExperimental } from './components/experimental/MesaControlEx
 import { ReportesExperimental } from './components/experimental/reportes/ReportesExperimental';
 import { MantenimientoPredictivo } from './components/experimental/mantenimiento/MantenimientoPredictivo';
 import { ConductoresExperimental } from './components/experimental/conductores/ConductoresExperimental';
+import { MapaFlotaExperimental } from './components/experimental/geolocalizacion/MapaFlotaExperimental';
 import { LucideLoader } from 'lucide-react';
 
 const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -71,6 +72,7 @@ export default function App() {
               <Route path="/reportes-experimental" element={<ReportesExperimental />} />
               <Route path="/mantenimiento-predictivo" element={<MantenimientoPredictivo />} />
               <Route path="/conductores" element={<ConductoresExperimental />} />
+              <Route path="/mapa-flota" element={<MapaFlotaExperimental />} />
               <Route path="/test-sector" element={<TestSector />} />
               <Route path="/mesa-experimental" element={<MesaControlExperimental />} />
               <Route path="*" element={<Navigate to="/" />}  />

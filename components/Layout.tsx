@@ -7,7 +7,7 @@ import {
   LucideBarChart3, LucideSearch, LucideFileText,
   LucideShieldCheck, LucideGhost, LucideChevronDown, LucideXCircle, LucideUserCircle,
   LucideWrench, LucideMenu, LucideX, LucideWarehouse, LucidePieChart, LucideFlaskConical,
-  LucideZap, LucideActivity, LucideUserCheck
+  LucideZap, LucideActivity, LucideUserCheck, LucideMap
 } from 'lucide-react';
 import { useApp } from '../context/FleetContext';
 import { useFirebase } from '../context/FirebaseContext';
@@ -55,6 +55,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   const navItems = [
     { to: '/', icon: LucideLayoutDashboard, label: 'Dashboard' },
     { to: '/vehicles', icon: LucideCar, label: 'Flota' },
+    { to: '/mapa-flota', icon: LucideMap, label: 'Geolocalización' },
   ];
 
   if (canSeeBienes) {
