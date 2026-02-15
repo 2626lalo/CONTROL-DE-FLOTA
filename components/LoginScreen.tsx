@@ -51,9 +51,8 @@ export const LoginScreen = () => {
         console.log('6️⃣ Usuario NO aprobado, cerrando sesión');
         await logout();
         setError('Tu cuenta está pendiente de aprobación por el administrador.');
-        setIsPendingLogin(true);
         setLoading(false);
-        return;
+        throw new Error('Usuario no aprobado'); // ← Forzar detener ejecución
       }
       
       console.log('7️⃣ Usuario aprobado, redirigiendo...');
@@ -62,7 +61,10 @@ export const LoginScreen = () => {
       
     } catch (error: any) {
       console.error('🔥 Error en login:', error.code, error.message);
-      setError(error.message || 'Credenciales incorrectas');
+      // No sobrescribimos el error si ya fue seteado por el flujo de aprobación
+      if (!error.message?.includes('aprobación')) {
+        setError(error.message || 'Credenciales incorrectas');
+      }
     } finally {
       setLoading(false);
     }
@@ -137,11 +139,11 @@ export const LoginScreen = () => {
 
         <div className="p-8 md:p-10 space-y-6">
           {error && (
-            <div className={`p-4 rounded-2xl text-xs font-bold flex items-center gap-3 animate-fadeIn border ${isPendingLogin ? 'bg-amber-50 border-amber-200 text-amber-700 shadow-amber-100 shadow-lg' : 'bg-rose-50 border-rose-100 text-rose-600'}`}>
-              {isPendingLogin ? <LucideClock size={24} className="shrink-0 animate-pulse text-amber-600"/> : <LucideShieldAlert size={20} className="shrink-0"/>}
+            <div className={`p-4 rounded-2xl text-xs font-bold flex items-center gap-3 animate-fadeIn border ${error.includes('aprobación') ? 'bg-amber-50 border-amber-200 text-amber-700 shadow-amber-100 shadow-lg' : 'bg-rose-50 border-rose-100 text-rose-600'}`}>
+              {error.includes('aprobación') ? <LucideClock size={24} className="shrink-0 animate-pulse text-amber-600"/> : <LucideShieldAlert size={20} className="shrink-0"/>}
               <div className="flex-1">
                 {error}
-                {isPendingLogin && (
+                {error.includes('aprobación') && (
                     <p className="mt-1 text-[9px] font-black opacity-60 uppercase italic tracking-widest border-t border-amber-200 pt-1">
                         Estatus: Pendiente de Aprobación
                     </p>

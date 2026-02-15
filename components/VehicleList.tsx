@@ -41,8 +41,14 @@ export const VehicleList = () => {
         setLoading(false);
       }
     };
+
+    if (!user) {
+      console.log('⏳ No hay usuario, no se cargan vehículos');
+      return;
+    }
+    
     fetchVehicles();
-  }, []);
+  }, [user]);
 
   const isAdmin = user?.role === UserRole.ADMIN;
   const costCenters = Array.from(new Set(vehicles.map(v => v.costCenter).filter(Boolean)));
