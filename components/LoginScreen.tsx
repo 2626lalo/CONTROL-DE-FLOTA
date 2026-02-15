@@ -29,31 +29,40 @@ export const LoginScreen = () => {
     setLoading(true);
 
     try {
+      console.log('1️⃣ Intentando login con:', email);
       const userCredential = await signIn(email, password);
-      const user = userCredential.user;
+      console.log('2️⃣ Login exitoso, UID:', userCredential.user.uid);
       
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
-      const userData = userDoc.data();
+      console.log('3️⃣ Buscando documento en Firestore...');
+      const userDoc = await getDoc(doc(db, 'users', userCredential.user.uid));
       
-      if (!userData || !userData.approved) {
+      if (!userDoc.exists()) {
+        console.log('4️⃣ Usuario no existe en Firestore');
         await logout();
-        setError('Tu cuenta está pendiente de aprobación por el administrador.');
+        setError('Usuario no registrado en el sistema');
         setLoading(false);
         return;
       }
-
-      navigate('/');
-    } catch (fbErr: any) {
-      // Fallback a login local si falló Firebase o credenciales incorrectas
-      const res = await fleetLogin(email, password);
-      if (res.success) {
-        navigate('/');
-      } else {
-        if (res.message?.toLowerCase().includes('procesada') || res.message?.toLowerCase().includes('aguarde')) {
-            setIsPendingLogin(true);
-        }
-        setError(fbErr.message || res.message || 'Credenciales incorrectas');
+      
+      const userData = userDoc.data();
+      console.log('5️⃣ Datos de usuario:', userData);
+      
+      if (!userData || !userData.approved) {
+        console.log('6️⃣ Usuario NO aprobado, cerrando sesión');
+        await logout();
+        setError('Tu cuenta está pendiente de aprobación por el administrador.');
+        setIsPendingLogin(true);
+        setLoading(false);
+        return;
       }
+      
+      console.log('7️⃣ Usuario aprobado, redirigiendo...');
+      // Redirigimos al root ya que App.tsx maneja el dashboard ahí
+      navigate('/');
+      
+    } catch (error: any) {
+      console.error('🔥 Error en login:', error.code, error.message);
+      setError(error.message || 'Credenciales incorrectas');
     } finally {
       setLoading(false);
     }
