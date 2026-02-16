@@ -1,89 +1,94 @@
-
 import React from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { FleetProvider } from './context/FleetContext';
 import { FirebaseProvider, useFirebase } from './context/FirebaseContext';
 import { Layout } from './components/Layout';
 import { Dashboard } from './components/Dashboard';
+import { DashboardExperimental } from './components/experimental/DashboardExperimental';
 import { VehicleList } from './components/VehicleList';
-import { VehicleForm } from './components/VehicleForm';
 import { VehicleDetail } from './components/VehicleDetail';
+import { VehicleForm } from './components/VehicleForm';
 import { Checklist } from './components/Checklist';
-import { AdminUsers } from './components/AdminUsers';
-import { Reports } from './components/Reports';
 import { DocumentationManager } from './components/DocumentationManager';
-import { LoginScreen } from './components/LoginScreen';
-import { TestSector } from './components/TestSector';
-import { UserManagement } from './components/UserManagement';
-import { BienesDeUso } from './components/BienesDeUso';
-import { DashboardAdmin } from './components/DashboardAdmin';
-import { MesaControlExperimental } from './components/experimental/MesaControlExperimental';
-import { ReportesExperimental } from './components/experimental/reportes/ReportesExperimental';
+import { Reports } from './components/Reports';
 import { MantenimientoPredictivo } from './components/experimental/mantenimiento/MantenimientoPredictivo';
-import { ConductoresExperimental } from './components/experimental/conductores/ConductoresExperimental';
+import { ReportesExperimental } from './components/experimental/reportes/ReportesExperimental';
+import { TestSector } from './components/TestSector';
+import { MesaControlExperimental } from './components/experimental/MesaControlExperimental';
+import { DashboardAdmin } from './components/DashboardAdmin';
+import { UserManagement } from './components/UserManagement';
+import { AdminUsers } from './components/AdminUsers';
+import { LoginScreen } from './components/LoginScreen';
+import { BienesDeUso } from './components/BienesDeUso';
 import { MapaFlotaExperimental } from './components/experimental/geolocalizacion/MapaFlotaExperimental';
 import { OptimizadorRutas } from './components/experimental/rutas/OptimizadorRutas';
-import { DashboardExperimental } from './components/experimental/DashboardExperimental';
-import { LucideLoader } from 'lucide-react';
+import { ConductoresExperimental } from './components/experimental/conductores/ConductoresExperimental';
+import { UpdateNotification } from './components/UpdateNotification';
+import { NotificationHandler } from './components/NotificationHandler';
 
-const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user: firebaseUser, userData, loading: firebaseLoading } = useFirebase();
-  const MASTER_ADMIN = 'alewilczek@gmail.com';
+// FIX: Added AppContent component to handle authentication state and centralized routing logic.
+const AppContent = () => {
+  const { user, loading } = useFirebase();
 
-  if (firebaseLoading) return (
-    <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center gap-4">
-      <LucideLoader className="text-blue-500 animate-spin" size={40}/>
-      <p className="text-blue-500 text-[10px] font-black uppercase tracking-widest italic">Protocolos de Seguridad...</p>
-    </div>
-  );
-
-  if (!firebaseUser) return <LoginScreen />;
-
-  const isMaster = firebaseUser.email === MASTER_ADMIN;
-  
-  // Validación de Estado Cloud (Solo permite ACTIVO y APPROVED, excepto al Master)
-  const isApproved = userData?.approved === true;
-  const isActive = userData?.estado === 'activo';
-
-  if (!isMaster && (!isApproved || !isActive)) {
-    return <LoginScreen />;
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+    );
   }
 
-  return <Layout>{children}</Layout>;
+  if (!user) {
+    return (
+      <Routes>
+        <Route path="/login" element={<LoginScreen />} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
+    );
+  }
+
+  return (
+    <Layout>
+      <NotificationHandler />
+      <UpdateNotification />
+      <Routes>
+        <Route path="/" element={<Dashboard />} />
+        <Route path="/dashboard-pro" element={<DashboardExperimental />} />
+        <Route path="/vehicles" element={<VehicleList />} />
+        <Route path="/vehicles/new" element={<VehicleForm />} />
+        <Route path="/vehicles/:plate/edit" element={<VehicleForm />} />
+        <Route path="/vehicles/detail/:plate" element={<VehicleDetail />} />
+        <Route path="/checklist" element={<Checklist />} />
+        <Route path="/documentation" element={<DocumentationManager />} />
+        <Route path="/reports" element={<Reports />} />
+        <Route path="/mantenimiento-predictivo" element={<MantenimientoPredictivo />} />
+        <Route path="/reportes-experimental" element={<ReportesExperimental />} />
+        <Route path="/test-sector" element={<TestSector />} />
+        <Route path="/mesa-experimental" element={<MesaControlExperimental />} />
+        <Route path="/admin/dashboard" element={<DashboardAdmin />} />
+        <Route path="/users-management" element={<UserManagement />} />
+        <Route path="/users" element={<AdminUsers />} />
+        <Route path="/bienes-de-uso" element={<BienesDeUso />} />
+        <Route path="/mapa-flota" element={<MapaFlotaExperimental />} />
+        <Route path="/optimizador-rutas" element={<OptimizadorRutas />} />
+        <Route path="/conductores" element={<ConductoresExperimental />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </Layout>
+  );
 };
 
-export default function App() {
+// FIX: Defined the main App component and added the required default export to resolve errors in index.tsx and main.tsx.
+const App = () => {
   return (
     <FirebaseProvider>
       <FleetProvider>
         <HashRouter>
-          <AuthGuard>
-            <Routes>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/dashboard-pro" element={<DashboardExperimental />} />
-              <Route path="/vehicles" element={<VehicleList />} />
-              <Route path="/vehicles/new" element={<VehicleForm />} />
-              <Route path="/vehicles/detail/:plate" element={<VehicleDetail />} />
-              <Route path="/vehicles/:plate/edit" element={<VehicleForm />} />
-              <Route path="/bienes-de-uso" element={<BienesDeUso />} />
-              <Route path="/checklist" element={<Checklist />} />
-              <Route path="/documentation" element={<DocumentationManager />} />
-              <Route path="/users" element={<AdminUsers />} />
-              <Route path="/users-management" element={<UserManagement />} />
-              <Route path="/admin/dashboard" element={<DashboardAdmin />} />
-              <Route path="/reports" element={<Reports />} />
-              <Route path="/reportes-experimental" element={<ReportesExperimental />} />
-              <Route path="/mantenimiento-predictivo" element={<MantenimientoPredictivo />} />
-              <Route path="/conductores" element={<ConductoresExperimental />} />
-              <Route path="/mapa-flota" element={<MapaFlotaExperimental />} />
-              <Route path="/optimizador-rutas" element={<OptimizadorRutas />} />
-              <Route path="/test-sector" element={<TestSector />} />
-              <Route path="/mesa-experimental" element={<MesaControlExperimental />} />
-              <Route path="*" element={<Navigate to="/" />}  />
-            </Routes>
-          </AuthGuard>
+          <AppContent />
         </HashRouter>
       </FleetProvider>
     </FirebaseProvider>
   );
-}
+};
+
+export default App;

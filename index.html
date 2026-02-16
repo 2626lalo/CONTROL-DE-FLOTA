@@ -4,6 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gestión de Flota Corporativa Pro | Control Total</title>
+    
+    <!-- PWA Meta Tags -->
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#3b82f6" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="FlotaPro" />
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/192/192162.png" />
+
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&display=swap" rel="stylesheet">
     <script type="importmap">
@@ -29,7 +38,9 @@
     "firebase/": "https://esm.sh/firebase@^12.9.0/",
     "@firebase/auth": "https://esm.sh/@firebase/auth@^1.12.0",
     "@react-google-maps/api": "https://esm.sh/@react-google-maps/api@2.20.3?external=react,react-dom",
-    "point-in-polygon": "https://esm.sh/point-in-polygon@1.1.0"
+    "point-in-polygon": "https://esm.sh/point-in-polygon@1.1.0",
+    "@tanstack/react-query": "https://esm.sh/@tanstack/react-query@5.62.7?external=react",
+    "idb": "https://esm.sh/idb@8.0.2"
   }
 }
 </script>
@@ -57,5 +68,20 @@
 <body class="bg-slate-50 text-slate-900 antialiased selection:bg-blue-100 selection:text-blue-900 overflow-x-hidden">
     <div id="root"></div>
     <script type="module" src="./index.tsx"></script>
+    
+    <!-- PWA Service Worker Registration -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js', { type: 'module' })
+            .then(registration => {
+              console.log('Service Worker registrado:', registration);
+            })
+            .catch(error => {
+              console.log('Error registrando Service Worker:', error);
+            });
+        });
+      }
+    </script>
 </body>
 </html>

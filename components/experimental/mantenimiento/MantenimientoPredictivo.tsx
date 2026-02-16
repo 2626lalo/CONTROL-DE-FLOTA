@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   LucideZap, LucideAlertTriangle, LucideHistory, LucideDollarSign, 
   LucideCalendar, LucideActivity, LucideLayout, LucidePlus,
@@ -13,7 +12,7 @@ import { ProximosVencimientos } from './ProximosVencimientos';
 import { CalendarioMantenimiento } from './CalendarioMantenimiento';
 import { GraficosMantenimiento } from './GraficosMantenimiento';
 import { RegistrarServicioModal } from './RegistrarServicioModal';
-import { collection, onSnapshot, query, orderBy, getDocs } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, limit } from 'firebase/firestore';
 import { db } from '../../../firebaseConfig';
 import { format, subDays, startOfDay, parseISO } from 'date-fns';
 
@@ -25,32 +24,33 @@ export const MantenimientoPredictivo: React.FC = () => {
   const [mantenimientos, setMantenimientos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showRegisterModal, setShowRegisterModal] = useState(false);
-  const [alertas, setAlertas] = useState<any[]>([]);
 
-  // 1. CARGA DE DATOS Y CÁLCULO DE ALERTAS
+  // 1. CARGA DE DATOS OPTIMIZADA CON LIMIT
   useEffect(() => {
-    const q = query(collection(db, 'mantenimientos'), orderBy('fecha', 'desc'));
+    console.time('Maintenance_Snapshot');
+    const q = query(
+      collection(db, 'mantenimientos'), 
+      orderBy('fecha', 'desc'),
+      limit(150) // Solo los últimos 150 registros para rendimiento
+    );
     const unsub = onSnapshot(q, (snap) => {
       const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       setMantenimientos(docs);
-      
-      // Calcular alertas automáticas
-      const newAlerts = calculateAlerts(vehicles, docs);
-      setAlertas(newAlerts);
       setLoading(false);
+      console.timeEnd('Maintenance_Snapshot');
     }, (error) => {
       console.error("Error loading maintenance data:", error);
       setLoading(false);
     });
     return () => unsub();
-  }, [vehicles]);
+  }, []);
 
-  const calculateAlerts = (vehiclesList: any[], maintList: any[]) => {
+  // 2. CÁLCULO DE ALERTAS MEMOIZADO
+  const calculateAlerts = useCallback((vehiclesList: any[]) => {
     const alerts: any[] = [];
-    const hoy = new Date();
+    const hoy = startOfDay(new Date());
     
     vehiclesList.forEach(vehicle => {
-      // Alertas por service (KM)
       const kmRestante = (vehicle.nextServiceKm || 0) - (vehicle.currentKm || 0);
       if (kmRestante <= 0) {
         alerts.push({
@@ -72,11 +72,11 @@ export const MantenimientoPredictivo: React.FC = () => {
         });
       }
       
-      // Alertas por VTV / Documentación
       const vtvDoc = vehicle.documents?.find((d: any) => d.type.toUpperCase().includes('VTV'));
       if (vtvDoc?.expirationDate) {
         const vtvDate = parseISO(vtvDoc.expirationDate);
-        const daysUntil = differenceInDays(vtvDate, startOfDay(hoy));
+        const diffTime = vtvDate.getTime() - hoy.getTime();
+        const daysUntil = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
         
         if (daysUntil < 0) {
           alerts.push({
@@ -101,11 +101,9 @@ export const MantenimientoPredictivo: React.FC = () => {
     });
     
     return alerts.sort((a, b) => (a.urgencia === 'alta' ? -1 : 1));
-  };
+  }, []);
 
-  const differenceInDays = (d1: Date, d2: Date) => {
-    return Math.ceil((d1.getTime() - d2.getTime()) / (1000 * 60 * 60 * 24));
-  };
+  const alertas = useMemo(() => calculateAlerts(vehicles), [vehicles, calculateAlerts]);
 
   return (
     <div className="min-h-screen bg-[#fcfdfe] space-y-10 animate-fadeIn p-4 md:p-8 pb-32">
